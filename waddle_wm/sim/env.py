@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 import mujoco
 import numpy as np
 
+from waddle_wm.actions import PHASE_ID
 from waddle_wm.sim import relling_scene as scene
 
 SKILLS = ("pick_place",)
@@ -14,6 +15,31 @@ APPROACH_DOWN = np.array([0.0, 0.0, -1.0])
 HOVER_Z, GRASP_Z, TRANSIT_Z = 0.24, 0.015, 0.30
 GRIPPER_OPEN, GRIPPER_CLOSED = 0.0, 255.0
 TARGET_RADIUS = 0.105
+LIFT_THRESHOLD = 0.09
+FRAMES_TOTAL, PRELUDE_FRAMES, WINDOW_FRAMES = 48, 8, 8
+TRACK_KEYS = ("phase", "waypoint", "gripper", "pinch_pos", "block_pos", "max_block_z", "target_distance")
+
+
+def pick_place_trace(block_xy, target_xy, grasp_offset_xy=(0.0, 0.0)) -> list[dict]:
+    """The waypoint program for `pick_place`, independent of any simulator state.
+
+    The same list is executed by `TabletopEnv.run_skill` and compiled into actions
+    by `waddle_wm.actions.compile_plan`, so a candidate plan can be scored without
+    touching MuJoCo.
+    """
+    grasp = np.asarray(block_xy, dtype=float)[:2] + np.asarray(grasp_offset_xy, dtype=float)
+    target = np.asarray(target_xy, dtype=float)[:2]
+    return [{"phase": "approach", "target": [*grasp, HOVER_Z]},
+            {"phase": "descend", "target": [*grasp, GRASP_Z]},
+            {"phase": "close", "value": GRIPPER_CLOSED},
+            {"phase": "lift", "target": [*grasp, HOVER_Z]},
+            {"phase": "move", "target": [*target, TRANSIT_Z]},
+            {"phase": "place", "target": [*target, GRASP_Z]},
+            {"phase": "open", "value": GRIPPER_OPEN},
+            {"phase": "retreat", "target": [*target, HOVER_Z]}]
+
+
+OPEN_PHASES = ("approach", "descend", "retreat")
 
 
 @dataclass
@@ -27,6 +53,7 @@ class Episode:
     failure_mode: str | None
     frames: np.ndarray
     frame_times: list[float] = field(default_factory=list)
+    tracks: dict = field(default_factory=dict)
 
 
 class TabletopEnv:
@@ -54,8 +81,14 @@ class TabletopEnv:
             self.model.site_pos[self.model.site("target").id, :2] = target_xy
         mujoco.mj_forward(self.model, self.data)
         self._frames, self._frame_times = [], []
+        self._tracks = {key: [] for key in TRACK_KEYS}
+        self._phase, self._waypoint = PHASE_ID["idle"], self.data.site("2f85/pinch").xpos.copy()
         self._max_lift = float(self.data.joint("red_block_free").qpos[2])
         return self.state()
+
+    def home_waypoint(self):
+        """Commanded pinch position while the arm is idle at its home pose."""
+        return self.data.site("2f85/pinch").xpos.tolist()
 
     def state(self):
         block = self.data.joint("red_block_free").qpos
@@ -77,6 +110,12 @@ class TabletopEnv:
         self.renderer.update_scene(self.data, camera=self.camera)
         self._frames.append(self.renderer.render().copy())
         self._frame_times.append(float(self.data.time))
+        state = self.state()
+        self._tracks["phase"].append(self._phase)
+        self._tracks["waypoint"].append(list(self._waypoint))
+        self._tracks["gripper"].append(float(self.data.actuator(scene.GRIPPER_ACTUATOR).ctrl[0]) / GRIPPER_CLOSED)
+        for key in ("pinch_pos", "block_pos", "max_block_z", "target_distance"):
+            self._tracks[key].append(state["gripper_pos"] if key == "pinch_pos" else state[key])
 
     def _step(self, gripper, frames=True):
         self.data.actuator(scene.GRIPPER_ACTUATOR).ctrl[0] = gripper
@@ -121,25 +160,52 @@ class TabletopEnv:
         for _ in range(int(seconds / self.model.opt.timestep)):
             self._step(gripper)
 
-    def run_skill(self, skill, params=None):
+    def _begin(self, name, point=None):
+        self._phase = PHASE_ID[name]
+        if point is not None:
+            self._waypoint = np.asarray(point, dtype=float)
+        return len(self._frames)
+
+    def _end(self, name, start, trace, point=None, value=None):
+        entry = {"phase": name, "frames": [start, len(self._frames) - 1]}
+        if point is not None:
+            entry["target"] = np.asarray(point, dtype=float).tolist()
+        if value is not None:
+            entry["value"] = value
+        trace.append(entry)
+
+    def _idle(self, until, gripper=GRIPPER_OPEN):
+        self._phase = PHASE_ID["idle"]
+        while len(self._frames) < until:
+            self._step(gripper)
+
+    def run_skill(self, skill, params=None, frames_total=FRAMES_TOTAL, prelude_frames=PRELUDE_FRAMES):
+        """Render `prelude_frames` of the untouched scene, execute the skill, pad to `frames_total`."""
         if skill not in SKILLS:
             raise ValueError(f"unknown skill {skill!r}; expected {SKILLS}")
-        params, before = dict(params or {}), self.state()
-        block_xy = np.array(before["block_pos"][:2])
-        target_xy = np.array(params.get("target_xy", before["target_pos"]), dtype=float)
+        params = dict(params or {})
+        self._idle(prelude_frames)
+        before = self.state()
+        plan = pick_place_trace(before["block_pos"], params.get("target_xy", before["target_pos"]),
+                                params.get("grasp_offset_xy", (0.0, 0.0)))
         q = np.array([self.data.joint(j).qpos[0] for j in scene.ARM_JOINTS])
         trace = []
-        for phase, point, grip in (
-            ("approach", np.r_[block_xy, HOVER_Z], GRIPPER_OPEN),
-            ("descend", np.r_[block_xy, GRASP_Z], GRIPPER_OPEN),
-        ):
-            q = self._ik(point, q); self._move(q, grip); trace.append({"phase": phase, "target": point.tolist()})
-        self._settle(GRIPPER_CLOSED); trace.append({"phase": "close", "value": GRIPPER_CLOSED})
-        for phase, point in (("lift", np.r_[block_xy, HOVER_Z]), ("move", np.r_[target_xy, TRANSIT_Z]), ("place", np.r_[target_xy, GRASP_Z])):
-            q = self._ik(point, q); self._move(q, GRIPPER_CLOSED); trace.append({"phase": phase, "target": point.tolist()})
-        self._settle(GRIPPER_OPEN, 0.35); trace.append({"phase": "open", "value": GRIPPER_OPEN})
-        q = self._ik(np.r_[target_xy, HOVER_Z], q); self._move(q, GRIPPER_OPEN); trace.append({"phase": "retreat", "target": np.r_[target_xy, HOVER_Z].tolist()})
+        for entry in plan:
+            phase, point = entry["phase"], entry.get("target")
+            start = self._begin(phase, point)
+            if phase == "close":
+                self._settle(GRIPPER_CLOSED)
+            elif phase == "open":
+                self._settle(GRIPPER_OPEN, 0.35)
+            else:
+                q = self._ik(point, q)
+                self._move(q, GRIPPER_OPEN if phase in OPEN_PHASES else GRIPPER_CLOSED)
+            self._end(phase, start, trace, point=point, value=entry.get("value"))
+        if len(self._frames) > frames_total:
+            raise RuntimeError(f"execution needed {len(self._frames)} frames, over the {frames_total}-frame grid")
+        self._idle(frames_total)
         after = self.state()
-        success = self._max_lift > 0.09 and after["target_distance"] <= TARGET_RADIUS
-        failure = None if success else ("missed" if self._max_lift <= 0.09 else "target_miss")
-        return Episode(skill, params, trace, before, after, success, failure, np.stack(self._frames), list(self._frame_times))
+        success = self._max_lift > LIFT_THRESHOLD and after["target_distance"] <= TARGET_RADIUS
+        failure = None if success else ("missed" if self._max_lift <= LIFT_THRESHOLD else "target_miss")
+        return Episode(skill, params, trace, before, after, success, failure, np.stack(self._frames),
+                       list(self._frame_times), {key: list(value) for key, value in self._tracks.items()})
