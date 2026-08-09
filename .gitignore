@@ -3,3 +3,4 @@ waddle_skill_level_world_models.md
 .hf-cache/
 models/
 __pycache__/
+data/

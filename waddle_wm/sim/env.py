@@ -21,10 +21,10 @@ SKILLS = ("top_grasp", "side_grasp", "align")
 # jaw width = distance between the two finger-body origins; the inner faces sit
 # 0.010 inside that, so the block (0.042 across) needs > 0.062 to clear.
 OPEN_WIDTH = 0.070
-CLOSED_WIDTH = 0.048
+CLOSED_WIDTH = 0.030
 PUSH_WIDTH = 0.030
 GRASP_Z = 0.038
-LIFT_Z = 0.24
+LIFT_Z = 0.20
 TRAVEL_Z = 0.22
 SIDE_Z = 0.038
 YAW_TOP = 0.0
@@ -196,7 +196,7 @@ class TabletopEnv:
         self._step_segment([x, y, TRAVEL_Z, YAW_TOP, OPEN_WIDTH / 2], 0.5)
         self._step_segment([x, y, GRASP_Z, YAW_TOP, OPEN_WIDTH / 2], 0.7)
         self._step_segment([x, y, GRASP_Z, YAW_TOP, grip / 2], 0.9)
-        self._step_segment([x, y, LIFT_Z, YAW_TOP, grip / 2], 0.9)
+        self._step_segment([x, y, LIFT_Z, YAW_TOP, grip / 2], 1.2)
         return [("approach", TRAVEL_Z), ("descend", GRASP_Z), ("close", grip), ("lift", LIFT_Z)]
 
     def _side_grasp(self, p: dict) -> list[tuple[str, float]]:
@@ -213,7 +213,7 @@ class TabletopEnv:
         self._step_segment([bx, entry_y, SIDE_Z, YAW_SIDE, OPEN_WIDTH / 2], 0.6)
         self._step_segment([bx, by, SIDE_Z, YAW_SIDE, OPEN_WIDTH / 2], 0.9)
         self._step_segment([bx, by, SIDE_Z, YAW_SIDE, grip / 2], 0.9)
-        self._step_segment([bx, by, LIFT_Z, YAW_SIDE, grip / 2], 0.9)
+        self._step_segment([bx, by, LIFT_Z, YAW_SIDE, grip / 2], 1.2)
         return [
             ("approach", float(entry_y)),
             ("descend", SIDE_Z),
