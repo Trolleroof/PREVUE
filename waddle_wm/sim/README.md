@@ -90,3 +90,96 @@ non-degenerate majority-class baseline to beat.
 
 Useful flags: `--episodes`, `--seed`, `--camera {frontal,oblique}`, `--size`,
 `--fps`, `--out`.
+
+---
+
+# YAM arm execution environment
+
+A second execution environment that runs the same three skills on a real robot
+model: the [I2RT YAM](https://i2rt.com/products/yam-manipulator) 6-DoF
+manipulator from [MuJoCo Menagerie](https://github.com/google-deepmind/mujoco_menagerie)
+(`i2rt_yam`, MIT). The pseudo-gripper's three slide joints are replaced by an
+actual arm, so skills become Cartesian waypoints solved by inverse kinematics
+and tracked by the arm's position actuators.
+
+```bash
+uv run python -m waddle_wm.sim.test_yam_env
+```
+
+- `assets/yam/` — the vendored model, byte-identical to upstream
+- `assets/tabletop_yam.xml` — the scene; it `<attach>`es the arm rather than
+  including it, which is why the vendored file needs no edits
+- `sim/yam_env.py` — `YamTabletopEnv`, same API and `Episode` type as `TabletopEnv`
+
+Skill parameters, outcome labels, and the coordinate frame are unchanged: poses
+are workspace-local, with the block at the origin, so records from the two
+environments line up. The workspace sits at world `(0.50, 0, 0)`; the arm is
+bolted to the table at the origin.
+
+## Inverse kinematics
+
+Position is the primary task and orientation is solved in its nullspace. That
+split is not a nicety: sampling 200k random configurations found that poses
+holding an *exactly* vertical approach near the table are a very thin sliver of
+this arm's configuration space (8 in 120k in the forward region), while the
+positions themselves are always reachable. Demanding both exactly makes a
+solver trade away reach; solving position first and letting the wrist tilt a few
+degrees hits every skill waypoint to under a millimetre.
+
+Three things were needed to make it reliable, each fixing a measured failure:
+
+| problem | fix |
+| ------- | --- |
+| random restarts almost never land in the down-pointing basin | seed from a library of 40k sampled forward-kinematics poses, nearest first |
+| a joint pinned on its limit absorbs the step and the descent stalls | drop pinned joints from the Jacobian |
+| consecutive waypoints pick elbow-flipped solutions, sweeping the arm through the scene | among solutions that reach the target, prefer the one nearest the current configuration |
+
+Waypoints are interpolated along a straight Cartesian line and each segment ends
+with a short settle, because the position servos lag by about a centimetre while
+a segment is still ramping.
+
+## What the real gripper changes
+
+Measured off the model, and the reason each scene value differs from the
+pseudo-gripper scene:
+
+| measurement | value | consequence |
+| ----------- | ----- | ----------- |
+| TCP (centre of the gripping plates) | `site + (0.0305, 0, -0.0247)` in the site frame | the `grasp_site` itself is neither between nor level with the plates |
+| plate reach below the TCP, top-down | 19.5 mm | a top grasp holds the block's top ~16 mm, so `GRASP_Z` is 45 mm |
+| wrist reach below the TCP | 18.4 mm | the fingers protrude only ~1 mm past the wrist housing |
+| gripper half-width, closed | 55 mm | wider than the old wall clearance |
+| jaw gap vs command | gap ≈ command + 0.8 mm | 0.030 only kisses a 42 mm block and it squirts out on the lift; the default grip is 0.024 |
+
+Two scene values therefore differ from `tabletop.xml`, both forced by the real
+hardware and both marked in the XML:
+
+- the bin wall moved out (inner face `y = 0.107`, was `0.077`) — at the old
+  position YAM's knuckles clipped it during an ordinary top grasp
+- the tabletop friction dropped to 0.4 (was 1.5) — a 42 mm cube tips rather than
+  slides once `mu` exceeds about half-width over contact height
+
+## Status
+
+| skill | result |
+| ----- | ------ |
+| `top_grasp` | works, 5/5 on randomised scenes |
+| `side_grasp` (`side=-1`) | works, 5/5; approaches horizontally, which is what the motion looks like on a real arm rather than a top-down wrist roll |
+| `side_grasp` (`side=+1`) | fails as intended with `collision_with_bin_wall` |
+| `align` | **does not work on this arm** |
+
+`align` is a genuine hardware limitation, not a tuning gap. Pushing the block
+needs contact below its centre of mass, and this gripper cannot deliver it:
+
+- top-down, the plate bottom (TCP − 19.5 mm) and the wrist bottom (TCP − 18.4 mm)
+  are within a millimetre of each other, so any height where the plates touch a
+  42 mm block also buries the wrist in it, and any height that clears the wrist
+  clears the block entirely
+- horizontally, with the fingers level at the block's mid-height, the forearm
+  goes through the table and the arm cannot hold the pose
+- angled 45° down, the entry pose is reachable on paper but the arm does not
+  track it cleanly
+
+A wrist yaw is also limited: YAM can only roll about ±70° around a vertical
+approach before joint 5 and joint 6 saturate, so the original 90°-yawed top-down
+side grasp is impossible and is done as a horizontal approach instead.

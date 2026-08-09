@@ -1,0 +1,55 @@
+<mujoco model="waddle_tabletop_yam">
+  <compiler angle="radian" autolimits="true"/>
+  <option timestep="0.002" integrator="implicitfast"/>
+
+  <visual>
+    <global offwidth="1280" offheight="960"/>
+    <headlight ambient="0.4 0.4 0.4" diffuse="0.6 0.6 0.6"/>
+  </visual>
+
+  <asset>
+    <!-- attached rather than included so the vendored model stays untouched -->
+    <model name="yam" file="yam/yam.xml"/>
+  </asset>
+
+  <worldbody>
+    <!-- the arm is bolted to the table surface at the origin -->
+    <body name="arm_mount" pos="0 0 0">
+      <attach model="yam" body="arm" prefix=""/>
+    </body>
+
+    <light pos="0.62 -0.2 0.9" dir="-0.2 0.2 -0.9" diffuse="0.8 0.8 0.8"/>
+    <light pos="0.22 0.3 0.9" dir="0.2 -0.3 -0.9" diffuse="0.4 0.4 0.4"/>
+
+    <!-- The workspace is centred at (0.50, 0); skill coordinates are world
+         coordinates minus that origin, so the layout matches the pseudo-gripper env. -->
+    <camera name="frontal" pos="0.46 -0.85 0.46" xyaxes="1 0 0 0 0.48 0.88"/>
+    <camera name="oblique" pos="1.02 -0.72 0.62" xyaxes="0.65 0.76 0 -0.42 0.36 0.83"/>
+    <camera name="wide" pos="0.34 -1.25 0.85" xyaxes="1 0 0 0 0.58 0.81"/>
+
+    <!-- Tabletop friction is 0.4, not the pseudo-gripper scene's 1.5. YAM pushes
+         with a flat plate that necessarily contacts the block above its
+         mid-height, and a 42 mm cube tips rather than slides once mu exceeds
+         about (half width / contact height) = 0.5. Grip friction is unaffected:
+         that contact pair is block-vs-finger. -->
+    <geom name="table" type="plane" size="1.0 1.0 0.01" rgba="0.82 0.79 0.72 1"
+          friction="0.4 0.02 0.001" solref="0.006 1"/>
+
+    <!-- Bin wall: to the +y side of the block, it blocks a +y side_grasp. It sits
+         further out than in the pseudo-gripper scene (inner face y = 0.107 rather
+         than 0.077) because YAM's knuckles are ~55 mm wide even closed, so the
+         old position clipped the arm during an ordinary top grasp. -->
+    <geom name="bin_wall" type="box" pos="0.50 0.115 0.05" size="0.09 0.008 0.05"
+          rgba="0.35 0.40 0.50 1" friction="1.5 0.02 0.001" solref="0.006 1"/>
+
+    <!-- target region for align -->
+    <site name="target" pos="0.28 0 0.001" type="cylinder" size="0.045 0.001"
+          rgba="0.15 0.65 0.35 0.45"/>
+
+    <body name="block" pos="0.50 0 0.021">
+      <freejoint name="block_free"/>
+      <geom name="block" type="box" size="0.021 0.021 0.021" rgba="0.85 0.18 0.18 1"
+            mass="0.06" friction="1.5 0.02 0.001" solref="0.006 1"/>
+    </body>
+  </worldbody>
+</mujoco>
