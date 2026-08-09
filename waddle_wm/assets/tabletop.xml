@@ -66,9 +66,9 @@ limitations under the License.
     <geom name="grid_x" type="box" pos="0 0 0.002" size="0.006 0.9 0.002" material="floor_grid" contype="0" conaffinity="0" />
     <geom name="grid_y" type="box" pos="0 0 0.003" size="0.9 0.006 0.002" material="floor_grid" contype="0" conaffinity="0" />
     <geom name="target_zone" type="cylinder" pos="0.00 -0.48 0.003" size="0.16 0.003" material="green_zone" contype="0" conaffinity="0" />
-    <body name="red_block" pos="-0.24 -0.24 0.035"><freejoint /><site name="red_grip_site" pos="0 0 0.055" /><geom name="red_block_geom" type="box" size="0.035 0.035 0.035" material="red_block" mass="0.08" /></body>
-    <body name="blue_block" pos="0.00 -0.24 0.035"><freejoint /><site name="blue_grip_site" pos="0 0 0.055" /><geom name="blue_block_geom" type="box" size="0.035 0.035 0.035" material="blue_block" mass="0.08" /></body>
-    <body name="yellow_block" pos="0.24 -0.24 0.035"><freejoint /><site name="yellow_grip_site" pos="0 0 0.055" /><geom name="yellow_block_geom" type="box" size="0.035 0.035 0.035" material="yellow_block" mass="0.08" /></body>
+    <body name="red_block" pos="-0.24 -0.24 0.025"><freejoint /><geom name="red_block_geom" type="box" size="0.025 0.025 0.025" material="red_block" mass="0.04" /></body>
+    <body name="blue_block" pos="0.00 -0.24 0.025"><freejoint /><geom name="blue_block_geom" type="box" size="0.025 0.025 0.025" material="blue_block" mass="0.04" /></body>
+    <body name="yellow_block" pos="0.24 -0.24 0.025"><freejoint /><geom name="yellow_block_geom" type="box" size="0.025 0.025 0.025" material="yellow_block" mass="0.04" /></body>
     <camera name="demo" pos="1.15 -1.65 0.82" xyaxes="0.820 0.572 0 -0.240 0.344 0.908" />
     <geom name="link1_visual" pos="0.0 0.0 -0.0007" material="gray" type="mesh" mesh="link1.stl" class="visual" />
     <body name="link2" pos="0.0 0.0 0.05325">

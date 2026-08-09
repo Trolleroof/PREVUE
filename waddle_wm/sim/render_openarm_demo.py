@@ -10,10 +10,12 @@ from scipy.optimize import least_squares
 ASSET = Path(__file__).parents[1] / "assets" / "tabletop.xml"
 OUT = Path("data/openarm_pick_place.mp4")
 JOINTS = ["rev1", "rev2", "rev3", "rev4", "rev5", "rev6", "rev7"]
-BLOCKS = [("red_block", np.array([-0.24, -0.24, 0.035])),
-          ("blue_block", np.array([0.00, -0.24, 0.035])),
-          ("yellow_block", np.array([0.24, -0.24, 0.035]))]
-TARGET = np.array([0.00, -0.48, 0.09])
+BLOCK_HALF = 0.025
+GRIP_OFFSET = 0.045
+BLOCKS = [("red_block", np.array([-0.24, -0.24, BLOCK_HALF])),
+          ("blue_block", np.array([0.00, -0.24, BLOCK_HALF])),
+          ("yellow_block", np.array([0.24, -0.24, BLOCK_HALF]))]
+TARGET = np.array([0.00, -0.48, BLOCK_HALF + GRIP_OFFSET])
 PLACE_OFFSETS = (np.array([-0.10, 0, 0]), np.array([0, 0, 0]), np.array([0.10, 0, 0]))
 assert len({float(origin[1]) for _, origin in BLOCKS}) == 1
 assert np.linalg.norm(BLOCKS[0][1][:2] - TARGET[:2]) > 0.25
@@ -55,7 +57,7 @@ def frame(model, data, renderer, q, block, carried=False):
         mujoco.mj_forward(model, data)
         bid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, block)
         qposadr = model.jnt_qposadr[model.body_jntadr[bid]]
-        data.qpos[qposadr:qposadr + 3] = eef(model, data) - np.array([0, 0, 0.055])
+        data.qpos[qposadr:qposadr + 3] = eef(model, data) - np.array([0, 0, GRIP_OFFSET])
         data.qpos[qposadr + 3:qposadr + 7] = [1, 0, 0, 0]
     mujoco.mj_forward(model, data)
     renderer.update_scene(data, camera="demo")
@@ -95,14 +97,17 @@ def main():
     )
     placed_positions = []
     for (block, origin), offset in zip(BLOCKS, PLACE_OFFSETS):
-        approach = solve(model, data, origin + [0, 0, 0.11], start)
-        grasp = solve(model, data, origin + [0, 0, 0.055], approach)
-        place = solve(model, data, TARGET + offset, grasp)
+        approach = solve(model, data, origin + [0, 0, 0.20], start)
+        grasp = solve(model, data, origin + [0, 0, GRIP_OFFSET], approach)
+        lift = solve(model, data, origin + [0, 0, 0.22], grasp)
+        place_high = solve(model, data, TARGET + offset + [0, 0, 0.16], lift)
+        place = solve(model, data, TARGET + offset, place_high)
         for a, b, held in ((start, approach, False), (approach, grasp, False),
-                           (grasp, grasp, True), (grasp, place, True),
+                           (grasp, grasp, True), (grasp, lift, True),
+                           (lift, place_high, True), (place_high, place, True),
                            (place, place, False)):
             if not held and np.array_equal(a, place):
-                set_block_position(model, data, block, np.r_[TARGET[:2] + offset[:2], 0.035])
+                set_block_position(model, data, block, np.r_[TARGET[:2] + offset[:2], BLOCK_HALF])
             for t in np.linspace(0, 1, 18 if a is not b else 8):
                 ffmpeg.stdin.write(frame(model, data, renderer, a * (1 - t) + b * t, block, held).tobytes())
         placed = block_position(model, data, block)
