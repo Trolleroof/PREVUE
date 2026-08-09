@@ -89,12 +89,8 @@ def block_z(model, data, name):
     return float(data.joint(f"{name}_free").qpos[2])
 
 
-def main():
-    model = scene.make_model()
-    data = mujoco.MjData(model)
-    scene.reset(model, data)
-    renderer = mujoco.Renderer(model, 480, 640)
-    frames = []
+def run_pick_place(model, data, renderer, frames):
+    """Pick-and-place every block; returns (max_lift, placed_positions)."""
     start = arm_qpos(model, data)
     max_lift = 0.0
     placed = []
@@ -128,6 +124,18 @@ def main():
         move(model, data, retreat, GRIPPER_OPEN, renderer, None, frames)
         placed.append(data.joint(f"{name}_free").qpos[:3].copy())
         start = retreat
+
+    return max_lift, placed
+
+
+def main():
+    model = scene.make_model()
+    data = mujoco.MjData(model)
+    scene.reset(model, data)
+    renderer = mujoco.Renderer(model, 480, 640)
+    frames = []
+
+    max_lift, placed = run_pick_place(model, data, renderer, frames)
 
     assert max_lift > 0.09, f"physics never lifted a block: max z={max_lift:.3f}"
     assert all(np.linalg.norm(a[:2] - b[:2]) > 0.035
