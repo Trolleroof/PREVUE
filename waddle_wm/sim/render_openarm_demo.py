@@ -15,7 +15,6 @@ BLOCKS = [("red_block", np.array([-0.24, -0.24, 0.035])),
           ("yellow_block", np.array([0.24, -0.24, 0.035]))]
 TARGET = np.array([0.00, -0.48, 0.09])
 PLACE_OFFSETS = (np.array([-0.10, 0, 0]), np.array([0, 0, 0]), np.array([0.10, 0, 0]))
-GRASPS = {name: f"{name.removesuffix('_block')}_grasp" for name, _ in BLOCKS}
 assert len({float(origin[1]) for _, origin in BLOCKS}) == 1
 assert np.linalg.norm(BLOCKS[0][1][:2] - TARGET[:2]) > 0.25
 assert all(np.linalg.norm(a[1][:2] - b[1][:2]) > 0.07 for i, a in enumerate(BLOCKS) for b in BLOCKS[i + 1:])
@@ -48,22 +47,17 @@ def frame(model, data, renderer, q, block, carried=False):
     data.qpos[model.jnt_qposadr[joints]] = q
     mujoco.mj_forward(model, data)
     if carried:
-        data.qvel[:] = 0
-        for _ in range(8):
+        for _ in range(4):
+            data.qvel[:] = 0
             mujoco.mj_step(model, data)
         data.qpos[model.jnt_qposadr[joints]] = q
         data.qvel[:] = 0
         mujoco.mj_forward(model, data)
-        site = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, "grip_site")
         bid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, block)
         qposadr = model.jnt_qposadr[model.body_jntadr[bid]]
-        data.qpos[qposadr:qposadr + 3] = data.site_xpos[site] - np.array([0, 0, 0.055])
+        data.qpos[qposadr:qposadr + 3] = eef(model, data) - np.array([0, 0, 0.055])
         data.qpos[qposadr + 3:qposadr + 7] = [1, 0, 0, 0]
     mujoco.mj_forward(model, data)
-    if carried:
-        grip = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, "grip_site")
-        held = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, f"{block.removesuffix('_block')}_grip_site")
-        assert np.linalg.norm(data.site_xpos[grip] - data.site_xpos[held]) < 0.005
     renderer.update_scene(data, camera="demo")
     return renderer.render().copy()
 
@@ -79,13 +73,6 @@ def set_block_position(model, data, block, position):
     data.qpos[qposadr:qposadr + 3] = position
     data.qpos[qposadr + 3:qposadr + 7] = [1, 0, 0, 0]
     data.qvel[qposadr:qposadr + 3] = 0
-    mujoco.mj_forward(model, data)
-
-
-def set_grasp(model, data, block, active):
-    eq = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_EQUALITY, GRASPS[block])
-    data.eq_active[:] = 0
-    data.eq_active[eq] = active
     mujoco.mj_forward(model, data)
 
 
@@ -114,11 +101,6 @@ def main():
         for a, b, held in ((start, approach, False), (approach, grasp, False),
                            (grasp, grasp, True), (grasp, place, True),
                            (place, place, False)):
-            eq = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_EQUALITY, GRASPS[block])
-            if held and not data.eq_active[eq]:
-                set_grasp(model, data, block, True)
-            if not held and data.eq_active[eq]:
-                set_grasp(model, data, block, False)
             if not held and np.array_equal(a, place):
                 set_block_position(model, data, block, np.r_[TARGET[:2] + offset[:2], 0.035])
             for t in np.linspace(0, 1, 18 if a is not b else 8):
