@@ -1,0 +1,21 @@
+[project]
+name = "skill-level-world-model"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "huggingface-hub>=1.27.0",
+    "imageio>=2.37.4",
+    "matplotlib>=3.11.1",
+    "numpy>=2.4.6",
+    "opencv-python>=5.0.0.93",
+    "pandas>=3.0.5",
+    "pillow>=12.3.0",
+    "pydantic>=2.13.4",
+    "scikit-learn>=1.9.0",
+    "torch>=2.13.0",
+    "torchcodec>=0.15.0",
+    "torchvision>=0.28.0",
+    "transformers>=5.14.1",
+]
