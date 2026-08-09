@@ -27,12 +27,10 @@ uv run python -m waddle_wm.sim.test_env
 
 | element      | detail                                                              |
 | ------------ | ------------------------------------------------------------------- |
-| table        | plane at `z = 0`                                                     |
-| block        | 42 mm red cube, free joint, 60 g                                     |
-| bin wall     | static box at `y = +0.085`, 100 mm tall — the obstacle               |
-| target       | 45 mm radius region at `(-0.22, 0)` for `align`                      |
-| gripper      | 3 slide joints (x, y, z), a wrist yaw hinge, and two mirrored jaws   |
-| cameras      | `frontal` and `oblique`                                              |
+| robot        | OpenArm v0.3, 7-DOF arm with a parallel gripper                     |
+| blocks       | Red, blue, and yellow 70 mm cubes                                   |
+| target       | Green circular landing zone                                          |
+| camera       | `demo`                                                               |
 
 The gripper is gravity-compensated so commanded positions are the positions it
 actually reaches. Jaw width is the distance between the finger origins; the
@@ -67,7 +65,13 @@ uv run python -m waddle_wm.sim.generate_dataset --episodes 200
 ```
 
 Writes `data/mujoco_tabletop/` (gitignored; the generator is seeded, so it is
-reproducible from the command above):
+reproducible from the command above). Render the requested demo with:
+
+```bash
+uv run python -m waddle_wm.sim.render_openarm_demo
+```
+
+This writes `data/openarm_pick_place.mp4`.
 
 - `clips/NNNN_<skill>.mp4` — 256×256 at 10 fps, roughly 3–5 s per episode
 - `records.jsonl` — one record per episode
