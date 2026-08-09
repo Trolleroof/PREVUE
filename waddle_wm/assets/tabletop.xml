@@ -1,0 +1,72 @@
+<mujoco model="waddle_tabletop">
+  <compiler angle="radian" autolimits="true"/>
+  <option timestep="0.002" integrator="implicitfast"/>
+
+  <visual>
+    <global offwidth="640" offheight="480"/>
+    <headlight ambient="0.4 0.4 0.4" diffuse="0.6 0.6 0.6"/>
+  </visual>
+
+  <default>
+    <geom solref="0.006 1" friction="1.5 0.02 0.001"/>
+    <default class="finger">
+      <geom type="box" size="0.006 0.010 0.030" rgba="0.25 0.28 0.32 1"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <light pos="0.2 -0.2 0.8" dir="-0.2 0.2 -0.8" diffuse="0.8 0.8 0.8"/>
+    <light pos="-0.2 0.3 0.8" dir="0.2 -0.3 -0.8" diffuse="0.4 0.4 0.4"/>
+
+    <camera name="frontal" pos="0.02 -0.62 0.36" xyaxes="1 0 0 0 0.5 0.87"/>
+    <camera name="oblique" pos="0.40 -0.46 0.42" xyaxes="0.75 0.66 0 -0.30 0.34 0.89"/>
+
+    <geom name="table" type="plane" size="0.6 0.6 0.01" rgba="0.82 0.79 0.72 1"/>
+
+    <!-- bin wall: sits just to the +y side of the block, blocks a +y side_grasp -->
+    <geom name="bin_wall" type="box" pos="0 0.085 0.05" size="0.09 0.008 0.05"
+          rgba="0.35 0.40 0.50 1"/>
+
+    <!-- target region for align -->
+    <site name="target" pos="-0.22 0 0.001" type="cylinder" size="0.045 0.001"
+          rgba="0.15 0.65 0.35 0.45"/>
+
+    <body name="block" pos="0 0 0.021">
+      <freejoint name="block_free"/>
+      <geom name="block" type="box" size="0.021 0.021 0.021" rgba="0.85 0.18 0.18 1"
+            mass="0.06"/>
+    </body>
+
+    <!-- body sits at the origin so the gz slide coordinate is a world height -->
+    <body name="gripper" pos="0 0 0" gravcomp="1">
+      <joint name="gx" type="slide" axis="1 0 0" range="-0.45 0.45" damping="18"/>
+      <joint name="gy" type="slide" axis="0 1 0" range="-0.45 0.45" damping="18"/>
+      <joint name="gz" type="slide" axis="0 0 1" range="0.028 0.45" damping="18"/>
+      <!-- wrist yaw: 0 closes the jaws along y (top grasp), pi/2 along x (side grasp) -->
+      <joint name="gyaw" type="hinge" axis="0 0 1" range="-1.8 1.8" damping="1.2"/>
+      <geom name="palm" type="box" size="0.035 0.014 0.010" pos="0 0 0.042"
+            rgba="0.20 0.22 0.26 1" mass="0.3"/>
+      <body name="finger_left" pos="0 0 0" gravcomp="1">
+        <joint name="fl" type="slide" axis="0 1 0" range="-0.045 -0.011" damping="6"/>
+        <geom name="finger_left" class="finger" mass="0.03"/>
+      </body>
+      <body name="finger_right" pos="0 0 0" gravcomp="1">
+        <joint name="fr" type="slide" axis="0 1 0" range="0.011 0.045" damping="6"/>
+        <geom name="finger_right" class="finger" mass="0.03"/>
+      </body>
+    </body>
+  </worldbody>
+
+  <equality>
+    <!-- fingers mirror each other so a single "width" command drives both -->
+    <joint name="finger_mirror" joint1="fl" joint2="fr" polycoef="0 -1 0 0 0"/>
+  </equality>
+
+  <actuator>
+    <position name="a_gx" joint="gx" kp="220" kv="26" ctrlrange="-0.45 0.45"/>
+    <position name="a_gy" joint="gy" kp="220" kv="26" ctrlrange="-0.45 0.45"/>
+    <position name="a_gz" joint="gz" kp="320" kv="34" ctrlrange="0.028 0.45"/>
+    <position name="a_yaw" joint="gyaw" kp="12" kv="1.4" ctrlrange="-1.8 1.8"/>
+    <position name="a_grip" joint="fr" kp="70" kv="8" ctrlrange="0.011 0.045"/>
+  </actuator>
+</mujoco>
