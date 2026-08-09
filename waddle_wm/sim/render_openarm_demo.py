@@ -10,10 +10,10 @@ from scipy.optimize import least_squares
 ASSET = Path(__file__).parents[1] / "assets" / "tabletop.xml"
 OUT = Path("data/openarm_pick_place.mp4")
 JOINTS = ["rev1", "rev2", "rev3", "rev4", "rev5", "rev6", "rev7"]
-BLOCKS = [("red_block", np.array([-0.24, 0.20, 0.035])),
-          ("blue_block", np.array([0.00, 0.20, 0.035])),
-          ("yellow_block", np.array([0.24, 0.20, 0.035]))]
-TARGET = np.array([0.00, -0.24, 0.09])
+BLOCKS = [("red_block", np.array([-0.24, -0.24, 0.035])),
+          ("blue_block", np.array([0.00, -0.24, 0.035])),
+          ("yellow_block", np.array([0.24, -0.24, 0.035]))]
+TARGET = np.array([0.00, -0.48, 0.09])
 assert len({float(origin[1]) for _, origin in BLOCKS}) == 1
 assert np.linalg.norm(BLOCKS[0][1][:2] - TARGET[:2]) > 0.25
 

@@ -32,12 +32,16 @@ limitations under the License.
 
   <compiler angle="radian" meshdir="./meshes"/>
   <option timestep="0.0002" integrator="RK4" />
-  <visual><global offwidth="720" offheight="540" /></visual>
+  <visual>
+    <global offwidth="720" offheight="540" />
+    <headlight ambient="0.35 0.38 0.45" diffuse="0.65 0.68 0.75" specular="0.25 0.25 0.25" />
+  </visual>
 
   <asset>
     <material name="gray" rgba="0.4117647058823529 0.4117647058823529 0.4117647058823529 1.0" />
     <material name="default_material" rgba="0.7 0.7 0.7 1" />
-    <material name="table_material" rgba="0.18 0.20 0.23 1" />
+    <material name="table_material" rgba="0.08 0.16 0.25 1" />
+    <material name="floor_grid" rgba="0.28 0.38 0.50 1" />
     <material name="red_block" rgba="0.9 0.06 0.06 1" />
     <material name="blue_block" rgba="0.05 0.25 0.9 1" />
     <material name="yellow_block" rgba="0.95 0.72 0.04 1" />
@@ -55,13 +59,17 @@ limitations under the License.
   </asset>
 
   <worldbody>
-    <light name="key" pos="0.4 -0.6 1.2" dir="-0.2 0.3 -1" diffuse="1 1 1" specular="0.3 0.3 0.3" />
+    <light name="key" pos="0.35 -0.80 1.45" dir="-0.15 0.35 -1" diffuse="1 0.96 0.88" specular="0.35 0.35 0.35" />
+    <light name="fill" pos="-0.75 -0.25 0.85" dir="0.55 0.15 -0.8" diffuse="0.45 0.62 1" specular="0.15 0.15 0.2" />
+    <light name="rim" pos="0.65 0.65 1.25" dir="-0.35 -0.45 -0.8" diffuse="0.55 0.68 1" specular="0.3 0.3 0.4" />
     <geom name="table" type="plane" pos="0 0 0" size="0.7 0.6 0.01" material="table_material" />
-    <geom name="target_zone" type="cylinder" pos="0.00 -0.24 0.003" size="0.075 0.003" material="green_zone" contype="0" conaffinity="0" />
-    <body name="red_block" pos="-0.24 0.20 0.035"><freejoint /><geom type="box" size="0.035 0.035 0.035" material="red_block" mass="0.08" /></body>
-    <body name="blue_block" pos="0.00 0.20 0.035"><freejoint /><geom type="box" size="0.035 0.035 0.035" material="blue_block" mass="0.08" /></body>
-    <body name="yellow_block" pos="0.24 0.20 0.035"><freejoint /><geom type="box" size="0.035 0.035 0.035" material="yellow_block" mass="0.08" /></body>
-    <camera name="demo" pos="1.20 -1.60 1.10" xyaxes="0.800 0.600 0 -0.223 0.297 0.929" />
+    <geom name="grid_x" type="box" pos="0 0 0.002" size="0.006 0.6 0.002" material="floor_grid" contype="0" conaffinity="0" />
+    <geom name="grid_y" type="box" pos="0 0 0.003" size="0.7 0.006 0.002" material="floor_grid" contype="0" conaffinity="0" />
+    <geom name="target_zone" type="cylinder" pos="0.00 -0.48 0.003" size="0.075 0.003" material="green_zone" contype="0" conaffinity="0" />
+    <body name="red_block" pos="-0.24 -0.24 0.035"><freejoint /><geom name="red_block_geom" type="box" size="0.035 0.035 0.035" material="red_block" mass="0.08" /></body>
+    <body name="blue_block" pos="0.00 -0.24 0.035"><freejoint /><geom name="blue_block_geom" type="box" size="0.035 0.035 0.035" material="blue_block" mass="0.08" /></body>
+    <body name="yellow_block" pos="0.24 -0.24 0.035"><freejoint /><geom name="yellow_block_geom" type="box" size="0.035 0.035 0.035" material="yellow_block" mass="0.08" /></body>
+    <camera name="demo" pos="1.15 -1.65 0.82" xyaxes="0.820 0.572 0 -0.240 0.344 0.908" />
     <geom name="link1_visual" pos="0.0 0.0 -0.0007" material="gray" type="mesh" mesh="link1.stl" class="visual" />
     <body name="link2" pos="0.0 0.0 0.05325">
       <joint name="rev1" type="hinge" class="motor" range="-2.0943951023931953 2.0943951023931953" axis="0 0 1" />
