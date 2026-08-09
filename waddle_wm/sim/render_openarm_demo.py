@@ -10,10 +10,12 @@ from scipy.optimize import least_squares
 ASSET = Path(__file__).parents[1] / "assets" / "tabletop.xml"
 OUT = Path("data/openarm_pick_place.mp4")
 JOINTS = ["rev1", "rev2", "rev3", "rev4", "rev5", "rev6", "rev7"]
-BLOCKS = [("red_block", np.array([0.12, -0.12, 0.455])),
-          ("blue_block", np.array([0.12, 0.00, 0.455])),
-          ("yellow_block", np.array([0.12, 0.12, 0.455]))]
-TARGET = np.array([0.20, 0.10, 0.49])
+BLOCKS = [("red_block", np.array([-0.24, 0.20, 0.035])),
+          ("blue_block", np.array([0.00, 0.20, 0.035])),
+          ("yellow_block", np.array([0.24, 0.20, 0.035]))]
+TARGET = np.array([0.00, -0.24, 0.09])
+assert len({float(origin[1]) for _, origin in BLOCKS}) == 1
+assert np.linalg.norm(BLOCKS[0][1][:2] - TARGET[:2]) > 0.25
 
 
 def eef(model, data):
@@ -41,6 +43,7 @@ def solve(model, data, target, start):
 def frame(model, data, renderer, q, block, carried=False):
     joints = [mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, n) for n in JOINTS]
     data.qpos[model.jnt_qposadr[joints]] = q
+    mujoco.mj_forward(model, data)
     if carried:
         bid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, block)
         qposadr = model.jnt_qposadr[model.body_jntadr[bid]]
@@ -48,6 +51,11 @@ def frame(model, data, renderer, q, block, carried=False):
     mujoco.mj_forward(model, data)
     renderer.update_scene(data, camera="demo")
     return renderer.render().copy()
+
+
+def block_position(model, data, block):
+    body = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, block)
+    return data.qpos[model.jnt_qposadr[model.body_jntadr[body]]:][:3].copy()
 
 
 def main():
@@ -73,6 +81,8 @@ def main():
                            (place, place, False)):
             for t in np.linspace(0, 1, 18 if a is not b else 8):
                 ffmpeg.stdin.write(frame(model, data, renderer, a * (1 - t) + b * t, block, held).tobytes())
+        placed = block_position(model, data, block)
+        assert np.linalg.norm(placed[:2] - TARGET[:2]) < 1e-6, (block, placed, TARGET)
         start = place
     ffmpeg.stdin.close()
     if ffmpeg.wait() != 0:

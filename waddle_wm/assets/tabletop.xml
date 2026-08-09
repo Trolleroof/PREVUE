@@ -56,12 +56,12 @@ limitations under the License.
 
   <worldbody>
     <light name="key" pos="0.4 -0.6 1.2" dir="-0.2 0.3 -1" diffuse="1 1 1" specular="0.3 0.3 0.3" />
-    <geom name="table" type="plane" pos="0 0 0.42" size="0.7 0.6 0.01" material="table_material" />
-    <geom name="target_zone" type="cylinder" pos="0.20 0.10 0.423" size="0.075 0.003" material="green_zone" contype="0" conaffinity="0" />
-    <body name="red_block" pos="0.12 -0.12 0.455"><freejoint /><geom type="box" size="0.035 0.035 0.035" material="red_block" mass="0.08" /></body>
-    <body name="blue_block" pos="0.12 0.00 0.455"><freejoint /><geom type="box" size="0.035 0.035 0.035" material="blue_block" mass="0.08" /></body>
-    <body name="yellow_block" pos="0.12 0.12 0.455"><freejoint /><geom type="box" size="0.035 0.035 0.035" material="yellow_block" mass="0.08" /></body>
-    <camera name="demo" pos="0.90 -1.20 1.00" xyaxes="0.832 0.555 0 -0.178 0.266 0.924" />
+    <geom name="table" type="plane" pos="0 0 0" size="0.7 0.6 0.01" material="table_material" />
+    <geom name="target_zone" type="cylinder" pos="0.00 -0.24 0.003" size="0.075 0.003" material="green_zone" contype="0" conaffinity="0" />
+    <body name="red_block" pos="-0.24 0.20 0.035"><freejoint /><geom type="box" size="0.035 0.035 0.035" material="red_block" mass="0.08" /></body>
+    <body name="blue_block" pos="0.00 0.20 0.035"><freejoint /><geom type="box" size="0.035 0.035 0.035" material="blue_block" mass="0.08" /></body>
+    <body name="yellow_block" pos="0.24 0.20 0.035"><freejoint /><geom type="box" size="0.035 0.035 0.035" material="yellow_block" mass="0.08" /></body>
+    <camera name="demo" pos="1.20 -1.60 1.10" xyaxes="0.800 0.600 0 -0.223 0.297 0.929" />
     <geom name="link1_visual" pos="0.0 0.0 -0.0007" material="gray" type="mesh" mesh="link1.stl" class="visual" />
     <body name="link2" pos="0.0 0.0 0.05325">
       <joint name="rev1" type="hinge" class="motor" range="-2.0943951023931953 2.0943951023931953" axis="0 0 1" />
