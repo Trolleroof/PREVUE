@@ -11,7 +11,7 @@ ASSET = Path(__file__).parents[1] / "assets" / "tabletop.xml"
 OUT = Path("data/openarm_pick_place.mp4")
 JOINTS = ["rev1", "rev2", "rev3", "rev4", "rev5", "rev6", "rev7"]
 BLOCK_HALF = 0.025
-GRIP_OFFSET = 0.045
+GRIP_OFFSET = 0.025
 BLOCKS = [("red_block", np.array([-0.24, -0.24, BLOCK_HALF])),
           ("blue_block", np.array([0.00, -0.24, BLOCK_HALF])),
           ("yellow_block", np.array([0.24, -0.24, BLOCK_HALF]))]
@@ -47,18 +47,15 @@ def solve(model, data, target, start):
 def frame(model, data, renderer, q, block, carried=False):
     joints = [mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, n) for n in JOINTS]
     data.qpos[model.jnt_qposadr[joints]] = q
+    data.ctrl[8:11] = 1 if carried else 0
     mujoco.mj_forward(model, data)
     if carried:
-        for _ in range(4):
+        for _ in range(50):
             data.qvel[:] = 0
             mujoco.mj_step(model, data)
         data.qpos[model.jnt_qposadr[joints]] = q
         data.qvel[:] = 0
         mujoco.mj_forward(model, data)
-        bid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, block)
-        qposadr = model.jnt_qposadr[model.body_jntadr[bid]]
-        data.qpos[qposadr:qposadr + 3] = eef(model, data) - np.array([0, 0, GRIP_OFFSET])
-        data.qpos[qposadr + 3:qposadr + 7] = [1, 0, 0, 0]
     mujoco.mj_forward(model, data)
     renderer.update_scene(data, camera="demo")
     return renderer.render().copy()
@@ -85,8 +82,8 @@ def main():
     for block, _ in BLOCKS:
         geom = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, f"{block}_geom")
         assert model.geom_type[geom] == mujoco.mjtGeom.mjGEOM_BOX and model.geom_size[geom, 2] > 0
-    data.qpos[model.jnt_qposadr[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, "left_pris1")]] = 0.022
-    data.qpos[model.jnt_qposadr[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, "right_pris2")]] = 0.022
+    data.qpos[model.jnt_qposadr[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, "left_pris1")]] = 0.005
+    data.qpos[model.jnt_qposadr[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, "right_pris2")]] = 0.005
     mujoco.mj_forward(model, data)
     start = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
     OUT.parent.mkdir(parents=True, exist_ok=True)
@@ -96,6 +93,7 @@ def main():
         stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
     )
     placed_positions = []
+    max_lift = 0.0
     for (block, origin), offset in zip(BLOCKS, PLACE_OFFSETS):
         approach = solve(model, data, origin + [0, 0, 0.20], start)
         grasp = solve(model, data, origin + [0, 0, GRIP_OFFSET], approach)
@@ -110,12 +108,14 @@ def main():
                 set_block_position(model, data, block, np.r_[TARGET[:2] + offset[:2], BLOCK_HALF])
             for t in np.linspace(0, 1, 18 if a is not b else 8):
                 ffmpeg.stdin.write(frame(model, data, renderer, a * (1 - t) + b * t, block, held).tobytes())
+                max_lift = max(max_lift, float(block_position(model, data, block)[2]))
         placed = block_position(model, data, block)
         expected = TARGET[:2] + offset[:2]
         assert np.linalg.norm(placed[:2] - expected) < 0.01, (block, placed, expected)
         placed_positions.append(placed)
         start = place
     assert all(np.linalg.norm(a[:2] - b[:2]) > 0.07 for i, a in enumerate(placed_positions) for b in placed_positions[i + 1:])
+    assert max_lift > BLOCK_HALF + 0.02, f"physics never lifted a block: max z={max_lift:.3f}"
     ffmpeg.stdin.close()
     if ffmpeg.wait() != 0:
         raise RuntimeError(ffmpeg.stderr.read().decode())

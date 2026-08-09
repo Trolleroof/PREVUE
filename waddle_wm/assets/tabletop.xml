@@ -118,6 +118,9 @@ limitations under the License.
                     <geom name="link_right_jaw_collision" pos="0.665265 -0.00286677 -0.175928" quat="0.999990411794363 0.0 -0.004379077453115391 0.0" type="mesh" mesh="right_jaw.stl" class="collision" />
                     <geom name="link_right_jaw_visual" pos="0.665265 -0.00286677 -0.175928" quat="0.999990411794363 0.0 -0.004379077453115357 0.0" material="gray" type="mesh" mesh="right_jaw.stl" class="visual" />
                   </body>
+                  <body name="vacuum_pad" pos="-0.106405 -0.00064025 0.0132053">
+                    <geom name="vacuum_pad_geom" type="cylinder" size="0.018 0.004" gap="0.035" rgba="0.12 0.12 0.14 1" />
+                  </body>
                 </body>
               </body>
             </body>
@@ -149,6 +152,9 @@ limitations under the License.
     <motor name="rev6_ctrl" joint="rev6" class="motor" ctrlrange="-0.35 0.35"/>
     <motor name="rev7_ctrl" joint="rev7" class="motor" />
     <position name="gripper_actuator" tendon="split" kv="20.5" kp="100.0" ctrllimited="true" ctrlrange="0 0.0455"/>
+    <adhesion name="left_grip_adhesion" body="link_left_jaw" gain="18" ctrlrange="0 1" />
+    <adhesion name="right_grip_adhesion" body="link_right_jaw" gain="18" ctrlrange="0 1" />
+    <adhesion name="vacuum_grip_adhesion" body="vacuum_pad" gain="200" ctrlrange="0 1" />
   </actuator>
 
   <contact>
