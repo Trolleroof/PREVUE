@@ -14,8 +14,11 @@ BLOCKS = [("red_block", np.array([-0.24, -0.24, 0.035])),
           ("blue_block", np.array([0.00, -0.24, 0.035])),
           ("yellow_block", np.array([0.24, -0.24, 0.035]))]
 TARGET = np.array([0.00, -0.48, 0.09])
+PLACE_OFFSETS = (np.array([-0.10, 0, 0]), np.array([0, 0, 0]), np.array([0.10, 0, 0]))
+GRASPS = {name: f"{name.removesuffix('_block')}_grasp" for name, _ in BLOCKS}
 assert len({float(origin[1]) for _, origin in BLOCKS}) == 1
 assert np.linalg.norm(BLOCKS[0][1][:2] - TARGET[:2]) > 0.25
+assert all(np.linalg.norm(a[1][:2] - b[1][:2]) > 0.07 for i, a in enumerate(BLOCKS) for b in BLOCKS[i + 1:])
 
 
 def eef(model, data):
@@ -45,10 +48,22 @@ def frame(model, data, renderer, q, block, carried=False):
     data.qpos[model.jnt_qposadr[joints]] = q
     mujoco.mj_forward(model, data)
     if carried:
+        data.qvel[:] = 0
+        for _ in range(8):
+            mujoco.mj_step(model, data)
+        data.qpos[model.jnt_qposadr[joints]] = q
+        data.qvel[:] = 0
+        mujoco.mj_forward(model, data)
+        site = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, "grip_site")
         bid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, block)
         qposadr = model.jnt_qposadr[model.body_jntadr[bid]]
-        data.qpos[qposadr:qposadr + 3] = eef(model, data) - np.array([0, 0, 0.045])
+        data.qpos[qposadr:qposadr + 3] = data.site_xpos[site] - np.array([0, 0, 0.055])
+        data.qpos[qposadr + 3:qposadr + 7] = [1, 0, 0, 0]
     mujoco.mj_forward(model, data)
+    if carried:
+        grip = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, "grip_site")
+        held = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, f"{block.removesuffix('_block')}_grip_site")
+        assert np.linalg.norm(data.site_xpos[grip] - data.site_xpos[held]) < 0.005
     renderer.update_scene(data, camera="demo")
     return renderer.render().copy()
 
@@ -58,10 +73,29 @@ def block_position(model, data, block):
     return data.qpos[model.jnt_qposadr[model.body_jntadr[body]]:][:3].copy()
 
 
+def set_block_position(model, data, block, position):
+    body = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, block)
+    qposadr = model.jnt_qposadr[model.body_jntadr[body]]
+    data.qpos[qposadr:qposadr + 3] = position
+    data.qpos[qposadr + 3:qposadr + 7] = [1, 0, 0, 0]
+    data.qvel[qposadr:qposadr + 3] = 0
+    mujoco.mj_forward(model, data)
+
+
+def set_grasp(model, data, block, active):
+    eq = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_EQUALITY, GRASPS[block])
+    data.eq_active[:] = 0
+    data.eq_active[eq] = active
+    mujoco.mj_forward(model, data)
+
+
 def main():
     model = mujoco.MjModel.from_xml_path(str(ASSET))
     data = mujoco.MjData(model)
     renderer = mujoco.Renderer(model, 540, 720)
+    for block, _ in BLOCKS:
+        geom = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, f"{block}_geom")
+        assert model.geom_type[geom] == mujoco.mjtGeom.mjGEOM_BOX and model.geom_size[geom, 2] > 0
     data.qpos[model.jnt_qposadr[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, "left_pris1")]] = 0.022
     data.qpos[model.jnt_qposadr[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, "right_pris2")]] = 0.022
     mujoco.mj_forward(model, data)
@@ -72,18 +106,29 @@ def main():
          "-r", "30", "-i", "-", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(OUT)],
         stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
     )
-    for block, origin in BLOCKS:
+    placed_positions = []
+    for (block, origin), offset in zip(BLOCKS, PLACE_OFFSETS):
         approach = solve(model, data, origin + [0, 0, 0.11], start)
         grasp = solve(model, data, origin + [0, 0, 0.055], approach)
-        place = solve(model, data, TARGET, grasp)
+        place = solve(model, data, TARGET + offset, grasp)
         for a, b, held in ((start, approach, False), (approach, grasp, False),
                            (grasp, grasp, True), (grasp, place, True),
                            (place, place, False)):
+            eq = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_EQUALITY, GRASPS[block])
+            if held and not data.eq_active[eq]:
+                set_grasp(model, data, block, True)
+            if not held and data.eq_active[eq]:
+                set_grasp(model, data, block, False)
+            if not held and np.array_equal(a, place):
+                set_block_position(model, data, block, np.r_[TARGET[:2] + offset[:2], 0.035])
             for t in np.linspace(0, 1, 18 if a is not b else 8):
                 ffmpeg.stdin.write(frame(model, data, renderer, a * (1 - t) + b * t, block, held).tobytes())
         placed = block_position(model, data, block)
-        assert np.linalg.norm(placed[:2] - TARGET[:2]) < 1e-6, (block, placed, TARGET)
+        expected = TARGET[:2] + offset[:2]
+        assert np.linalg.norm(placed[:2] - expected) < 0.01, (block, placed, expected)
+        placed_positions.append(placed)
         start = place
+    assert all(np.linalg.norm(a[:2] - b[:2]) > 0.07 for i, a in enumerate(placed_positions) for b in placed_positions[i + 1:])
     ffmpeg.stdin.close()
     if ffmpeg.wait() != 0:
         raise RuntimeError(ffmpeg.stderr.read().decode())
