@@ -8,7 +8,7 @@ operating condition.
 Reproduce:
 
 ```bash
-uv run python -m waddle_wm.sim.generate_dataset --episodes 5000 --out data/ur5e_wm
+uv run python -m waddle_wm.sim.generate_dataset --episodes 1000 --out data/ur5e_wm --block-spawn-low 0.34,-0.22 --block-spawn-high 0.42,-0.14
 ```
 
 ```bash
@@ -19,11 +19,75 @@ uv run python -m waddle_wm.embed_windows --data data/ur5e_wm
 uv run python -m waddle_wm.train_latent_dynamics --data data/ur5e_wm
 ```
 
-New datasets now default to a wider 16x16 cm block spawn box
-(`--block-spawn-low 0.30,-0.26 --block-spawn-high 0.46,-0.10`) so the compiled
-plan no longer leaks as much about the initial block pose. The trainer also
-defaults to `--focus-step 2 --focus-weight 3.0`, which upweights the diagnosed
-`z_2 -> z_3` close/lift transition.
+The spawn flags above restore the narrow box these numbers were measured under;
+they are no longer the generator default. §0 describes the wide corpus that
+replaces it for final metrics. The trainer defaults to `--focus-step 2
+--focus-weight 3.0`, which upweights the diagnosed `z_2 -> z_3` close/lift
+transition.
+
+## 0. The evaluation corpus
+
+Final verifier metrics are reported on `data/ur5e_wm_wide`: **5000 episodes**,
+seed 0, generated with the current wide 16x16 cm block spawn box so the compiled
+plan leaks less about the initial block pose. It is a fresh corpus, not the old
+1000 episodes with 4000 appended.
+
+```bash
+uv run python -m waddle_wm.sim.generate_dataset --episodes 5000 --out data/ur5e_wm_wide
+```
+
+```bash
+uv run python -m waddle_wm.sim.validate_dataset --data data/ur5e_wm_wide
+```
+
+| split | n | success | `missed` | `target_miss` |
+| --- | --- | --- | --- | --- |
+| train | 3500 | 0.373 | 0.313 | 0.314 |
+| val | 750 | 0.363 | 0.313 | 0.324 |
+| test | 750 | 0.327 | 0.332 | 0.341 |
+
+Split by which faculty each decision needs (the §3 grouping), the wide corpus
+multiplies the informative grasp-failure examples roughly 5x, as §6 predicted:
+
+| group | wide train / val / test | old 1k train / val / test |
+| --- | --- | --- |
+| A — target on zone, grasp holds | 1345 / 276 / 251 | 281 / 59 / 56 |
+| B — target off zone (the plan decides) | 1570 / 333 / 361 | 308 / 63 / 71 |
+| C — target on zone, grasp misses (**vision decides**) | **585 / 141 / 138** | 111 / 28 / 23 |
+
+`validate_dataset` checks schema version, frame grid, per-frame track lengths,
+spawn-box conformance, split sizes and outcome balance, duplicate ids, duplicate
+scenes, cross-split scene leakage, and decodes a sample of clips. Full output at
+the time of recording — every check passed:
+
+```text
+PASS  schema_version: [3]
+PASS  episodes: 5000 records, manifest says 5000
+PASS  frame grid (total, prelude, window): [(48, 8, 8)]
+PASS  per-frame track lengths: [48]
+PASS  block spawn box [0.3, -0.26] .. [0.46, -0.1]: observed [0.3001, -0.26] .. [0.46, -0.1001]
+PASS  spawn spread, first half [0.1599, 0.1599] vs second half [0.1599, 0.1599]
+PASS  splits: {'train': 3500, 'val': 750, 'test': 750}
+PASS    train: n=3500 success=0.373 missed=0.313 target_miss=0.314
+PASS    val: n=750 success=0.363 missed=0.313 target_miss=0.324
+PASS    test: n=750 success=0.327 missed=0.332 target_miss=0.341
+PASS  duplicate episode ids: 0
+PASS  duplicate scenes: 0
+PASS    train n val shared scenes: 0
+PASS    train n test shared scenes: 0
+PASS    val n test shared scenes: 0
+PASS  missing clips: 0
+PASS  decoded 50 sampled clips, 0 malformed or blank
+```
+
+The spawn-spread check is the one that would catch an append: the first half of
+an appended corpus would show the old narrow 8x8 cm range against the second
+half's 16x16 cm. Both halves span 0.1599 m, so the whole corpus is wide.
+`data/ur5e_wm` fails only the spawn check, because its manifest predates the
+flags and records no box.
+
+**Everything in §1-§5 below was measured on the old 1000-episode narrow corpus**
+and has not yet been re-run on this one.
 
 ## 1. The latent dynamics model works
 
@@ -147,18 +211,18 @@ moved the needle slightly on the old narrow-spawn data:
 | Brier | 0.131 | 0.142 |
 | false accepts | 0.223 | 0.234 |
 
-That is not enough. The next fair test is the same weighted trainer on a
-regenerated wide-spawn corpus, because the old corpus still lets the plan-only
-control exploit the narrow block distribution.
+That is not enough. The next fair test is the same weighted trainer on the
+wide-spawn corpus in §0, because the old corpus still lets the plan-only control
+exploit the narrow block distribution.
 
 ## 6. What to try next, in order
 
-1. **More episodes.** Generation is ~0.7 s/episode and embedding ~1.3 s/episode,
-   so 5000 episodes is about 2.5 hours unattended and multiplies the ~110 informative
-   grasp-failure examples by five. This is the cheapest lever by a wide margin.
-2. **Re-run with the widened block spawn box.** This is now the generator default.
-   Existing `data/ur5e_wm` corpora keep their old distribution, so regenerate
-   rather than append when measuring the comparison again.
+1. ~~**More episodes.**~~ Done: `data/ur5e_wm_wide` in §0 is 5000 episodes and
+   carries 585 informative group-C training examples, up from 111.
+2. ~~**Re-run with the widened block spawn box.**~~ Done: the same corpus is
+   generated with the wide box, freshly rather than appended, validated, and
+   embedded (`window_embeddings.pt` covers all 5000, `[6, 1024]` per episode).
+   Training and re-measuring on it are still to do.
 3. **Re-run with close/lift transition weighting.** This is now the trainer
    default via `--focus-step 2 --focus-weight 3.0`; sweep `1, 3, 5` if the 5000
    episode run still collapses to the lifted base rate.
