@@ -12,7 +12,6 @@ serialises commands because MuJoCo and the encoder are not re-entrant.
 from __future__ import annotations
 
 import argparse
-import base64
 import json
 import queue
 import threading
@@ -43,8 +42,10 @@ class Session:
     """
 
     def __init__(self, checkpoint: Path, seed: int, model: str, repairs: int, threshold: float, verify: bool):
-        self.seed = seed
+        self.seed, self.busy = seed, False
         self._jobs: queue.Queue = queue.Queue()
+        self._frame, self._frame_id = None, 0
+        self._new_frame = threading.Condition()
         threading.Thread(target=self._worker, daemon=True).start()
         RUNS.mkdir(parents=True, exist_ok=True)
         self.call(lambda: self._build(checkpoint, seed, model, repairs, threshold, verify))
@@ -52,6 +53,7 @@ class Session:
     def _build(self, checkpoint, seed, model, repairs, threshold, verify):
         self.agent = SkillAgent(checkpoint, seed, model, repairs, threshold, verify)
         self.display = mujoco.Renderer(self.agent.env.model, *DISPLAY)
+        self.agent.env.on_frame = self.publish     # every simulated frame reaches the live view
         if self.agent.verifier is not None:
             self.agent.observe()          # warm the frozen encoder before the first command
         self.reset(seed)
@@ -76,17 +78,43 @@ class Session:
             raise value
         return value
 
+    def publish(self):
+        """Render the current physics state for the live view. Worker thread only."""
+        self.display.update_scene(self.agent.env.data, camera=self.agent.env.camera)
+        jpeg = iio.imwrite("<bytes>", self.display.render(), extension=".jpg")
+        with self._new_frame:
+            self._frame, self._frame_id = jpeg, self._frame_id + 1
+            self._new_frame.notify_all()
+
+    def live(self):
+        """Yield each new rendered frame. While a command runs these come from the physics
+        loop itself, one per simulated frame; while idle the worker is asked for a fresh
+        render so the view stays current after a scene reset."""
+        seen = -1
+        while True:
+            with self._new_frame:
+                if self._frame_id == seen:
+                    self._new_frame.wait(0.4)
+                if self._frame_id != seen:
+                    seen, frame = self._frame_id, self._frame
+                    yield frame
+                    continue
+            if not self.busy:
+                self.call(self.publish)
+
     def stream(self, instruction: str):
         """Queue one instruction and yield `(event, payload)` as the worker produces them."""
         events: queue.Queue = queue.Queue()
 
         def job():
+            self.busy = True
             try:
                 self.command(instruction, lambda name, payload: events.put((name, payload)))
             except Exception as error:                  # noqa: BLE001 - a crash must still reach the page
                 events.put(("error", {"reason": f"{type(error).__name__}: {error}"}))
                 events.put(("done", {"decision": "error", "reason": str(error)}))
             finally:
+                self.busy = False
                 events.put(None)
 
         self._jobs.put(job)
@@ -100,14 +128,13 @@ class Session:
         env = self.agent.env
         self.block_xy = env.sample_scene()      # every command re-runs this scene until it is reset
         env.reset(self.block_xy)
+        self.publish()
         return self.snapshot()
 
     def snapshot(self) -> dict:
         env = self.agent.env
-        self.display.update_scene(env.data, camera=env.camera)
-        png = iio.imwrite("<bytes>", self.display.render(), extension=".png")
         detections = self.agent.perceive()
-        return {"seed": self.seed, "image": "data:image/png;base64," + base64.b64encode(png).decode(),
+        return {"seed": self.seed,
                 "observation": describe_observation(detections, landing_pad(env.model), env.state()["gripper_pos"]),
                 "detections": [detection.summary() for detection in detections]}
 
@@ -123,8 +150,7 @@ class Session:
         log = RUNS / f"{stamp}.json"
         log.write_text(json.dumps(payload, indent=2, default=float))
         payload["log"] = str(log)
-        self.agent.env.reset(self.block_xy)     # the panel shows the scene the next command will see
-        payload["snapshot"] = self.snapshot()
+        payload["snapshot"] = self.snapshot()   # the live view holds wherever the arm ended up
         emit("done", payload)
 
 
@@ -143,16 +169,34 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        if self.path in ("/", "/index.html"):
+        path = self.path.split("?")[0]          # the page cache-busts the stream with a query
+        if path in ("/", "/index.html"):
             return self._send(200, UI.read_bytes(), "text/html; charset=utf-8")
-        if self.path == "/api/scene":
+        if path == "/api/scene":
             snapshot = self.session.call(self.session.snapshot)
             return self._send(200, json.dumps(snapshot).encode(), "application/json")
-        if self.path.startswith("/runs/"):
-            video = RUNS / Path(self.path).name
+        if path == "/api/live.mjpg":
+            return self._stream_live()
+        if path.startswith("/runs/"):
+            video = RUNS / Path(path).name
             if video.suffix == ".mp4" and video.is_file():
                 return self._send(200, video.read_bytes(), "video/mp4")
         self._send(404, b"not found", "text/plain")
+
+    def _stream_live(self):
+        """Motion JPEG straight from the simulator, so the page shows physics as it happens."""
+        self.close_connection = True            # a stream has no length; it ends when the tab does
+        self.send_response(200)
+        self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        try:
+            for jpeg in self.session.live():
+                self.wfile.write(b"--frame\r\nContent-Type: image/jpeg\r\n"
+                                 + f"Content-Length: {len(jpeg)}\r\n\r\n".encode() + jpeg + b"\r\n")
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError):
+            pass                                # the viewer navigated away
 
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")

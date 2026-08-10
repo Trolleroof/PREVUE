@@ -47,7 +47,11 @@ uv run python -m waddle_wm.test_agent --live 30
 ```
 
 The server is the browser demo: the tabletop on the left, a chat bar on the right,
-each step of the loop streamed into the transcript as it happens. The agent CLI is
+each step of the loop streamed into the transcript as it happens. The viewport is a live
+MJPEG feed — `TabletopEnv.on_frame` fires as each frame is captured inside the physics
+loop, and the server pushes it straight to the page, so you watch the arm move rather
+than wait for a recording. It plays at whatever rate the physics computes, roughly twice
+real time; **Replay episode** shows the recorded `.mp4` at a true 10 fps. The agent CLI is
 the same loop headless, writing `results/agent/<timestamp>.json` and `.mp4`. The
 test script checks the plan contract offline and, with `--live`, measures the
 verifier against physics on freshly rendered scenes.

@@ -70,6 +70,7 @@
     <div class="viewport" id="viewport"><span class="badge" id="badge">scene</span></div>
     <div class="controls">
       <button id="reset">New scene</button>
+      <button id="live" disabled>Live view</button>
       <button id="replay" disabled>Replay episode</button>
       <button id="boxes">Detections</button>
       <span class="scene" id="seed"></span>
@@ -89,7 +90,7 @@
 <script>
 const $ = id => document.getElementById(id);
 const log = $("log"), viewport = $("viewport"), badge = $("badge");
-let busy = false, lastVideo = null;
+let busy = false, lastVideo = null, live = true;
 
 const EXAMPLES = [
   "pick up the red block and put it on the green pad",
@@ -135,23 +136,28 @@ function overlay(host) {
   host.appendChild(svg);
 }
 
-function showImage(src) {
-  const img = new Image(); img.src = src;
+function showLive() {
+  // One long-lived MJPEG connection: the server pushes a frame for every simulated frame,
+  // so this is the physics as it runs, not a snapshot.
+  const img = new Image();
+  img.src = "/api/live.mjpg?" + Date.now();
   overlay(frame(img));
-  badge.textContent = "scene · what the detector sees";
+  badge.textContent = "live · MuJoCo";
+  live = true; $("live").disabled = true;
 }
 
 function showVideo(src) {
   const video = document.createElement("video");
   Object.assign(video, { src, autoplay: true, loop: true, muted: true, playsInline: true, controls: true });
   frame(video);
-  badge.textContent = "executed episode · 10 fps";
+  badge.textContent = "recorded episode · 10 fps";
   lastVideo = src; $("replay").disabled = false;
+  live = false; $("live").disabled = false;
 }
 
 function paintScene(snapshot) {
   detections = snapshot.detections || [];
-  showImage(snapshot.image);
+  if (live) showLive();
   $("scene").textContent = snapshot.observation;
   $("seed").textContent = `seed ${snapshot.seed}`;
 }
@@ -181,7 +187,10 @@ const HANDLERS = {
        </div>`);
   },
   unverified: d => add("warn", "World model · skipped", `<div class="note">${d.reason}</div>`),
-  executing: () => add("", "MuJoCo", `<div class="note"><span class="spin"></span>executing the accepted trace…</div>`),
+  executing() {
+    if (!live) showLive();          // watch it happen, not the last replay
+    add("", "MuJoCo", `<div class="note"><span class="spin"></span>executing the accepted trace…</div>`);
+  },
   executed(d) {
     const free = d.success === undefined;
     add(free ? "" : "verdict " + (d.success ? "ok" : "no"), "MuJoCo · what really happened",
@@ -195,8 +204,9 @@ const HANDLERS = {
   rejected: d => add("err", "Agent · not executed", `<div class="note">${d.reason}</div>`),
   error: d => add("err", "Error", `<div class="note">${d.reason}</div>`),
   done(d) {
-    if (d.video) showVideo(d.video);
+    if (d.video) { lastVideo = d.video; $("replay").disabled = false; }   // the live view keeps running
     if (d.snapshot) { $("scene").textContent = d.snapshot.observation; detections = d.snapshot.detections || []; }
+    if (live) showLive();                                                 // redraw the detection overlay
     add("", "Run", `<div class="stats"><span>decision <b>${d.decision}</b></span>
       <span>${d.seconds ? d.seconds + " s" : ""}</span>
       <span>${d.cost_usd != null ? "$" + d.cost_usd + " of Claude" : ""}</span>
@@ -255,9 +265,11 @@ $("reset").addEventListener("click", async () => {
 
 $("replay").addEventListener("click", () => lastVideo && showVideo(lastVideo));
 
-$("boxes").addEventListener("click", async () => {
+$("live").addEventListener("click", () => { showLive(); $("live").disabled = true; });
+
+$("boxes").addEventListener("click", () => {
   showBoxes = !showBoxes;
-  paintScene(await (await fetch("/api/scene")).json());
+  if (live) showLive();
 });
 
 EXAMPLES.forEach(text => {
@@ -267,14 +279,7 @@ EXAMPLES.forEach(text => {
   $("hint").appendChild(button);
 });
 
-fetch("/api/scene").then(r => r.json()).then(snapshot => {
-  paintScene(snapshot);
-  add("", "Agent", `<div class="note">Objects are found by the camera — a text query becomes a pixel box, and the depth
-    buffer turns that box into a point in the robot's frame. Claude Opus 5 turns your command plus those detections into
-    a waypoint program, solved with damped least-squares IK. The action-conditioned world model imagines the plan from
-    the camera window and either approves it or sends it back for one repair at a time. Nothing is executed until the
-    imagined outcome passes — or the plan is off-distribution and says so.</div>`);
-});
+fetch("/api/scene").then(r => r.json()).then(paintScene);
 </script>
 </body>
 </html>

@@ -74,6 +74,7 @@ class TabletopEnv:
         self._pinch = self.model.site("2f85/pinch").id
         self._frames, self._frame_times = [], []
         self._max_lift = 0.0
+        self.on_frame = None        # optional hook, called as each frame is captured (live view)
         self.reset()
 
     def reset(self, block_xy=None, target_xy=None):
@@ -123,6 +124,8 @@ class TabletopEnv:
         self._tracks["gripper"].append(float(self.data.actuator(scene.GRIPPER_ACTUATOR).ctrl[0]) / GRIPPER_CLOSED)
         for key in ("pinch_pos", "block_pos", "max_block_z", "target_distance"):
             self._tracks[key].append(state["gripper_pos"] if key == "pinch_pos" else state[key])
+        if self.on_frame is not None:
+            self.on_frame()
 
     def _step(self, gripper, frames=True):
         self.data.actuator(scene.GRIPPER_ACTUATOR).ctrl[0] = gripper
