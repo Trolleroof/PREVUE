@@ -2,12 +2,12 @@
 
     uv run python -m waddle_wm.server
 
-Serves one page: the MuJoCo tabletop on the left, a chat bar on the right. Type a
+Serves one page: the rendered episode on the left, a chat bar on the right. Type a
 command in English, and the page streams back Claude's proposed trace, what the
-world model imagined would happen, any repair, and the rendered episode.
+world model imagined would happen, any repair, and the episode that ran.
 
-Everything runs in this process: one simulator, one verifier, one planner. A lock
-serialises commands because MuJoCo and the encoder are not re-entrant.
+Everything runs in this process: one simulator, one verifier, one planner, all owned
+by a single worker thread because MuJoCo and the encoder are not re-entrant.
 """
 from __future__ import annotations
 
@@ -42,10 +42,9 @@ class Session:
     """
 
     def __init__(self, checkpoint: Path, seed: int, model: str, repairs: int, threshold: float, verify: bool):
-        self.seed, self.busy = seed, False
+        self.seed = seed
         self._jobs: queue.Queue = queue.Queue()
-        self._frame, self._frame_id = None, 0
-        self._new_frame = threading.Condition()
+        self._display_frames: list = []
         threading.Thread(target=self._worker, daemon=True).start()
         RUNS.mkdir(parents=True, exist_ok=True)
         self.call(lambda: self._build(checkpoint, seed, model, repairs, threshold, verify))
@@ -53,10 +52,19 @@ class Session:
     def _build(self, checkpoint, seed, model, repairs, threshold, verify):
         self.agent = SkillAgent(checkpoint, seed, model, repairs, threshold, verify)
         self.display = mujoco.Renderer(self.agent.env.model, *DISPLAY)
-        self.agent.env.on_frame = self.publish     # every simulated frame reaches the live view
+        self.agent.env.on_frame = self._capture_display
         if self.agent.verifier is not None:
             self.agent.observe()          # warm the frozen encoder before the first command
         self.reset(seed)
+
+    def _capture_display(self):
+        """Shadow every simulated frame at display resolution.
+
+        The episode the page plays back is rendered at `DISPLAY` rather than the 256 px
+        the verifier and the dataset need, which is the only reason this hook exists.
+        """
+        self.display.update_scene(self.agent.env.data, camera=self.agent.env.camera)
+        self._display_frames.append(self.display.render().copy())
 
     def _worker(self):
         while True:
@@ -78,43 +86,17 @@ class Session:
             raise value
         return value
 
-    def publish(self):
-        """Render the current physics state for the live view. Worker thread only."""
-        self.display.update_scene(self.agent.env.data, camera=self.agent.env.camera)
-        jpeg = iio.imwrite("<bytes>", self.display.render(), extension=".jpg")
-        with self._new_frame:
-            self._frame, self._frame_id = jpeg, self._frame_id + 1
-            self._new_frame.notify_all()
-
-    def live(self):
-        """Yield each new rendered frame. While a command runs these come from the physics
-        loop itself, one per simulated frame; while idle the worker is asked for a fresh
-        render so the view stays current after a scene reset."""
-        seen = -1
-        while True:
-            with self._new_frame:
-                if self._frame_id == seen:
-                    self._new_frame.wait(0.4)
-                if self._frame_id != seen:
-                    seen, frame = self._frame_id, self._frame
-                    yield frame
-                    continue
-            if not self.busy:
-                self.call(self.publish)
-
     def stream(self, instruction: str):
         """Queue one instruction and yield `(event, payload)` as the worker produces them."""
         events: queue.Queue = queue.Queue()
 
         def job():
-            self.busy = True
             try:
                 self.command(instruction, lambda name, payload: events.put((name, payload)))
             except Exception as error:                  # noqa: BLE001 - a crash must still reach the page
                 events.put(("error", {"reason": f"{type(error).__name__}: {error}"}))
                 events.put(("done", {"decision": "error", "reason": str(error)}))
             finally:
-                self.busy = False
                 events.put(None)
 
         self._jobs.put(job)
@@ -128,7 +110,6 @@ class Session:
         env = self.agent.env
         self.block_xy = env.sample_scene()      # every command re-runs this scene until it is reset
         env.reset(self.block_xy)
-        self.publish()
         return self.snapshot()
 
     def snapshot(self) -> dict:
@@ -141,11 +122,13 @@ class Session:
     def command(self, instruction: str, emit):
         """Run one instruction end to end, calling `emit(name, payload)` as it goes."""
         stamp = time.strftime("%Y%m%d-%H%M%S")
+        self._display_frames = []
         run = self.agent.run(instruction, self.seed, block_xy=self.block_xy, on_event=emit)
         payload = run.as_json()
         if run.frames is not None:
+            frames = self._display_frames if len(self._display_frames) == len(run.frames) else run.frames
             video = RUNS / f"{stamp}.mp4"
-            iio.imwrite(video, np.asarray(run.frames), fps=10, codec="libx264")
+            iio.imwrite(video, np.asarray(frames), fps=10, codec="libx264")
             run.video = payload["video"] = f"/runs/{video.name}"
         log = RUNS / f"{stamp}.json"
         log.write_text(json.dumps(payload, indent=2, default=float))
@@ -175,28 +158,11 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/scene":
             snapshot = self.session.call(self.session.snapshot)
             return self._send(200, json.dumps(snapshot).encode(), "application/json")
-        if path == "/api/live.mjpg":
-            return self._stream_live()
         if path.startswith("/runs/"):
             video = RUNS / Path(path).name
             if video.suffix == ".mp4" and video.is_file():
                 return self._send(200, video.read_bytes(), "video/mp4")
         self._send(404, b"not found", "text/plain")
-
-    def _stream_live(self):
-        """Motion JPEG straight from the simulator, so the page shows physics as it happens."""
-        self.close_connection = True            # a stream has no length; it ends when the tab does
-        self.send_response(200)
-        self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        try:
-            for jpeg in self.session.live():
-                self.wfile.write(b"--frame\r\nContent-Type: image/jpeg\r\n"
-                                 + f"Content-Length: {len(jpeg)}\r\n\r\n".encode() + jpeg + b"\r\n")
-                self.wfile.flush()
-        except (BrokenPipeError, ConnectionResetError):
-            pass                                # the viewer navigated away
 
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")

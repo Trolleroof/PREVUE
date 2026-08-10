@@ -19,38 +19,28 @@
   h1 small { color: var(--dim); font-weight: 400; margin-left: 8px; font-size: 13px; }
   .viewport { flex: 1; display: grid; place-items: center; background: #05080f;
               border: 1px solid var(--line); border-radius: 14px; overflow: hidden; position: relative; }
-  /* The frame fills the viewport; the square image and the square SVG overlay letterbox
-     identically inside it (object-fit: contain and preserveAspectRatio agree), so the
-     detection boxes land on the pixels they were measured from. */
-  .frame { position: absolute; inset: 0; }
-  .frame img, .frame video { width: 100%; height: 100%; object-fit: contain; display: block; }
-  .frame svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-  .frame svg rect { fill: none; stroke: var(--accent); stroke-width: 1; }
-  .frame svg text { fill: var(--accent); font: 7px var(--mono); }
+  .viewport video { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .empty { color: var(--dim); font-size: 14px; }
   .badge { position: absolute; top: 12px; left: 12px; padding: 4px 10px; border-radius: 999px;
            background: #0009; border: 1px solid var(--line); font: 12px var(--mono); color: var(--dim);
            backdrop-filter: blur(6px); }
-  .scene { font: 12px/1.7 var(--mono); color: var(--dim); white-space: pre-wrap; }
-  .controls { display: flex; gap: 8px; align-items: center; }
+  .controls { display: flex; gap: 8px; align-items: center; font: 12px var(--mono); color: var(--dim); }
   button { background: #16203180; color: var(--ink); border: 1px solid var(--line); border-radius: 9px;
            padding: 7px 13px; font-size: 13px; cursor: pointer; }
   button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
   button:disabled { opacity: .45; cursor: not-allowed; }
-  .log { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .log { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
   .msg { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: #0c121d; }
   .msg.you { background: #16273f; border-color: #24405f; align-self: flex-end; max-width: 85%; }
   .msg .who { font: 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-bottom: 6px; }
-  .msg .note { color: var(--ink); }
   .msg.verdict { border-left: 3px solid var(--accent); }
   .msg.verdict.ok { border-left-color: var(--good); }
   .msg.verdict.no { border-left-color: var(--bad); }
   .msg.warn { border-left: 3px solid var(--warn); }
   .msg.err { border-left: 3px solid var(--bad); }
-  .trace { font: 12px/1.7 var(--mono); color: var(--dim); margin-top: 8px; white-space: pre-wrap; }
-  .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 14px; margin-top: 8px;
-           font: 12px var(--mono); color: var(--dim); }
-  .stats b { color: var(--ink); font-weight: 500; }
-  .bar { height: 5px; border-radius: 3px; background: #1b2637; margin-top: 9px; overflow: hidden; }
+  .trace { font: 12px/1.7 var(--mono); color: var(--dim); margin-top: 6px; white-space: pre-wrap; }
+  .foot { font: 11px var(--mono); color: var(--dim); padding: 0 2px 6px; }
+  .bar { height: 4px; border-radius: 3px; background: #1b2637; margin-top: 9px; overflow: hidden; }
   .bar i { display: block; height: 100%; background: var(--good); }
   .bar i.no { background: var(--bad); }
   form { display: flex; gap: 8px; padding: 16px; border-top: 1px solid var(--line); background: #0b111b; }
@@ -67,15 +57,12 @@
 <body>
   <main class="stage">
     <h1>Waddle skill agent <small>Claude Opus 5 plans · the world model imagines · MuJoCo executes</small></h1>
-    <div class="viewport" id="viewport"><span class="badge" id="badge">scene</span></div>
+    <div class="viewport" id="viewport"></div>
     <div class="controls">
       <button id="reset">New scene</button>
-      <button id="live" disabled>Live view</button>
       <button id="replay" disabled>Replay episode</button>
-      <button id="boxes">Detections</button>
-      <span class="scene" id="seed"></span>
+      <span id="seed"></span>
     </div>
-    <div class="scene" id="scene"></div>
   </main>
 
   <aside class="side">
@@ -89,14 +76,14 @@
 
 <script>
 const $ = id => document.getElementById(id);
-const log = $("log"), viewport = $("viewport"), badge = $("badge");
-let busy = false, lastVideo = null, live = true;
+const log = $("log"), viewport = $("viewport");
+let busy = false, lastVideo = null, running = null;
 
 const EXAMPLES = [
   "pick up the red block and put it on the green pad",
-  "grab the red block 3.5 cm to the -y side of its centre, then place it on the pad",
+  "balance the red block on the -x rim of the green pad, overhanging a little",
   "move the gripper over the blue block and hover there",
-  "put the red block 25 cm to the left of the green pad",
+  "put the red block 25 cm to the -x side of the green pad",
 ];
 
 function add(kind, who, html) {
@@ -109,123 +96,84 @@ function add(kind, who, html) {
 }
 
 const round = (v, n = 3) => Number(v).toFixed(n);
-const traceText = trace => trace.map(e =>
-  e.target ? `${e.phase.padEnd(9)} → [${e.target.map(v => round(v)).join(", ")}]` : e.phase).join("\n");
+const point = p => `[${p.map(v => round(v)).join(", ")}]`;
 
-const PERCEPTION_PX = 256;    // the detector's frame; the display render is the same square view
-let detections = [], showBoxes = true;
-
-function frame(child) {
-  viewport.innerHTML = "";
-  const box = document.createElement("div");
-  box.className = "frame";
-  box.appendChild(child);
-  viewport.append(box, badge);
-  return box;
+/** Eight canonical phases say the same thing twice; the grasp and the release are the plan. */
+function traceText(trace) {
+  const at = phase => (trace.find(e => e.phase === phase) || {}).target;
+  if (at("descend") && at("place")) return `grasp  ${point(at("descend"))}\nplace  ${point(at("place"))}`;
+  return trace.map(e => e.target ? `${e.phase.padEnd(9)} ${point(e.target)}` : e.phase).join("\n");
 }
 
-function overlay(host) {
-  if (!showBoxes || !detections.length) return;
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("viewBox", `0 0 ${PERCEPTION_PX} ${PERCEPTION_PX}`);
-  svg.innerHTML = detections.map(d => {
-    const [x0, y0, x1, y1] = d.box;
-    return `<rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" rx="1"/>
-            <text x="${x0}" y="${y0 - 2}">${d.label} · ${d.point_base.map(v => v.toFixed(2)).join(", ")}</text>`;
-  }).join("");
-  host.appendChild(svg);
-}
-
-function showLive() {
-  // One long-lived MJPEG connection: the server pushes a frame for every simulated frame,
-  // so this is the physics as it runs, not a snapshot.
-  const img = new Image();
-  img.src = "/api/live.mjpg?" + Date.now();
-  overlay(frame(img));
-  badge.textContent = "live · MuJoCo";
-  live = true; $("live").disabled = true;
+function showEmpty(message = "Prompt it to do something.") {
+  viewport.innerHTML = `<div class="empty">${message}</div>`;
 }
 
 function showVideo(src) {
+  viewport.innerHTML = "";
   const video = document.createElement("video");
   Object.assign(video, { src, autoplay: true, loop: true, muted: true, playsInline: true, controls: true });
-  frame(video);
-  badge.textContent = "recorded episode · 10 fps";
+  viewport.append(video, Object.assign(document.createElement("span"),
+                                       { className: "badge", textContent: "pre-recorded episode · 10 fps" }));
   lastVideo = src; $("replay").disabled = false;
-  live = false; $("live").disabled = false;
-}
-
-function paintScene(snapshot) {
-  detections = snapshot.detections || [];
-  if (live) showLive();
-  $("scene").textContent = snapshot.observation;
-  $("seed").textContent = `seed ${snapshot.seed}`;
 }
 
 const HANDLERS = {
-  observed(d) {
-    detections = d.detections || [];
-    add("", "Perception · bounding_box → detect_in_base",
-      `<div class="trace">${detections.map(x =>
-        `${x.label.padEnd(13)} box [${x.box.join(", ")}] px  →  [${x.point_base.map(v => round(v)).join(", ")}] m`
-      ).join("\n")}</div>`);
-  },
   plan(d) {
-    add("", d.kind === "propose" ? "Claude · proposed plan" : "Claude · repair " + d.round,
-        `<div class="note">${d.note}</div><div class="trace">${traceText(d.trace)}</div>`);
+    add("", d.kind === "propose" ? "Claude · plan" : "Claude · repair " + d.round,
+        `<div>${d.note}</div><div class="trace">${traceText(d.trace)}</div>`);
   },
   verdict(d) {
     const p = d.imagined_success_probability;
-    add("verdict " + (d.approved ? "ok" : "no"), "World model · imagined outcome",
-      `<div class="note">${d.approved ? "Approved" : "Rejected"} — ${d.likely_failure || "no failure predicted"}.
-        ${d.verifier_suggestion ? d.verifier_suggestion + "." : ""}</div>
-       <div class="bar"><i class="${d.approved ? "" : "no"}" style="width:${(p * 100).toFixed(0)}%"></i></div>
-       <div class="stats">
-         <span>p(success) <b>${round(p)}</b></span><span>uncertainty <b>${round(d.ensemble_uncertainty)}</b></span>
-         <span>p(lifted) <b>${round(d.p_block_lifted)}</b></span><span>p(in zone) <b>${round(d.p_block_in_landing_zone)}</b></span>
-         <span>imagined block xy <b>[${d.imagined_final_block_xy.map(v => round(v)).join(", ")}]</b></span>
-       </div>`);
+    const headline = d.approved
+      ? `Approved — p(success) ${round(p)} ± ${round(d.ensemble_uncertainty)}`
+      : `Rejected — p(success) ${round(p)} ± ${round(d.ensemble_uncertainty)} — ${d.likely_failure}`;
+    const detail = d.approved ? "" :
+      `<div class="trace">p(lifted) ${round(d.p_block_lifted)}   p(in zone) ${round(d.p_block_in_landing_zone)}` +
+      `   imagined block xy ${point(d.imagined_final_block_xy)}</div>`;
+    add("verdict " + (d.approved ? "ok" : "no"), "World model", `<div>${headline}</div>
+      <div class="bar"><i class="${d.approved ? "" : "no"}" style="width:${(p * 100).toFixed(0)}%"></i></div>${detail}`);
   },
-  unverified: d => add("warn", "World model · skipped", `<div class="note">${d.reason}</div>`),
+  unverified: d => add("warn", "World model · skipped", `<div>${d.reason}</div>`),
   executing() {
-    if (!live) showLive();          // watch it happen, not the last replay
-    add("", "MuJoCo", `<div class="note"><span class="spin"></span>executing the accepted trace…</div>`);
+    running = add("", "MuJoCo", `<div><span class="spin"></span>executing…</div>`);
   },
   executed(d) {
     const free = d.success === undefined;
-    add(free ? "" : "verdict " + (d.success ? "ok" : "no"), "MuJoCo · what really happened",
-      `<div class="note">${free ? d.outcome : d.success ? "Success" : "Failed: " + d.failure_mode}</div>
-       <div class="stats"><span>final block xy <b>[${d.final_block_xy.map(v => round(v)).join(", ")}]</b></span>
-       <span>gripper <b>[${d.final_gripper_xyz.map(v => round(v, 2)).join(", ")}]</b></span>
-       <span>distance to pad <b>${round(d.target_distance)} m</b></span>
-       <span>max block z <b>${round(d.max_block_z)} m</b></span></div>`);
+    const line = free ? `${d.outcome} Gripper ended at ${point(d.final_gripper_xyz)}.`
+                      : d.success ? `Success — block landed ${round(d.target_distance)} m from the pad centre`
+                                  : `Failed: ${d.failure_mode} — block at ${point(d.final_block_xy)}`;
+    (running || add("", "MuJoCo", "")).outerHTML =
+      `<div class="msg ${free ? "" : "verdict " + (d.success ? "ok" : "no")}">
+         <div class="who">MuJoCo · what really happened</div><div>${line}</div></div>`;
+    running = null;
   },
-  abstained: d => add("warn", "Claude · abstained", `<div class="note">${d.reason}</div>`),
-  rejected: d => add("err", "Agent · not executed", `<div class="note">${d.reason}</div>`),
-  error: d => add("err", "Error", `<div class="note">${d.reason}</div>`),
+  abstained: d => add("warn", "Claude · abstained", `<div>${d.reason}</div>`),
+  rejected: d => add("err", "Not executed", `<div>${d.reason}</div>`),
+  error: d => add("err", "Error", `<div>${d.reason}</div>`),
   done(d) {
-    if (d.video) { lastVideo = d.video; $("replay").disabled = false; }   // the live view keeps running
-    if (d.snapshot) { $("scene").textContent = d.snapshot.observation; detections = d.snapshot.detections || []; }
-    if (live) showLive();                                                 // redraw the detection overlay
-    add("", "Run", `<div class="stats"><span>decision <b>${d.decision}</b></span>
-      <span>${d.seconds ? d.seconds + " s" : ""}</span>
-      <span>${d.cost_usd != null ? "$" + d.cost_usd + " of Claude" : ""}</span>
-      <span>${d.log ? d.log : ""}</span></div>`);
+    if (d.video) showVideo(d.video);
+    const foot = document.createElement("div");
+    foot.className = "foot";
+    foot.textContent = [d.decision, d.seconds && d.seconds + " s", d.cost_usd != null && "$" + d.cost_usd,
+                        d.log].filter(Boolean).join("  ·  ");
+    log.appendChild(foot);
+    log.scrollTop = log.scrollHeight;
   },
 };
 
 async function send(instruction) {
   if (busy || !instruction) return;
   busy = true; $("send").disabled = $("reset").disabled = true;
-  add("you", "You", `<div class="note">${instruction}</div>`);
-  const waiting = add("", "Claude", `<div class="note"><span class="spin"></span>thinking…</div>`);
+  add("you", "You", `<div>${instruction}</div>`);
+  const waiting = add("", "Claude", `<div><span class="spin"></span>thinking…</div>`);
 
   const response = await fetch("/api/command", {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ instruction }),
   });
   const reader = response.body.getReader(), decoder = new TextDecoder();
-  let buffer = "", first = true;
+  let buffer = "";
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
@@ -236,8 +184,7 @@ async function send(instruction) {
       buffer = buffer.slice(cut + 2);
       if (!line) continue;
       const payload = JSON.parse(line);
-      if (first && payload.event !== "observed") { waiting.remove(); first = false; }
-      if (payload.event === "plan") { waiting.remove(); first = false; }
+      if (payload.event === "plan") waiting.remove();
       (HANDLERS[payload.event] || (() => {}))(payload);
     }
   }
@@ -259,18 +206,12 @@ $("input").addEventListener("keydown", event => { if (event.key === "Enter") sub
 $("reset").addEventListener("click", async () => {
   const snapshot = await (await fetch("/api/reset", { method: "POST", headers: { "Content-Type": "application/json" },
                                                      body: "{}" })).json();
-  paintScene(snapshot);
-  add("", "Scene", `<div class="note">New block pose sampled.</div><div class="trace">${snapshot.observation}</div>`);
+  lastVideo = null; $("replay").disabled = true;
+  showEmpty("New scene. Prompt it to do something.");
+  $("seed").textContent = `seed ${snapshot.seed}`;
 });
 
 $("replay").addEventListener("click", () => lastVideo && showVideo(lastVideo));
-
-$("live").addEventListener("click", () => { showLive(); $("live").disabled = true; });
-
-$("boxes").addEventListener("click", () => {
-  showBoxes = !showBoxes;
-  if (live) showLive();
-});
 
 EXAMPLES.forEach(text => {
   const button = document.createElement("button");
@@ -279,7 +220,8 @@ EXAMPLES.forEach(text => {
   $("hint").appendChild(button);
 });
 
-fetch("/api/scene").then(r => r.json()).then(paintScene);
+showEmpty();
+fetch("/api/scene").then(r => r.json()).then(s => { $("seed").textContent = `seed ${s.seed}`; });
 </script>
 </body>
 </html>
