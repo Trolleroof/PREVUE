@@ -10,6 +10,11 @@ DEFAULT_OUT = Path("data/ur5e_wm")
 BAD_TARGET_PROB, BAD_GRASP_PROB = 0.45, 0.4
 GOOD_GRASP_M, BAD_GRASP_M = (0.000, 0.012), (0.024, 0.042)  # lateral grasp error; the 36 mm block is lost past ~28 mm
 
+
+def xy(value):
+    x, y = value.split(",", 1)
+    return float(x), float(y)
+
 def sample_params(env, rng):
     """A plan: where to place, and how well aimed the grasp is."""
     target = np.array(env.state()["target_pos"], dtype=float)
@@ -34,11 +39,15 @@ def main():
     ap.add_argument("--episodes", type=int, default=1000); ap.add_argument("--out", type=Path, default=DEFAULT_OUT)
     ap.add_argument("--seed", type=int, default=0); ap.add_argument("--size", type=int, default=256); ap.add_argument("--fps", type=int, default=10)
     ap.add_argument("--append", action="store_true", help="add episodes without replacing existing records")
+    ap.add_argument("--block-spawn-low", type=xy, default=(0.30, -0.26), help="x,y lower bound for red block sampling")
+    ap.add_argument("--block-spawn-high", type=xy, default=(0.46, -0.10), help="x,y upper bound for red block sampling")
     args = ap.parse_args(); clips = args.out / "clips"; clips.mkdir(parents=True, exist_ok=True)
     records_path = args.out / "records.jsonl"
     records = [json.loads(line) for line in records_path.open()] if args.append and records_path.exists() else []
     start = len(records)
-    env, rng = TabletopEnv(width=args.size, height=args.size, fps=args.fps, seed=args.seed), np.random.default_rng(args.seed + 1)
+    env = TabletopEnv(width=args.size, height=args.size, fps=args.fps, seed=args.seed,
+                      block_spawn_low=args.block_spawn_low, block_spawn_high=args.block_spawn_high)
+    rng = np.random.default_rng(args.seed + 1)
     home = env.home_waypoint()
     for i in range(args.episodes):
         env.reset(env.sample_scene())
@@ -58,6 +67,7 @@ def main():
     (args.out / "manifest.json").write_text(json.dumps({
         "schema_version": 3, "episodes": len(records), "fps": args.fps, "frames_total": FRAMES_TOTAL,
         "prelude_frames": PRELUDE_FRAMES, "window_frames": WINDOW_FRAMES, "windows": FRAMES_TOTAL // WINDOW_FRAMES,
+        "block_spawn_low": args.block_spawn_low, "block_spawn_high": args.block_spawn_high,
         "home_waypoint": home, "phase_frames": phase_frames(records)}, indent=2))
     print(f"wrote {len(records)} UR5e episodes to {args.out}")
 

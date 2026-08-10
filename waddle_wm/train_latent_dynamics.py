@@ -115,6 +115,8 @@ def main():
     ap.add_argument("--epochs", type=int, default=1500)
     ap.add_argument("--members", type=int, default=5)
     ap.add_argument("--rollout-weight", type=float, default=1.0, help="weight on the free-running rollout loss")
+    ap.add_argument("--focus-step", type=int, default=2, help="0-based transition to upweight; 2 is z2 -> z3 close/lift")
+    ap.add_argument("--focus-weight", type=float, default=3.0, help="loss multiplier for --focus-step")
     ap.add_argument("--grounding-weight", type=float, default=0.0,
                     help="weight on decoding the rollout with the detached readout; 0.2 and 1.0 both hurt on this corpus")
     ap.add_argument("--lr", type=float, default=1e-3)
@@ -169,6 +171,18 @@ def main():
     def latent_error(predicted, target):
         return nn.functional.mse_loss(predicted, target) + (1 - nn.functional.cosine_similarity(predicted, target, dim=-1)).mean()
 
+    step_weights = torch.ones(steps, device=device)
+    if 0 <= args.focus_step < steps:
+        step_weights[args.focus_step] = args.focus_weight
+    step_weights = step_weights / step_weights.mean()
+
+    def transition_error(predicted, target):
+        predicted = predicted.reshape(-1, steps, latent_dim)
+        target = target.reshape(-1, steps, latent_dim)
+        mse = (predicted - target).pow(2).mean(-1)
+        cosine = 1 - nn.functional.cosine_similarity(predicted, target, dim=-1)
+        return ((mse + cosine) * step_weights).mean()
+
     def frozen_readout(latent):
         """`readout` with its parameters detached: gradients reach the dynamics, never the head.
 
@@ -194,15 +208,15 @@ def main():
         teacher, free, grounded = 0.0, 0.0, 0.0
         for i, member in enumerate(members):
             index = per_member_index[i] if per_member_index is not None else mask_or_index
-            teacher = teacher + latent_error(member(latents[index, :-1].reshape(-1, latent_dim),
-                                                    action[index].reshape(-1, manifest["window_frames"], ACTION_DIM)),
-                                             latents[index, 1:].reshape(-1, latent_dim))
+            teacher = teacher + transition_error(member(latents[index, :-1].reshape(-1, latent_dim),
+                                                        action[index].reshape(-1, manifest["window_frames"], ACTION_DIM)),
+                                                 latents[index, 1:].reshape(-1, latent_dim))
             imagined = latents[index, 0]
             for k in range(steps):
                 imagined = member(imagined, action[index, k])
-                free = free + latent_error(imagined, latents[index, k + 1])
-                grounded = grounded + grounding_error(imagined, state[index, k + 1])
-        return (teacher + (args.rollout_weight * free + args.grounding_weight * grounded) / steps) / len(members)
+                free = free + step_weights[k] * latent_error(imagined, latents[index, k + 1])
+                grounded = grounded + step_weights[k] * grounding_error(imagined, state[index, k + 1])
+        return (teacher + (args.rollout_weight * free + args.grounding_weight * grounded) / step_weights.sum()) / len(members)
 
     def readout_loss(index):
         predicted, logits = readout(latents[index].reshape(-1, latent_dim))
@@ -275,6 +289,7 @@ def main():
               "best_dynamics_epoch": best["dynamics"][1], "best_dynamics_val_loss": best["dynamics"][0],
               "best_readout_epoch": best["readout"][1], "best_readout_val_loss": best["readout"][0],
               "rollout_weight": args.rollout_weight, "grounding_weight": args.grounding_weight, "members": args.members,
+              "focus_step": args.focus_step, "focus_weight": args.focus_weight,
               "latent_dim": latent_dim, "rollout_steps": steps}
     for name, source in (("executed", action), ("compiled_plan", planned_action)):
         for split_name in ("train", "val", "test"):

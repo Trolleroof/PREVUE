@@ -8,7 +8,7 @@ operating condition.
 Reproduce:
 
 ```bash
-uv run python -m waddle_wm.sim.generate_dataset --episodes 1000 --out data/ur5e_wm
+uv run python -m waddle_wm.sim.generate_dataset --episodes 5000 --out data/ur5e_wm
 ```
 
 ```bash
@@ -18,6 +18,12 @@ uv run python -m waddle_wm.embed_windows --data data/ur5e_wm
 ```bash
 uv run python -m waddle_wm.train_latent_dynamics --data data/ur5e_wm
 ```
+
+New datasets now default to a wider 16x16 cm block spawn box
+(`--block-spawn-low 0.30,-0.26 --block-spawn-high 0.46,-0.10`) so the compiled
+plan no longer leaks as much about the initial block pose. The trainer also
+defaults to `--focus-step 2 --focus-weight 3.0`, which upweights the diagnosed
+`z_2 -> z_3` close/lift transition.
 
 ## 1. The latent dynamics model works
 
@@ -130,19 +136,32 @@ than on third-decimal comparisons.) The knob is kept, defaulted to 0.
 5.8 mm median error — mean pooling already localises the block far better than
 the ~28 mm decision threshold. The bottleneck is the transition, not the encoding.
 
+**Close/lift transition weighting on the old 1000-episode corpus.** Upweighting
+`z_2 -> z_3` with `--focus-step 2 --focus-weight 3.0` ran end-to-end, but only
+moved the needle slightly on the old narrow-spawn data:
+
+| metric, test compiled-plan chunks | unweighted | focus-weighted |
+| --- | --- | --- |
+| success accuracy | 0.833 | 0.847 |
+| `lifted` accuracy | 0.713 | 0.720 |
+| Brier | 0.131 | 0.142 |
+| false accepts | 0.223 | 0.234 |
+
+That is not enough. The next fair test is the same weighted trainer on a
+regenerated wide-spawn corpus, because the old corpus still lets the plan-only
+control exploit the narrow block distribution.
+
 ## 6. What to try next, in order
 
 1. **More episodes.** Generation is ~0.7 s/episode and embedding ~1.3 s/episode,
    so 5000 episodes is about 2.5 hours unattended and multiplies the ~110 informative
    grasp-failure examples by five. This is the cheapest lever by a wide margin.
-2. **Widen the block spawn box.** It is currently 8x8 cm
-   (`TabletopEnv.sample_scene`), comparable to the 24-42 mm bad-grasp offsets, so
-   the commanded grasp waypoint partly leaks the offset and the plan-only control
-   scores higher than it deserves. A wider box makes group C cleanly
-   vision-dependent and sharpens the whole comparison.
-3. **Train the close/lift transition directly.** Since exactly one step fails,
-   weight the window 2 -> 3 transition, or give that step its own head, rather
-   than treating all five steps as one homogeneous problem.
+2. **Re-run with the widened block spawn box.** This is now the generator default.
+   Existing `data/ur5e_wm` corpora keep their old distribution, so regenerate
+   rather than append when measuring the comparison again.
+3. **Re-run with close/lift transition weighting.** This is now the trainer
+   default via `--focus-step 2 --focus-weight 3.0`; sweep `1, 3, 5` if the 5000
+   episode run still collapses to the lifted base rate.
 4. Only after those: revisit V-JEPA 2-AC per `backbone_decision.md`. The current
    evidence says the frozen trunk is *not* the limitation.
 
@@ -151,7 +170,8 @@ the ~28 mm decision threshold. The bottleneck is the transition, not the encodin
 The pivot is built and runs: the record shape, the action-conditioned predictor,
 the rollout, the uncertainty, and the verifier interface all work end-to-end from
 pixels, and the latent prediction itself is clearly real (0.787 vs −0.037). What
-is not yet demonstrated is the claim the project exists to make — that imagining
-a skill catches failures a planner could not compute from its own plan. On this
-corpus the verifier's competence is confined to the part the plan already
-determines.
+is not yet demonstrated is the claim in [`project.md`](project.md) — that an LLM
+agent using this verifier can identify and repair bad plans before execution, and
+that imagining a skill catches failures a planner could not compute from its own
+plan alone. On this corpus the verifier's competence is confined to the part the
+plan already determines; the repair loop and three-way comparison are still open.

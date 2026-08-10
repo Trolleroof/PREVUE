@@ -35,7 +35,7 @@ MPS** (0.47 s for 16 frames). Caching every window of a 1000-episode corpus is
    skill has no goal image; it has a proposed trace. Bending AC into that shape
    costs more than training a 2-layer head.
 5. **Fine-tuning a 1 B trunk on an M4 Pro is already out of scope** per the
-   project doc, so AC would be frozen anyway — and a frozen model we cannot
+   [`project.md`](project.md), so AC would be frozen anyway — and a frozen model we cannot
    condition on our own actions predicts nothing useful for us.
 
 ## What replaces it
@@ -52,7 +52,7 @@ initialised `f`s trained on bootstrap resamples — disagreement between imagine
 futures, which is the quantity the verifier actually needs and which a single
 frozen AC model would not give us either.
 
-This keeps every property the project doc asked for: latent (not pixel)
+This keeps every property [`project.md`](project.md) asks for: latent (not pixel)
 prediction, frozen visual backbone, skill-level action conditioning, laptop-sized.
 
 ## Re-entry criteria

@@ -18,6 +18,9 @@ def as_record(episode, split):
 
 def main():
     env = TabletopEnv(seed=11)
+    wide = TabletopEnv(seed=11, block_spawn_low=(0.30, -0.26), block_spawn_high=(0.46, -0.10))
+    sample = wide.sample_scene()
+    assert 0.30 <= sample[0] <= 0.46 and -0.26 <= sample[1] <= -0.10, sample
     records = []
     for split, params in (("train", {}), ("val", {"target_xy": [0.34, 0.3]})):
         env.reset(env.sample_scene())

@@ -59,12 +59,15 @@ class Episode:
 class TabletopEnv:
     """One physical UR5e pick-and-place execution, rendered at a fixed rate."""
 
-    def __init__(self, camera="demo", width=256, height=256, fps=10, seed=None):
+    def __init__(self, camera="demo", width=256, height=256, fps=10, seed=None,
+                 block_spawn_low=(0.34, -0.22), block_spawn_high=(0.42, -0.14)):
         self.model = scene.make_model()
         self.data = mujoco.MjData(self.model)
         self.renderer = mujoco.Renderer(self.model, height, width)
         self.camera, self.fps = camera, fps
         self.rng = np.random.default_rng(seed)
+        self.block_spawn_low = np.asarray(block_spawn_low, dtype=float)
+        self.block_spawn_high = np.asarray(block_spawn_high, dtype=float)
         self._frame_steps = max(1, round(1 / (fps * self.model.opt.timestep)))
         self._qadr = np.array([self.model.joint(j).qposadr[0] for j in scene.ARM_JOINTS])
         self._dof = np.array([self.model.joint(j).dofadr[0] for j in scene.ARM_JOINTS])
@@ -104,7 +107,7 @@ class TabletopEnv:
         }
 
     def sample_scene(self):
-        return self.rng.uniform([0.34, -0.22], [0.42, -0.14])
+        return self.rng.uniform(self.block_spawn_low, self.block_spawn_high)
 
     def _capture(self):
         self.renderer.update_scene(self.data, camera=self.camera)
