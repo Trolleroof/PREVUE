@@ -79,4 +79,26 @@ This writes `data/ur5e_pick_place.mp4`.
 Split is 70/15/15 by episode index. The seeded generator mixes reachable
 landing-zone targets with reachable misses for a non-degenerate outcome probe.
 
-Useful flags: `--episodes`, `--seed`, `--size`, `--fps`, `--out`.
+Useful flags: `--episodes`, `--seed`, `--size`, `--fps`, `--out`,
+`--block-spawn-low`, `--block-spawn-high`, `--append`.
+
+## Validation
+
+```bash
+uv run python -m waddle_wm.sim.validate_dataset --data data/ur5e_wm_wide
+```
+
+Checks schema version, frame grid, per-frame track lengths, spawn-box
+conformance, split sizes, outcome balance, duplicate ids, duplicate scenes,
+cross-split scene leakage, and decodes `--render-sample` clips (50 by default;
+`0` skips). Exits non-zero on any failure.
+
+Because `--append` keeps whatever distribution the earlier episodes had, the
+spawn check compares the first and second half of the corpus: a half that spans
+a visibly narrower box means episodes were appended to an older corpus rather
+than regenerated. `docs/results.md` §0 records the output for the 5000-episode
+wide corpus. The validator has its own check:
+
+```bash
+uv run python -m waddle_wm.sim.test_validate_dataset
+```
