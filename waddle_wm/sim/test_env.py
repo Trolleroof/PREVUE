@@ -36,7 +36,14 @@ def main():
     assert not dropped.tracks["max_block_z"][-1] > 0.09, dropped.tracks["max_block_z"][-1]
     check_grid(dropped)
 
-    print(f"UR5e dataset check passed: {FRAMES_TOTAL} frames, modes={[good.failure_mode, miss.failure_mode, dropped.failure_mode]}")
+    env.reset(env.sample_scene())
+    assert env.approach_until([[0.4, -0.2, 0.30], [0.4, -0.2, 0.02]], stop=env.pinch_below(0.12))
+    assert env.data.site("2f85/pinch").xpos[2] <= 0.121, env.data.site("2f85/pinch").xpos[2]
+    env.reset(env.sample_scene())
+    assert not env.approach_until([[0.4, -0.2, 0.24]]), "no criterion should mean no early stop"
+
+    print(f"UR5e dataset check passed: {FRAMES_TOTAL} frames, modes={[good.failure_mode, miss.failure_mode, dropped.failure_mode]}, "
+          f"approach_until stops on its criterion")
 
 
 if __name__ == "__main__":

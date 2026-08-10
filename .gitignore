@@ -3,3 +3,6 @@
 models/
 __pycache__/
 data/
+MUJOCO_LOG.TXT
+results/agent/*.mp4
+!results/agent/evidence_reel.mp4

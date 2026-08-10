@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -22,6 +23,25 @@ from waddle_wm.actions import ACTION_DIM, chunks, compile_plan
 from waddle_wm.embed_windows import clip_frames
 from waddle_wm.sim.env import pick_place_trace
 from waddle_wm.train_latent_dynamics import STATE_DIM, Dynamics, Readout, rollout, success_probability
+
+
+def through_codec(frames, fps: int = 10) -> list[np.ndarray]:
+    """Round-trip freshly rendered frames through h264, the way the training clips were stored.
+
+    Every cached window embedding was computed from a decoded `.mp4`, so handing the frozen
+    backbone raw renderer output puts it off-distribution. It is not a small effect: on three
+    scenes whose canonical plan really succeeds, the same plan scored p(success) 0.17 / 0.30 /
+    0.12 from raw frames and 0.98 / 0.86 / 1.00 through the codec. Any live camera window has
+    to take the same path the dataset took.
+    """
+    import imageio.v3 as iio
+    from waddle_wm.embed_windows import clip_frames
+
+    frames = np.asarray(frames)
+    with tempfile.TemporaryDirectory() as directory:
+        path = Path(directory) / "window.mp4"
+        iio.imwrite(path, frames, fps=fps, codec="libx264")
+        return clip_frames(path, len(frames))
 
 
 @dataclass
@@ -63,6 +83,10 @@ class Verifier:
             pixels = processor(list(frames), return_tensors="pt")["pixel_values_videos"].to(self.device)
             latent = encoder(pixel_values_videos=pixels).last_hidden_state.mean(dim=1).float()
         return (latent - self.norm["latent_mean"]) / self.norm["latent_std"]
+
+    def encode_live(self, frames) -> torch.Tensor:
+        """Encode a window rendered just now, through the same codec the training clips went through."""
+        return self.encode(through_codec(frames, self.manifest["fps"]))
 
     def observation_window(self, data: Path, episode_id: str) -> torch.Tensor:
         """The pre-execution window (the prelude) of a recorded episode's clip."""

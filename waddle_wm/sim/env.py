@@ -106,6 +106,10 @@ class TabletopEnv:
             "max_block_z": self._max_lift,
         }
 
+    def block_positions(self):
+        """Every block on the table, so a planner can be asked about more than the red one."""
+        return {name: self.data.joint(f"{name}_free").qpos[:3].tolist() for name in scene.BLOCK_NAMES}
+
     def sample_scene(self):
         return self.rng.uniform(self.block_spawn_low, self.block_spawn_high)
 
@@ -149,15 +153,40 @@ class TabletopEnv:
                     scratch.qpos[adr] = np.clip(scratch.qpos[adr], *self.model.joint(joint).range)
         raise RuntimeError(f"IK failed for {target}: {np.linalg.norm(err[:3]):.4f}m")
 
-    def _move(self, target_q, gripper):
+    def _move(self, target_q, gripper, stop=None):
         start = np.array([self.data.actuator(j.removesuffix("_joint")).ctrl[0] for j in scene.ARM_JOINTS])
         for q in np.linspace(start, target_q, max(12, int(np.max(abs(target_q - start)) / 0.025))):
             for joint, value in zip(scene.ARM_JOINTS, q):
                 self.data.actuator(joint.removesuffix("_joint")).ctrl[0] = value
             for _ in range(4):
                 self._step(gripper)
+                if stop is not None and stop(self):
+                    return True
         for _ in range(int(0.30 / self.model.opt.timestep)):
             self._step(gripper)
+            if stop is not None and stop(self):     # the arm lags its command, so keep watching while it settles
+                return True
+        return False
+
+    def approach_until(self, waypoints, gripper=GRIPPER_OPEN, stop=None, phase="approach"):
+        """Waypoints + a stop criterion -> a trajectory, stopping early when `stop(env)` holds.
+
+        The pick-and-place path does not use this: its phase durations are what
+        `manifest.json -> phase_frames` records, and a contact-triggered early stop would
+        desynchronise the compiled plan the verifier scores from the episode that runs.
+        It is here for skills that servo to a condition rather than to a pose.
+        """
+        q = np.array([self.data.joint(j).qpos[0] for j in scene.ARM_JOINTS])
+        for point in np.atleast_2d(np.asarray(waypoints, dtype=float)):
+            self._begin(phase, point)
+            q = self._ik(point, q)
+            if self._move(q, gripper, stop):
+                return True
+        return False
+
+    def pinch_below(self, height):
+        """A stop criterion: the gripper's pinch point has descended past `height`."""
+        return lambda env: float(env.data.site("2f85/pinch").xpos[2]) <= height
 
     def _settle(self, gripper, seconds=0.55):
         for _ in range(int(seconds / self.model.opt.timestep)):
@@ -191,6 +220,19 @@ class TabletopEnv:
         before = self.state()
         plan = pick_place_trace(before["block_pos"], params.get("target_xy", before["target_pos"]),
                                 params.get("grasp_offset_xy", (0.0, 0.0)))
+        return self._execute(plan, before, skill, params, frames_total)
+
+    def run_trace(self, trace, frames_total=None, prelude_frames=PRELUDE_FRAMES, skill="trace", params=None):
+        """Execute an arbitrary waypoint program, the same one `compile_plan` would compile.
+
+        `frames_total=None` lets a free-form trace run as long as it needs; passing
+        `FRAMES_TOTAL` keeps the episode on the dataset's frame grid so the verifier's
+        compiled rollout and the executed episode describe the same 48 frames.
+        """
+        self._idle(prelude_frames)
+        return self._execute(list(trace), self.state(), skill, dict(params or {}), frames_total)
+
+    def _execute(self, plan, before, skill, params, frames_total):
         q = np.array([self.data.joint(j).qpos[0] for j in scene.ARM_JOINTS])
         trace = []
         for entry in plan:
@@ -200,15 +242,23 @@ class TabletopEnv:
                 self._settle(GRIPPER_CLOSED)
             elif phase == "open":
                 self._settle(GRIPPER_OPEN, 0.35)
+            elif phase == "idle":
+                self._settle(self.data.actuator(scene.GRIPPER_ACTUATOR).ctrl[0], 0.35)
             else:
                 q = self._ik(point, q)
                 self._move(q, GRIPPER_OPEN if phase in OPEN_PHASES else GRIPPER_CLOSED)
             self._end(phase, start, trace, point=point, value=entry.get("value"))
-        if len(self._frames) > frames_total:
-            raise RuntimeError(f"execution needed {len(self._frames)} frames, over the {frames_total}-frame grid")
-        self._idle(frames_total)
+        if frames_total is not None:
+            if len(self._frames) > frames_total:
+                raise RuntimeError(f"execution needed {len(self._frames)} frames, over the {frames_total}-frame grid")
+            self._idle(frames_total)
         after = self.state()
         success = self._max_lift > LIFT_THRESHOLD and after["target_distance"] <= TARGET_RADIUS
         failure = None if success else ("missed" if self._max_lift <= LIFT_THRESHOLD else "target_miss")
         return Episode(skill, params, trace, before, after, success, failure, np.stack(self._frames),
                        list(self._frame_times), {key: list(value) for key, value in self._tracks.items()})
+
+    def observation_frames(self, count=WINDOW_FRAMES):
+        """Render `count` frames of the untouched scene: the verifier's observation window."""
+        self._idle(count)
+        return np.stack(self._frames[:count])
