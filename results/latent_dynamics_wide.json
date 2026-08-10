@@ -1,0 +1,398 @@
+{
+  "data": "data/ur5e_wm_wide",
+  "checkpoint": "models/latent_dynamics_wide.pt",
+  "episodes": 5000,
+  "block_spawn_low": [
+    0.3,
+    -0.26
+  ],
+  "block_spawn_high": [
+    0.46,
+    -0.1
+  ],
+  "chunks": "compiled_plan",
+  "group_decomposition": {
+    "train": {
+      "A": {
+        "description": "plan on the landing zone, grasp holds",
+        "episodes": 1345,
+        "correct": 1218,
+        "accuracy": 0.905576229095459,
+        "mean_success_probability": 0.8509653210639954,
+        "mean_uncertainty": 0.10417138040065765,
+        "true_success_rate": 0.9680297374725342
+      },
+      "B": {
+        "description": "plan off the landing zone (the plan decides)",
+        "episodes": 1570,
+        "correct": 1566,
+        "accuracy": 0.9974522590637207,
+        "mean_success_probability": 7.973561878316104e-05,
+        "mean_uncertainty": 9.6125018899329e-05,
+        "true_success_rate": 0.0025477707386016846
+      },
+      "C": {
+        "description": "plan on the landing zone, grasp misses (vision decides)",
+        "episodes": 585,
+        "correct": 276,
+        "accuracy": 0.47179487347602844,
+        "mean_success_probability": 0.5299260020256042,
+        "mean_uncertainty": 0.1381368190050125,
+        "true_success_rate": 0.0
+      }
+    },
+    "val": {
+      "A": {
+        "description": "plan on the landing zone, grasp holds",
+        "episodes": 276,
+        "correct": 244,
+        "accuracy": 0.8840579986572266,
+        "mean_success_probability": 0.8535758256912231,
+        "mean_uncertainty": 0.10598251968622208,
+        "true_success_rate": 0.9746376872062683
+      },
+      "B": {
+        "description": "plan off the landing zone (the plan decides)",
+        "episodes": 333,
+        "correct": 330,
+        "accuracy": 0.9909909963607788,
+        "mean_success_probability": 4.1608647734392434e-05,
+        "mean_uncertainty": 4.731473381980322e-05,
+        "true_success_rate": 0.009009009227156639
+      },
+      "C": {
+        "description": "plan on the landing zone, grasp misses (vision decides)",
+        "episodes": 141,
+        "correct": 61,
+        "accuracy": 0.43262410163879395,
+        "mean_success_probability": 0.5653988718986511,
+        "mean_uncertainty": 0.14820154011249542,
+        "true_success_rate": 0.0
+      }
+    },
+    "test": {
+      "A": {
+        "description": "plan on the landing zone, grasp holds",
+        "episodes": 251,
+        "correct": 227,
+        "accuracy": 0.9043824672698975,
+        "mean_success_probability": 0.8585473895072937,
+        "mean_uncertainty": 0.10170836746692657,
+        "true_success_rate": 0.9760956168174744
+      },
+      "B": {
+        "description": "plan off the landing zone (the plan decides)",
+        "episodes": 361,
+        "correct": 361,
+        "accuracy": 1.0,
+        "mean_success_probability": 0.0001696419349173084,
+        "mean_uncertainty": 0.0002544846211094409,
+        "true_success_rate": 0.0
+      },
+      "C": {
+        "description": "plan on the landing zone, grasp misses (vision decides)",
+        "episodes": 138,
+        "correct": 51,
+        "accuracy": 0.3695652186870575,
+        "mean_success_probability": 0.6099114418029785,
+        "mean_uncertainty": 0.1381811648607254,
+        "true_success_rate": 0.0
+      }
+    }
+  },
+  "lifted_by_window": {
+    "train": [
+      {
+        "window": 1,
+        "imagined_lifted_accuracy": 1.0,
+        "oracle_lifted_accuracy": 1.0,
+        "base_rate": 1.0
+      },
+      {
+        "window": 2,
+        "imagined_lifted_accuracy": 1.0,
+        "oracle_lifted_accuracy": 1.0,
+        "base_rate": 1.0
+      },
+      {
+        "window": 3,
+        "imagined_lifted_accuracy": 0.7528571486473083,
+        "oracle_lifted_accuracy": 0.9997143149375916,
+        "base_rate": 0.6868571639060974
+      },
+      {
+        "window": 4,
+        "imagined_lifted_accuracy": 0.7445714473724365,
+        "oracle_lifted_accuracy": 0.9971428513526917,
+        "base_rate": 0.6868571639060974
+      },
+      {
+        "window": 5,
+        "imagined_lifted_accuracy": 0.7577142715454102,
+        "oracle_lifted_accuracy": 0.9959999918937683,
+        "base_rate": 0.6868571639060974
+      }
+    ],
+    "val": [
+      {
+        "window": 1,
+        "imagined_lifted_accuracy": 1.0,
+        "oracle_lifted_accuracy": 1.0,
+        "base_rate": 1.0
+      },
+      {
+        "window": 2,
+        "imagined_lifted_accuracy": 1.0,
+        "oracle_lifted_accuracy": 1.0,
+        "base_rate": 1.0
+      },
+      {
+        "window": 3,
+        "imagined_lifted_accuracy": 0.7293333411216736,
+        "oracle_lifted_accuracy": 0.9973333477973938,
+        "base_rate": 0.6866666674613953
+      },
+      {
+        "window": 4,
+        "imagined_lifted_accuracy": 0.7333333492279053,
+        "oracle_lifted_accuracy": 0.9906666874885559,
+        "base_rate": 0.6866666674613953
+      },
+      {
+        "window": 5,
+        "imagined_lifted_accuracy": 0.7440000176429749,
+        "oracle_lifted_accuracy": 0.9866666793823242,
+        "base_rate": 0.6866666674613953
+      }
+    ],
+    "test": [
+      {
+        "window": 1,
+        "imagined_lifted_accuracy": 1.0,
+        "oracle_lifted_accuracy": 1.0,
+        "base_rate": 1.0
+      },
+      {
+        "window": 2,
+        "imagined_lifted_accuracy": 1.0,
+        "oracle_lifted_accuracy": 1.0,
+        "base_rate": 1.0
+      },
+      {
+        "window": 3,
+        "imagined_lifted_accuracy": 0.7173333168029785,
+        "oracle_lifted_accuracy": 0.9946666955947876,
+        "base_rate": 0.6679999828338623
+      },
+      {
+        "window": 4,
+        "imagined_lifted_accuracy": 0.7120000123977661,
+        "oracle_lifted_accuracy": 0.9879999756813049,
+        "base_rate": 0.6679999828338623
+      },
+      {
+        "window": 5,
+        "imagined_lifted_accuracy": 0.7200000286102295,
+        "oracle_lifted_accuracy": 0.9906666874885559,
+        "base_rate": 0.6679999828338623
+      }
+    ]
+  },
+  "checkpoint_metrics": {
+    "label_audit": {
+      "episodes": 5000,
+      "windows": 6,
+      "transitions_per_episode": 5,
+      "failure_modes": {
+        "missed": 1580,
+        "none": 1823,
+        "target_miss": 1597
+      },
+      "splits": {
+        "test": 750,
+        "train": 3500,
+        "val": 750
+      },
+      "terminal_identity_holds": true,
+      "success_rate": 0.3646000027656555,
+      "grasp_failure_rate": 0.316
+    },
+    "plan_only_baseline": {
+      "model": "random forest on the flattened compiled plan",
+      "features": 520,
+      "test_success_accuracy": 0.8546666666666667,
+      "test_success_majority_class": 0.6733333468437195,
+      "test_lifted_accuracy": 0.7173333333333334,
+      "test_lifted_majority_class": 0.6679999828338623,
+      "test_in_target_accuracy": 0.8546666666666667,
+      "test_in_target_majority_class": 0.6733333468437195
+    },
+    "best_dynamics_epoch": 432,
+    "best_dynamics_val_loss": 1.0946433544158936,
+    "best_readout_epoch": 448,
+    "best_readout_val_loss": 0.02372545190155506,
+    "rollout_weight": 1.0,
+    "grounding_weight": 0.0,
+    "members": 5,
+    "focus_step": 2,
+    "focus_weight": 3.0,
+    "latent_dim": 1024,
+    "rollout_steps": 5,
+    "train_executed": {
+      "episodes": 3500,
+      "one_step_latent_cosine": 0.8154629468917847,
+      "persistence_baseline_cosine": -0.011699209921061993,
+      "rollout_latent_cosine_per_step": [
+        0.8872,
+        0.8098,
+        0.8324,
+        0.7607,
+        0.7837
+      ],
+      "imagined_block_xy_rmse_m": 0.20347921550273895,
+      "imagined_block_xy_rmse_m_when_confident": 0.20038868486881256,
+      "confident_fraction": 0.8911428451538086,
+      "readout_oracle_block_xy_rmse_m": 0.023449024185538292,
+      "readout_oracle_lifted_accuracy": 0.9959999918937683,
+      "success_accuracy": 0.8634285926818848,
+      "lifted_accuracy": 0.7582857012748718,
+      "in_target_accuracy": 0.8634285926818848,
+      "brier": 0.1111426129937172,
+      "false_accept_rate": 0.13901549577713013,
+      "false_reject_rate": 0.13246554136276245,
+      "mean_uncertainty_when_right": 0.039972882717847824,
+      "mean_uncertainty_when_wrong": 0.1468917429447174,
+      "chunks": "executed"
+    },
+    "val_executed": {
+      "episodes": 750,
+      "one_step_latent_cosine": 0.8023449182510376,
+      "persistence_baseline_cosine": -0.0130478385835886,
+      "rollout_latent_cosine_per_step": [
+        0.8828,
+        0.8028,
+        0.8163,
+        0.74,
+        0.7756
+      ],
+      "imagined_block_xy_rmse_m": 0.21686555445194244,
+      "imagined_block_xy_rmse_m_when_confident": 0.21479015052318573,
+      "confident_fraction": 0.9013333320617676,
+      "readout_oracle_block_xy_rmse_m": 0.034588947892189026,
+      "readout_oracle_lifted_accuracy": 0.9866666793823242,
+      "success_accuracy": 0.8413333296775818,
+      "lifted_accuracy": 0.7426666617393494,
+      "in_target_accuracy": 0.8386666774749756,
+      "brier": 0.13023489713668823,
+      "false_accept_rate": 0.16527196764945984,
+      "false_reject_rate": 0.14705882966518402,
+      "mean_uncertainty_when_right": 0.0415426604449749,
+      "mean_uncertainty_when_wrong": 0.14974527060985565,
+      "chunks": "executed"
+    },
+    "test_executed": {
+      "episodes": 750,
+      "one_step_latent_cosine": 0.7993833422660828,
+      "persistence_baseline_cosine": -0.016322936862707138,
+      "rollout_latent_cosine_per_step": [
+        0.8853,
+        0.7964,
+        0.8138,
+        0.74,
+        0.7725
+      ],
+      "imagined_block_xy_rmse_m": 0.2242274433374405,
+      "imagined_block_xy_rmse_m_when_confident": 0.22339992225170135,
+      "confident_fraction": 0.8866666555404663,
+      "readout_oracle_block_xy_rmse_m": 0.030352015048265457,
+      "readout_oracle_lifted_accuracy": 0.9906666874885559,
+      "success_accuracy": 0.8479999899864197,
+      "lifted_accuracy": 0.7200000286102295,
+      "in_target_accuracy": 0.846666693687439,
+      "brier": 0.12365144491195679,
+      "false_accept_rate": 0.16633664071559906,
+      "false_reject_rate": 0.12244898080825806,
+      "mean_uncertainty_when_right": 0.037236288189888,
+      "mean_uncertainty_when_wrong": 0.14979714155197144,
+      "chunks": "executed"
+    },
+    "train_compiled_plan": {
+      "episodes": 3500,
+      "one_step_latent_cosine": 0.8130000233650208,
+      "persistence_baseline_cosine": -0.011699209921061993,
+      "rollout_latent_cosine_per_step": [
+        0.887,
+        0.808,
+        0.8312,
+        0.7566,
+        0.7738
+      ],
+      "imagined_block_xy_rmse_m": 0.20220883190631866,
+      "imagined_block_xy_rmse_m_when_confident": 0.19817064702510834,
+      "confident_fraction": 0.8845714330673218,
+      "readout_oracle_block_xy_rmse_m": 0.023449024185538292,
+      "readout_oracle_lifted_accuracy": 0.9959999918937683,
+      "success_accuracy": 0.8742856979370117,
+      "lifted_accuracy": 0.7577142715454102,
+      "in_target_accuracy": 0.8745714426040649,
+      "brier": 0.10455666482448578,
+      "false_accept_rate": 0.14539653062820435,
+      "false_reject_rate": 0.09264931082725525,
+      "mean_uncertainty_when_right": 0.049007680267095566,
+      "mean_uncertainty_when_wrong": 0.1616090089082718,
+      "chunks": "compiled_plan"
+    },
+    "val_compiled_plan": {
+      "episodes": 750,
+      "one_step_latent_cosine": 0.8003387451171875,
+      "persistence_baseline_cosine": -0.0130478385835886,
+      "rollout_latent_cosine_per_step": [
+        0.8827,
+        0.8006,
+        0.8153,
+        0.7382,
+        0.7663
+      ],
+      "imagined_block_xy_rmse_m": 0.2165696918964386,
+      "imagined_block_xy_rmse_m_when_confident": 0.21298761665821075,
+      "confident_fraction": 0.8733333349227905,
+      "readout_oracle_block_xy_rmse_m": 0.034588947892189026,
+      "readout_oracle_lifted_accuracy": 0.9866666793823242,
+      "success_accuracy": 0.846666693687439,
+      "lifted_accuracy": 0.7440000176429749,
+      "in_target_accuracy": 0.846666693687439,
+      "brier": 0.12746469676494598,
+      "false_accept_rate": 0.17782427370548248,
+      "false_reject_rate": 0.11029411852359772,
+      "mean_uncertainty_when_right": 0.050053566694259644,
+      "mean_uncertainty_when_wrong": 0.1598202884197235,
+      "chunks": "compiled_plan"
+    },
+    "test_compiled_plan": {
+      "episodes": 750,
+      "one_step_latent_cosine": 0.7973618507385254,
+      "persistence_baseline_cosine": -0.016322936862707138,
+      "rollout_latent_cosine_per_step": [
+        0.8853,
+        0.7944,
+        0.8129,
+        0.7366,
+        0.7632
+      ],
+      "imagined_block_xy_rmse_m": 0.22224842011928558,
+      "imagined_block_xy_rmse_m_when_confident": 0.2207482010126114,
+      "confident_fraction": 0.8893333077430725,
+      "readout_oracle_block_xy_rmse_m": 0.030352015048265457,
+      "readout_oracle_lifted_accuracy": 0.9906666874885559,
+      "success_accuracy": 0.8519999980926514,
+      "lifted_accuracy": 0.7200000286102295,
+      "in_target_accuracy": 0.8506666421890259,
+      "brier": 0.11947739869356155,
+      "false_accept_rate": 0.17623762786388397,
+      "false_reject_rate": 0.08979591727256775,
+      "mean_uncertainty_when_right": 0.04225306585431099,
+      "mean_uncertainty_when_wrong": 0.15936900675296783,
+      "chunks": "compiled_plan"
+    }
+  }
+}
