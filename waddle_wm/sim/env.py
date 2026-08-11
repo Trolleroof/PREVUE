@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
 
 import mujoco
@@ -95,6 +96,45 @@ class TabletopEnv:
         self._max_lift = float(self.data.joint("red_block_free").qpos[2])
         return self.state()
 
+    def snapshot(self) -> dict:
+        """Everything MuJoCo needs to replay this instant, plus the env's own bookkeeping.
+
+        `mjSTATE_INTEGRATION` is the full integration state — time, qpos, qvel, act, the
+        warmstart accelerations, plugin state, ctrl, applied forces, equality flags, mocap
+        and userdata — so a restore is byte-identical rather than merely similar. `site_pos`
+        lives on the model, not the data, and `reset(target_xy=...)` moves it, so it is
+        carried too. Nothing here is ever shown to a selector.
+        """
+        state = np.zeros(mujoco.mj_stateSize(self.model, mujoco.mjtState.mjSTATE_INTEGRATION))
+        mujoco.mj_getState(self.model, self.data, state, mujoco.mjtState.mjSTATE_INTEGRATION)
+        return {"state": state, "site_pos": self.model.site_pos.copy(),
+                "tracked_block": self._tracked_block, "destination": self._destination,
+                "max_lift": float(self._max_lift), "digest": self.state_digest()}
+
+    def restore(self, snapshot: dict):
+        """Put the simulator back exactly where `snapshot` was taken, recording cleared.
+
+        Unlike `reset`, this does not re-run the keyframe and re-place the blocks: it writes
+        the recorded integration state back, so two candidates executed after two restores
+        start from the same bytes and any difference between them is the candidate.
+        """
+        mujoco.mj_setState(self.model, self.data, snapshot["state"], mujoco.mjtState.mjSTATE_INTEGRATION)
+        self.model.site_pos[:] = snapshot["site_pos"]
+        mujoco.mj_forward(self.model, self.data)
+        self._tracked_block, self._destination = snapshot["tracked_block"], snapshot["destination"]
+        self._max_lift = float(snapshot["max_lift"])
+        self._frames, self._frame_times = [], []
+        self._tracks = {key: [] for key in TRACK_KEYS}
+        self._phase, self._waypoint = PHASE_ID["idle"], self.data.site("2f85/pinch").xpos.copy()
+        return self.state()
+
+    def state_digest(self) -> str:
+        """A fingerprint of the physical state, so a failed restore is caught rather than assumed."""
+        state = np.zeros(mujoco.mj_stateSize(self.model, mujoco.mjtState.mjSTATE_INTEGRATION))
+        mujoco.mj_getState(self.model, self.data, state, mujoco.mjtState.mjSTATE_INTEGRATION)
+        payload = np.concatenate([state.ravel(), self.model.site_pos.ravel()]).astype(np.float64)
+        return hashlib.sha1(payload.tobytes()).hexdigest()[:16]
+
     def track_task(self, block: str, destination: str):
         """Select the object and destination whose outcome this execution reports."""
         if block not in scene.BLOCK_NAMES:
@@ -105,6 +145,11 @@ class TabletopEnv:
             raise ValueError("a block cannot be placed onto itself")
         self._tracked_block, self._destination = block, destination
         self._max_lift = float(self.data.joint(f"{block}_free").qpos[2])
+
+    @property
+    def frame_count(self) -> int:
+        """Frames captured since the last reset, restore, or `clear_recording`."""
+        return len(self._frames)
 
     def clear_recording(self):
         """Start a fresh observation/execution clip without resetting the physical scene."""

@@ -138,8 +138,10 @@ part of the key — Claude varies the wording freely for plans that mean the sam
 
 Duplicates are **kept in the pool**, flagged with `duplicate_of`. A pass@N curve is a
 statement about a sampling distribution, and dropping repeats would silently reweight it.
-The `dedup_key` is there so #23 can execute each distinct behaviour once and reuse the
-outcome for its repeats.
+The `dedup_key` is there so a duplicate can be recognised as one; #23 executes every
+candidate anyway, so that each candidate has exactly one execution record per physics seed
+and the integrity check can say so — see
+[`counterfactual_execution.md`](counterfactual_execution.md).
 
 ## Pools
 
@@ -242,7 +244,7 @@ identical prefixes and success@N curves are comparable across selectors.
 | `candidates[]` | candidate id, rank index, sample index, complete program, grounded trace, dedup key and `duplicate_of`, validation result, retry policy, redetect ops, abort reason, diagnostic name and kind, generation cost/latency, and Claude's raw reply |
 | `rejected[]` | every discarded sample with its stage and reason |
 | `prefixes` | the nested id lists |
-| `pool_has_success` | `null` here, filled in by #23 once every candidate has been executed |
+| `pool_has_success` | `null` here, filled in by [#23](counterfactual_execution.md) once every candidate has been executed |
 | `summary` | accepted, rejected, attempted, unique programs, duplicate fraction, acting vs declining candidates, distinct strategies, cost, reject reasons by stage |
 
 `pool_has_success` is in the artifact from generation onward and must survive downstream.
