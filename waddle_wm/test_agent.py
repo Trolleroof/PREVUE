@@ -43,13 +43,19 @@ def check_contract():
     free = parse(json.dumps({**GOOD, "trace": GOOD["trace"][:1]}))
     assert free.executable and not free.pick_place_shaped, free
 
+    compound = parse(json.dumps({"intent": "yellow to pad, then red onto yellow", "action": "execute",
+                                  "steps": [{"object": "yellow block", "destination": "green pad", "trace": GOOD["trace"]},
+                                            {"object": "red block", "destination": "yellow block", "trace": GOOD["trace"]}],
+                                  "note": "two ordered moves"}))
+    assert len(compound.steps) == 2 and compound.steps[1].destination == "yellow block", compound
+
     for name, payload, fragment in [
         ("prose instead of JSON", "Sure! I would approach the block first.", "not JSON"),
         ("unknown phase", {**GOOD, "trace": [{"phase": "wiggle", "target": [0.4, 0.0, 0.2]}]}, "phase must be one of"),
         ("missing target", {**GOOD, "trace": [{"phase": "approach"}]}, "needs"),
         ("outside the workspace", {**GOOD, "trace": [{"phase": "approach", "target": [0.4, 0.0, 3.0]}]}, "outside the workspace"),
         ("too many phases", {**GOOD, "trace": GOOD["trace"] * 2}, f"at most {MAX_PHASES}"),
-        ("no trace to execute", {**GOOD, "trace": []}, "non-empty trace"),
+        ("no trace to execute", {**GOOD, "trace": []}, "non-empty list"),
         ("missing key", {"action": "execute"}, "missing key"),
     ]:
         try:
@@ -58,7 +64,7 @@ def check_contract():
             assert fragment in str(error), (name, str(error))
         else:
             raise AssertionError(f"{name} should have been rejected")
-    print(f"plan contract passed: 1 valid plan, 1 abstention, 1 free-form trace, 7 rejections")
+    print(f"plan contract passed: atomic + compound plans, abstention, free-form trace, 7 rejections")
 
 
 def check_live(episodes: int, checkpoint: Path, seed: int):
@@ -99,6 +105,8 @@ def check_live(episodes: int, checkpoint: Path, seed: int):
 
 def check_perception(scenes: int, seed: int):
     """Every detection must land close enough to the true pose to be graspable."""
+    if not scenes:
+        return
     from waddle_wm.perception import QUERIES, SceneCamera
     from waddle_wm.sim.env import TabletopEnv
 
@@ -119,6 +127,50 @@ def check_perception(scenes: int, seed: int):
     assert camera.bounding_box("the purple teapot") is None, "matched an object that is not in the scene"
     print(f"perception passed: {len(errors)} detections, lateral error mean {np.mean(errors) * 1000:.1f} mm, "
           f"max {np.max(errors) * 1000:.1f} mm (grasp tolerance is about 28 mm)")
+
+
+def check_compound_execution():
+    """The reported object must be the object moved, including a second-step stack."""
+    from waddle_wm.agent import SkillAgent
+    from waddle_wm.planner import SkillStep
+    from waddle_wm.sim.env import pick_place_trace
+
+    agent = SkillAgent(verify=False)
+    agent.observe(block_xy=[0.36, -0.18])
+    points = {d.label: d.point_base for d in agent.perceive()}
+    agent._plan_points = points
+    first = agent.ground_step(SkillStep("yellow block", "green pad",
+                                        pick_place_trace(points["yellow block"][:2], [0.5, 0.3])))
+    yellow, _ = agent.execute(first)
+    agent.observe_current()
+    points = {d.label: d.point_base for d in agent.perceive()}
+    future_target = [0.5, 0.3]
+    second = agent.ground_step(SkillStep("red block", "yellow block",
+                                         pick_place_trace(points["red block"][:2], future_target)))
+    place = next(entry["target"] for entry in second.trace if entry["phase"] == "place")
+    assert np.linalg.norm(np.subtract(place[:2], points["yellow block"][:2])) < 0.04, (place, points["yellow block"])
+    red, _ = agent.execute(second)
+    assert yellow["success"] and yellow["object"] == "yellow block", yellow
+    assert red["success"] and red["destination"] == "yellow block", red
+    print("compound execution passed: yellow → pad, then red → yellow stack")
+
+
+def check_rules_verifier():
+    from waddle_wm.agent import SkillAgent
+    from waddle_wm.planner import SkillStep
+    from waddle_wm.sim.env import pick_place_trace
+
+    agent = SkillAgent(verifier_mode="rules")
+    agent.observe(block_xy=[0.36, -0.18])
+    points = {d.label: d.point_base for d in agent.perceive()}
+    good = SkillStep("blue block", "green pad", pick_place_trace(points["blue block"][:2], [0.5, 0.3]))
+    bad = SkillStep("blue block", "green pad", pick_place_trace(points["blue block"][:2], [0.5, 0.3], [0.05, 0]))
+    stack = agent.ground_step(SkillStep("red block", "yellow block",
+                                        pick_place_trace(points["red block"][:2], points["yellow block"][:2])))
+    assert agent.rule_verdict(good).approve
+    assert agent.rule_verdict(stack).approve
+    assert agent.rule_verdict(bad).likely_failure == "grasp misses the block"
+    print("rules verifier passed: pad + stack geometry accepted, 5 cm grasp miss rejected")
 
 
 def check_claude(model: str):
@@ -152,6 +204,8 @@ def main():
 
     check_contract()
     check_perception(args.scenes, args.seed)
+    check_rules_verifier()
+    check_compound_execution()
     if args.live:
         check_live(args.live, args.checkpoint, args.seed)
     if args.claude:

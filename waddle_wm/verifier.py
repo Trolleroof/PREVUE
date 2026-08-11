@@ -21,8 +21,10 @@ from torch import nn
 
 from waddle_wm.actions import ACTION_DIM, chunks, compile_plan
 from waddle_wm.embed_windows import clip_frames
-from waddle_wm.sim.env import pick_place_trace
-from waddle_wm.train_latent_dynamics import STATE_DIM, Dynamics, Readout, rollout, success_probability
+from waddle_wm.sim import relling_scene as scene
+from waddle_wm.sim.env import TARGET_RADIUS, pick_place_trace
+from waddle_wm.train_multiblock_world_model import StateWorldModel, task_features
+from waddle_wm.train_latent_dynamics import STATE_DIM, Dynamics, ObjectReadout, Readout, rollout, success_probability
 
 
 def through_codec(frames, fps: int = 10) -> list[np.ndarray]:
@@ -59,15 +61,28 @@ class VerificationResult:
 class Verifier:
     """`verify(observation_window, skill_trace) -> VerificationResult`."""
 
-    def __init__(self, checkpoint: Path, model: Path = Path("models/vjepa2-vitl-fpc64-256"), threshold: float = 0.5, device=None):
+    def __init__(self, checkpoint: Path, model: Path = Path("models/vjepa2-vitl-fpc64-256"), threshold: float | None = None, device=None):
         saved = torch.load(checkpoint, map_location="cpu", weights_only=False)
         self.device = device or torch.device("mps" if torch.backends.mps.is_available() else "cpu")
-        self.manifest, self.threshold, self.model_path = saved["manifest"], threshold, model
-        self.members = nn.ModuleList([Dynamics(saved["latent_dim"], saved["chunk_dim"]) for _ in range(saved["member_count"])])
-        self.members.load_state_dict(saved["members"]); self.members.to(self.device).eval()
-        self.readout = Readout(saved["latent_dim"]); self.readout.load_state_dict(saved["readout"]); self.readout.to(self.device).eval()
+        self.manifest = saved["manifest"]
+        self.threshold = saved.get("decision_threshold", 0.5) if threshold is None else threshold
+        self.model_path = model
+        self.model_type = saved.get("model_type", "latent_dynamics")
         self.norm = {key: value.to(self.device) for key, value in saved["normalization"].items()}
         self._encoder = None
+        if self.model_type == "multiblock_state":
+            self.members = nn.ModuleList([StateWorldModel(saved["context_dim"], saved["plan_dim"])
+                                          for _ in range(saved["member_count"])])
+            self.members.load_state_dict(saved["members"]); self.members.to(self.device).eval()
+            self.binary_dim, self.object_conditioned = 0, False
+            return
+        self.members = nn.ModuleList([Dynamics(saved["latent_dim"], saved["chunk_dim"]) for _ in range(saved["member_count"])])
+        self.members.load_state_dict(saved["members"]); self.members.to(self.device).eval()
+        self.state_dim, self.binary_dim = saved.get("state_dim", STATE_DIM), saved.get("binary_dim", 2)
+        self.object_conditioned = saved.get("object_conditioned_readout", False)
+        self.readout = (ObjectReadout(saved["latent_dim"], len(saved["manifest"]["block_names"]))
+                        if self.object_conditioned else Readout(saved["latent_dim"], self.state_dim, self.binary_dim))
+        self.readout.load_state_dict(saved["readout"]); self.readout.to(self.device).eval()
 
     def encode(self, frames) -> torch.Tensor:
         """One observation window of raw RGB frames -> one normalised latent."""
@@ -82,6 +97,8 @@ class Verifier:
         with torch.inference_mode():
             pixels = processor(list(frames), return_tensors="pt")["pixel_values_videos"].to(self.device)
             latent = encoder(pixel_values_videos=pixels).last_hidden_state.mean(dim=1).float()
+        if self.model_type == "multiblock_state":
+            return (latent - self.norm["context_mean"]) / self.norm["context_std"]
         return (latent - self.norm["latent_mean"]) / self.norm["latent_std"]
 
     def encode_live(self, frames) -> torch.Tensor:
@@ -100,9 +117,72 @@ class Verifier:
         plan = torch.from_numpy(chunks(actions, self.manifest["window_frames"])[1:]).to(self.device)
         return ((plan - self.norm["action_mean"]) / self.norm["action_std"]).unsqueeze(1)
 
-    def verify(self, latent: torch.Tensor, trace) -> VerificationResult:
+    def verify(self, latent: torch.Tensor, trace, object_name="red_block", destination="green_pad",
+               scene_positions=None) -> VerificationResult:
         with torch.inference_mode():
+            if self.model_type == "multiblock_state":
+                if scene_positions is None:
+                    raise ValueError("the multi-block state verifier needs current camera positions")
+                names = tuple(self.manifest["block_names"])
+                raw_state = torch.tensor([value for name in names for value in scene_positions[name]],
+                                         dtype=torch.float32, device=self.device).unsqueeze(0)
+                source = names.index(object_name)
+                source_xyz = raw_state[0, source * 3:source * 3 + 3]
+                destination_xyz = (torch.tensor(scene.TARGET_POS, device=self.device) if destination == "green_pad" else
+                                   raw_state[0, names.index(destination) * 3:names.index(destination) * 3 + 3])
+                grasp = torch.tensor(next(e["target"] for e in trace if e["phase"] == "descend"), device=self.device)
+                place = torch.tensor(next(e["target"] for e in trace if e["phase"] == "place"), device=self.device)
+                plan = torch.cat([grasp - source_xyz, place - destination_xyz]).unsqueeze(0)
+                plan = (plan - self.norm["plan_mean"]) / self.norm["plan_std"]
+                state = (raw_state - self.norm["state_mean"]) / self.norm["state_std"]
+                task = task_features([object_name], [destination], names, self.device)
+                outputs = [member(latent, state, plan, task) for member in self.members]
+                predicted = torch.stack([output[0] for output in outputs])
+                logits = torch.stack([output[1] for output in outputs])
+                predicted = predicted * self.norm["state_std"] + self.norm["state_mean"]
+                block_xyz = predicted[..., source * 3:source * 3 + 3]
+                lifted_score, scores = logits[..., 0].sigmoid(), logits[..., 1].sigmoid()
+                mean, spread = float(scores.mean()), float(scores.std())
+                lifted = float(lifted_score.mean())
+                in_target = min(1.0, mean / max(lifted, 1e-6))
+                block = block_xyz.mean(0)[0, :2].tolist()
+                failure = "grasp misses the block" if lifted < 0.5 else ("block misses the destination" if in_target < 0.5 else None)
+                suggestion = {"grasp misses the block": "re-aim the grasp at the observed block centre",
+                              "block misses the destination": "move the place target onto the destination"}.get(failure)
+                return VerificationResult(mean >= self.threshold, mean, spread, lifted, in_target, block, failure, suggestion)
             final, _ = rollout(self.members, latent, self.plan_chunks(trace))
+            if not self.binary_dim:
+                names = self.manifest["block_names"]
+                source = names.index(object_name)
+                position = self.readout(final, source)
+                initial = self.readout(latent, source)
+                initial = initial * self.norm["state_std"] + self.norm["state_mean"]
+                block_xyz = position * self.norm["state_std"] + self.norm["state_mean"]
+                before_xyz = initial
+                moved = (block_xyz[..., :2] - before_xyz[..., :2]).norm(dim=-1)
+                lifted_score = torch.sigmoid((moved - 0.025) / 0.01)
+                if destination == "green_pad":
+                    target = torch.tensor(next(e["target"][:2] for e in trace if e["phase"] == "place"),
+                                          device=self.device)
+                    distance = (block_xyz[..., :2] - target).norm(dim=-1)
+                    target_score = torch.sigmoid((TARGET_RADIUS - distance) / 0.02)
+                else:
+                    target_index = names.index(destination)
+                    target_xyz = (self.readout(final, target_index) * self.norm["state_std"] +
+                                  self.norm["state_mean"])
+                    distance = (block_xyz[..., :2] - target_xyz[..., :2]).norm(dim=-1)
+                    vertical = block_xyz[..., 2] - target_xyz[..., 2]
+                    target_score = torch.minimum(torch.sigmoid((0.027 - distance) / 0.008),
+                                                 torch.sigmoid((vertical - 0.027) / 0.006))
+                scores = torch.minimum(lifted_score, target_score)
+                mean, spread = float(scores.mean()), float(scores.std())
+                lifted, in_target = float(lifted_score.mean()), float(target_score.mean())
+                block = block_xyz.mean(0)[0, :2].tolist()
+                failure = "grasp misses the block" if lifted < 0.5 else ("block misses the destination" if in_target < 0.5 else None)
+                suggestion = {"grasp misses the block": "re-aim the grasp at the observed block centre",
+                              "block misses the destination": "move the place target onto the destination"}.get(failure)
+                return VerificationResult(mean >= self.threshold, mean, spread, lifted, in_target,
+                                          block, failure, suggestion)
             probability = success_probability(self.readout, final)
             position, logits = self.readout(final)
             block = (position.mean(0)[0, :2] * self.norm["state_std"][:2] + self.norm["state_mean"][:2]).tolist()

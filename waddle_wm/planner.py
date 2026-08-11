@@ -28,29 +28,36 @@ MODEL = "claude-opus-5"
 MOVE_PHASES = tuple(phase for phase in PHASES if phase not in ("idle", *GRIPPER_VALUES))
 PICK_PLACE_SHAPE = ("approach", "descend", "close", "lift", "move", "place", "open", "retreat")
 WORKSPACE = {"x": (0.20, 0.72), "y": (-0.50, 0.50), "z": (0.012, 0.45)}
+MAX_STEPS = 4
 MAX_PHASES = 8
+OBJECTS = ("red block", "blue block", "yellow block")
+DESTINATIONS = ("green pad", *OBJECTS)
 
 SYSTEM_PROMPT = f"""You are the high-level planner for a UR5e arm with a Robotiq 2F-85 gripper on a tabletop.
 You turn one natural-language command into a waypoint program. You do not run physics and you do not
-judge success — a separate deterministic world-model verifier does that and may send the plan back to you.
+judge success — a separate verifier does that and may send the plan back to you.
 
 Reply with ONE JSON object and nothing else. No prose, no markdown fence.
 
 {{"intent": "<one line restating the command in your own words>",
   "action": "execute" | "abstain",
-  "trace": [{{"phase": "<phase>", "target": [x, y, z]}}, ...],
+  "steps": [{{"object": "red block" | "blue block" | "yellow block",
+             "destination": "green pad" | "red block" | "blue block" | "yellow block",
+             "trace": [{{"phase": "<phase>", "target": [x, y, z]}}, ...]}}, ...],
   "note": "<one or two sentences: what you aimed at, or what you changed and why>"}}
 
 Rules:
 - Phases, in this order where used: {", ".join(MOVE_PHASES)} for motion, plus "close"/"open" for the gripper.
 - A motion phase carries "target": [x, y, z] in metres, world frame. "close"/"open" carry no target.
-- At most {MAX_PHASES} phases. Every phase must move the arm somewhere sensible; do not pad.
+- At most {MAX_STEPS} sequential steps and {MAX_PHASES} phases per step. Every phase must move the arm somewhere sensible; do not pad.
 - Workspace limits: x {WORKSPACE['x']}, y {WORKSPACE['y']}, z {WORKSPACE['z']}. Targets outside are rejected.
 - To pick an object: approach above it, descend to z={GRASP_Z}, close, lift, move, place, open, retreat.
   Aim approach/descend/lift at the object's observed x,y unless the operator asks for a different grasp
   point. You do not know the gripper's tolerances — propose the plan and let the verifier judge it.
 - Hover height is {HOVER_Z}, transit height is {TRANSIT_Z}. Only descend to {GRASP_Z} when grasping or placing.
-- "abstain" with an empty trace if the command is unsafe, out of the workspace, or refers to something
+- For multiple requested moves, emit one step per move in the operator's order. Later steps may use the
+  result of earlier steps. To stack on another block, place at z={GRASP_Z + 2 * 0.018:.3f}.
+- "abstain" with an empty steps list if the command is unsafe, out of the workspace, or refers to something
   that is not in the observation. Say why in "note".
 - On a repair turn you are given the verifier's imagined outcome for your own plan. Change exactly one
   thing — the grasp waypoint, the place target, or abstain — and say which in "note"."""
@@ -63,64 +70,103 @@ class PlanError(ValueError):
 
 
 @dataclass
+class SkillStep:
+    object: str
+    destination: str
+    trace: list[dict]
+
+    @property
+    def pick_place_shaped(self) -> bool:
+        return tuple(entry["phase"] for entry in self.trace) == PICK_PLACE_SHAPE
+
+    def summary(self) -> dict:
+        return {"object": self.object, "destination": self.destination,
+                "trace": [{"phase": e["phase"], **({"target": [round(v, 4) for v in e["target"]]} if "target" in e else {})}
+                          for e in self.trace]}
+
+
+@dataclass
 class Plan:
     intent: str
     action: str
-    trace: list[dict]
+    steps: list[SkillStep]
     note: str
     raw: str = ""
 
     @property
     def executable(self) -> bool:
-        return self.action == "execute" and bool(self.trace)
+        return self.action == "execute" and bool(self.steps)
 
     @property
     def pick_place_shaped(self) -> bool:
         """True when the trace matches the shape the verifier's dynamics were trained on."""
-        return tuple(entry["phase"] for entry in self.trace) == PICK_PLACE_SHAPE
+        return len(self.steps) == 1 and self.steps[0].pick_place_shaped
+
+    @property
+    def trace(self) -> list[dict]:
+        return [entry for step in self.steps for entry in step.trace]
 
     def summary(self) -> dict:
         return {"intent": self.intent, "action": self.action, "note": self.note,
-                "trace": [{"phase": e["phase"], **({"target": [round(v, 4) for v in e["target"]]} if "target" in e else {})}
-                          for e in self.trace]}
+                "steps": [step.summary() for step in self.steps], "trace": self.trace}
 
 
 def validate(payload: dict) -> Plan:
     """Claude's JSON -> a Plan, or `PlanError` with a message Claude can act on."""
-    for key in ("intent", "action", "trace", "note"):
+    for key in ("intent", "action", "note"):
         if key not in payload:
-            raise PlanError(f"missing key {key!r}; the reply must have intent, action, trace, note")
+            raise PlanError(f"missing key {key!r}; the reply must have intent, action, steps, note")
     if payload["action"] not in ("execute", "abstain"):
         raise PlanError(f"action must be 'execute' or 'abstain', got {payload['action']!r}")
-    trace, cleaned = payload["trace"], []
-    if not isinstance(trace, list):
-        raise PlanError("trace must be a list of phase objects")
+    raw_steps = payload.get("steps")
+    if raw_steps is None and "trace" in payload:  # schema-1 compatibility for saved examples and callers
+        raw_steps = [{"object": "red block", "destination": "green pad", "trace": payload["trace"]}]
+    if not isinstance(raw_steps, list):
+        raise PlanError("steps must be a list of pick-and-place objects")
     if payload["action"] == "abstain":
-        trace = []
-    if not trace and payload["action"] == "execute":
-        raise PlanError("action 'execute' needs a non-empty trace")
-    if len(trace) > MAX_PHASES:
-        raise PlanError(f"trace has {len(trace)} phases, the arm accepts at most {MAX_PHASES}")
-    for i, entry in enumerate(trace):
-        phase = entry.get("phase") if isinstance(entry, dict) else None
-        if phase not in PHASES or phase == "idle":
-            raise PlanError(f"trace[{i}]: phase must be one of {MOVE_PHASES + tuple(GRIPPER_LIMITS)}, got {phase!r}")
-        if phase in GRIPPER_LIMITS:
-            cleaned.append({"phase": phase, "value": GRIPPER_LIMITS[phase]})
-            continue
-        target = entry.get("target")
-        if not (isinstance(target, (list, tuple)) and len(target) == 3):
-            raise PlanError(f"trace[{i}] ({phase}): needs \"target\": [x, y, z]")
-        try:
-            point = [float(v) for v in target]
-        except (TypeError, ValueError):
-            raise PlanError(f"trace[{i}] ({phase}): target must be three numbers, got {target!r}")
-        for value, axis in zip(point, "xyz"):
-            low, high = WORKSPACE[axis]
-            if not low <= value <= high:
-                raise PlanError(f"trace[{i}] ({phase}): {axis}={value:.3f} is outside the workspace {low}..{high}")
-        cleaned.append({"phase": phase, "target": point})
-    return Plan(str(payload["intent"]), payload["action"], cleaned, str(payload["note"]))
+        raw_steps = []
+    if not raw_steps and payload["action"] == "execute":
+        raise PlanError("action 'execute' needs non-empty steps")
+    if len(raw_steps) > MAX_STEPS:
+        raise PlanError(f"plan has {len(raw_steps)} steps, the arm accepts at most {MAX_STEPS}")
+
+    steps = []
+    for step_index, raw_step in enumerate(raw_steps):
+        if not isinstance(raw_step, dict):
+            raise PlanError(f"steps[{step_index}] must be an object")
+        object_name, destination = raw_step.get("object"), raw_step.get("destination")
+        if object_name not in OBJECTS:
+            raise PlanError(f"steps[{step_index}].object must be one of {OBJECTS}, got {object_name!r}")
+        if destination not in DESTINATIONS or destination == object_name:
+            raise PlanError(f"steps[{step_index}].destination must be a different block or the green pad")
+        trace, cleaned = raw_step.get("trace"), []
+        if not isinstance(trace, list) or not trace:
+            raise PlanError(f"steps[{step_index}].trace must be a non-empty list")
+        if len(trace) > MAX_PHASES:
+            raise PlanError(f"steps[{step_index}].trace has {len(trace)} phases, at most {MAX_PHASES} are allowed")
+        for i, entry in enumerate(trace):
+            phase = entry.get("phase") if isinstance(entry, dict) else None
+            if phase not in PHASES or phase == "idle":
+                raise PlanError(f"steps[{step_index}].trace[{i}]: phase must be one of "
+                                f"{MOVE_PHASES + tuple(GRIPPER_LIMITS)}, got {phase!r}")
+            if phase in GRIPPER_LIMITS:
+                cleaned.append({"phase": phase, "value": GRIPPER_LIMITS[phase]})
+                continue
+            target = entry.get("target")
+            if not (isinstance(target, (list, tuple)) and len(target) == 3):
+                raise PlanError(f"steps[{step_index}].trace[{i}] ({phase}): needs \"target\": [x, y, z]")
+            try:
+                point = [float(v) for v in target]
+            except (TypeError, ValueError):
+                raise PlanError(f"steps[{step_index}].trace[{i}] ({phase}): target must be three numbers, got {target!r}")
+            for value, axis in zip(point, "xyz"):
+                low, high = WORKSPACE[axis]
+                if not low <= value <= high:
+                    raise PlanError(f"steps[{step_index}].trace[{i}] ({phase}): {axis}={value:.3f} "
+                                    f"is outside the workspace {low}..{high}")
+            cleaned.append({"phase": phase, "target": point})
+        steps.append(SkillStep(object_name, destination, cleaned))
+    return Plan(str(payload["intent"]), payload["action"], steps, str(payload["note"]))
 
 
 def parse(text: str) -> Plan:
@@ -164,7 +210,7 @@ def propose_prompt(instruction: str, observation: str) -> str:
 def repair_prompt(instruction: str, observation: str, plan: Plan, verdict: dict) -> str:
     lines = [f"Your previous plan for: {instruction}", json.dumps(plan.summary(), indent=2), "",
              "Scene observation (unchanged):", observation, "",
-             "The world-model verifier imagined this plan being executed and reported:"]
+             "The verifier evaluated this plan and reported:"]
     lines.append(json.dumps(verdict, indent=2))
     lines.append("")
     lines.append("Change exactly one thing to raise the imagined success probability, or abstain. "

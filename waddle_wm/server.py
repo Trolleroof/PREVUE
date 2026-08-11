@@ -41,16 +41,16 @@ class Session:
     the next request.
     """
 
-    def __init__(self, checkpoint: Path, seed: int, model: str, repairs: int, threshold: float, verify: bool):
+    def __init__(self, checkpoint: Path, seed: int, model: str, repairs: int, threshold: float | None, verifier_mode: str):
         self.seed, self.refused = seed, None
         self._jobs: queue.Queue = queue.Queue()
         self._display_frames: list = []
         threading.Thread(target=self._worker, daemon=True).start()
         RUNS.mkdir(parents=True, exist_ok=True)
-        self.call(lambda: self._build(checkpoint, seed, model, repairs, threshold, verify))
+        self.call(lambda: self._build(checkpoint, seed, model, repairs, threshold, verifier_mode))
 
-    def _build(self, checkpoint, seed, model, repairs, threshold, verify):
-        self.agent = SkillAgent(checkpoint, seed, model, repairs, threshold, verify)
+    def _build(self, checkpoint, seed, model, repairs, threshold, verifier_mode):
+        self.agent = SkillAgent(checkpoint, seed, model, repairs, threshold, verifier_mode=verifier_mode)
         self.display = mujoco.Renderer(self.agent.env.model, *DISPLAY)
         self.agent.env.on_frame = self._capture_display
         if self.agent.verifier is not None:
@@ -210,12 +210,14 @@ def main():
     ap.add_argument("--model", default=MODEL)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--repairs", type=int, default=2)
-    ap.add_argument("--threshold", type=float, default=0.5)
-    ap.add_argument("--no-verify", action="store_true", help="LLM-only baseline: skip the world model")
+    ap.add_argument("--threshold", type=float, help="override the checkpoint's calibrated threshold")
+    ap.add_argument("--verifier", choices=("none", "rules", "world-model"), default="world-model")
+    ap.add_argument("--no-verify", action="store_true", help="deprecated alias for --verifier none")
     args = ap.parse_args()
 
-    print("loading the simulator, the verifier and the frozen encoder ...", flush=True)
-    Handler.session = Session(args.checkpoint, args.seed, args.model, args.repairs, args.threshold, not args.no_verify)
+    mode = "none" if args.no_verify else args.verifier
+    print(f"loading the simulator and {mode} verifier ...", flush=True)
+    Handler.session = Session(args.checkpoint, args.seed, args.model, args.repairs, args.threshold, mode)
     print(f"ready: http://127.0.0.1:{args.port}", flush=True)
     ThreadingHTTPServer(("127.0.0.1", args.port), Handler).serve_forever()
 

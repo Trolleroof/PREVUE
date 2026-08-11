@@ -12,6 +12,8 @@ from waddle_wm.sim.env import LIFT_THRESHOLD, TARGET_RADIUS
 
 STATE_KEYS = ("block_x", "block_y", "block_z", "pinch_x", "pinch_y", "pinch_z")
 BINARY_KEYS = ("lifted", "in_target")
+MULTI_STATE_KEYS = tuple(f"{block}_{axis}" for block in ("red_block", "blue_block", "yellow_block")
+                         for axis in "xyz") + ("pinch_x", "pinch_y", "pinch_z")
 
 
 def anchors(manifest) -> np.ndarray:
@@ -35,6 +37,10 @@ def planned_actions(record, manifest) -> np.ndarray:
 def window_states(record, manifest) -> np.ndarray:
     """(windows, 8) grounded state at each anchor: block xyz, pinch xyz, lifted, in_target."""
     tracks, index = record["tracks"], anchors(manifest)
+    if "all_block_pos" in tracks:
+        blocks = np.asarray(tracks["all_block_pos"])[index].reshape(len(index), -1)
+        pinch = np.asarray(tracks["pinch_pos"])[index]
+        return np.concatenate([blocks, pinch], axis=1).astype(np.float32)
     block, pinch = np.asarray(tracks["block_pos"])[index], np.asarray(tracks["pinch_pos"])[index]
     lifted = (np.asarray(tracks["max_block_z"])[index] > LIFT_THRESHOLD).astype(float)
     in_target = (np.asarray(tracks["target_distance"])[index] <= TARGET_RADIUS).astype(float)
@@ -52,6 +58,9 @@ def build(records, manifest, planned=False) -> dict:
         "splits": np.array([r["split"] for r in records]),
         "success": np.array([float(r["outcome"]["success"]) for r in records], dtype=np.float32),
         "failure_mode": np.array([r["outcome"]["failure_mode"] or "none" for r in records]),
+        "objects": np.array([r["skill"]["params"].get("object", "red_block") for r in records]),
+        "destinations": np.array([r["skill"]["params"].get("destination", "green_pad") for r in records]),
+        "target_xy": np.asarray([r["skill"]["params"]["target_xy"] for r in records], dtype=np.float32),
         "action": action.astype(np.float32),
         "state": state,
         "steps": steps,

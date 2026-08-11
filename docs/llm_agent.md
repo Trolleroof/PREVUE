@@ -46,6 +46,20 @@ uv run python -m waddle_wm.agent --instruction "put the red block on the green p
 uv run python -m waddle_wm.test_agent --live 30
 ```
 
+The browser and CLI expose the three comparison modes directly:
+
+```bash
+uv run python -m waddle_wm.server --verifier none
+uv run python -m waddle_wm.server --verifier rules
+uv run python -m waddle_wm.server --verifier world-model
+```
+
+`none` is Opus plus schema validation, `rules` adds deterministic grasp, placement,
+stack-height, workspace, and IK checks, and `world-model` predicts the selected block's
+future state and outcome with a frozen V-JEPA observation plus a small learned ensemble.
+Compound prompts are always decomposed into atomic steps and the scene is
+observed again between steps.
+
 The server is the browser demo: the episode on the left, a chat bar on the right, each
 step of the loop streamed into the transcript as it happens. The viewport is empty until
 you prompt it; afterwards it plays the recorded episode at a true 10 fps.
@@ -74,11 +88,14 @@ verify / repair / execute cycle is about **$0.09–$0.13 and 10–25 s** on Opus
 
 ## The plan format
 
-Claude answers with one JSON object and nothing else:
+Claude answers with one JSON object and nothing else. Compound instructions contain
+multiple ordered steps; the scene is observed again between steps so destinations that
+moved during an earlier step are grounded at their current position:
 
 ```json
 {"intent": "one line restating the command",
  "action": "execute",
+ "steps": [{"object": "red block", "destination": "green pad",
  "trace": [{"phase": "approach", "target": [0.44, -0.21, 0.24]},
            {"phase": "descend",  "target": [0.44, -0.21, 0.015]},
            {"phase": "close"},
@@ -86,7 +103,7 @@ Claude answers with one JSON object and nothing else:
            {"phase": "move",     "target": [0.43, 0.30, 0.30]},
            {"phase": "place",    "target": [0.43, 0.30, 0.015]},
            {"phase": "open"},
-           {"phase": "retreat",  "target": [0.43, 0.30, 0.24]}],
+           {"phase": "retreat",  "target": [0.43, 0.30, 0.24]}]}],
  "note": "what I aimed at, or what I changed and why"}
 ```
 
@@ -176,7 +193,30 @@ scenes whose canonical plan really succeeds:
 clip is not encoded quite like the first 8 frames of a 48-frame clip, and the
 re-encoded window reads slightly more confident — but verdicts agree.
 
-## Measured on live scenes
+## Multi-block verifier status
+
+The schema-4 corpus contains 900 episodes covering every source/destination pair:
+each of red, blue, and yellow can be placed on the green pad or either other block.
+The held-out 135-episode result is:
+
+| verifier | accuracy | false accepts | false rejects |
+| --- | ---: | ---: | ---: |
+| deterministic rules | **0.933** | **0.051** | **0.089** |
+| learned world model, validation-calibrated | 0.674 | 0.076 | 0.679 |
+
+The learned model is real and uses visual context: removing V-JEPA drops held-out
+accuracy from 0.674 to 0.585. It is nevertheless too conservative and weaker than the
+rules verifier. Use `--verifier rules` when reliable execution matters; use
+`--verifier world-model` to inspect the learned prediction/repair loop.
+
+Train the current checkpoint with:
+
+```bash
+uv run python -m waddle_wm.train_multiblock_world_model \
+  --data data/ur5e_wm_multiblock --out models/multiblock_world_model.pt
+```
+
+## Previous red-to-pad live baseline
 
 `test_agent --live 30` renders 30 fresh scenes, aims plans with the same
 good/bad mix the dataset generator uses, scores each from pixels, then actually
@@ -216,7 +256,10 @@ pretending to resolve the conflict.
 
 ## Limits
 
-- One skill, one block colour that the outcome test cares about, one camera.
+- Execution, MuJoCo scoring, rules, and the schema-4 learned checkpoint support red, blue,
+  and yellow blocks, pad placement, block stacking, and up to four sequential steps.
+- The learned verifier covers all nine task pairs but is conservative; it rejects many
+  physically successful plans. The rules verifier is the reliable mode today.
 - Grasp-failure detection is the weak axis (see above); do not read an approval as a
   guarantee that the fingers will hold.
 - Off-distribution place targets pull the imagined final position back toward the

@@ -51,6 +51,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", type=Path, default=Path("data/ur5e_wm"))
     ap.add_argument("--pool", choices=("mean", "grid"), default="mean", help="token pooling for the cached latent")
+    ap.add_argument("--grid", type=int, default=4, help="spatial cells per side when --pool grid")
     ap.add_argument("--model", type=Path, default=Path("models/vjepa2-vitl-fpc64-256"))
     ap.add_argument("--out", type=Path, default=None, help="default: <data>/window_embeddings.pt")
     ap.add_argument("--refresh", action="store_true", help="re-encode clips already in the cache")
@@ -72,11 +73,13 @@ def main():
                 frames = clip_frames(args.data / record["observation"]["frames_path"], manifest["frames_total"])
                 batch = torch.cat([processor(frames[k * window:(k + 1) * window], return_tensors="pt")["pixel_values_videos"]
                                    for k in range(count)]).to(device)
-                latents = pool(encoder(pixel_values_videos=batch).last_hidden_state, args.pool)
+                latents = pool(encoder(pixel_values_videos=batch).last_hidden_state, args.pool, args.grid)
                 cache[record["episode_id"]] = latents.float().cpu()
                 if done % 25 == 0 or done == len(missing):
                     rate = (time.time() - started) / done
                     print(f"embedded {done}/{len(missing)} ({rate:.2f}s/episode, {rate * (len(missing) - done) / 60:.1f} min left)", flush=True)
+                if done % 100 == 0:
+                    torch.save(cache, out)
         torch.save(cache, out)
     shape = tuple(next(iter(cache.values())).shape)
     print(json.dumps({"episodes": len(cache), "per_episode_shape": shape, "path": str(out)}, indent=2))

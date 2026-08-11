@@ -119,31 +119,41 @@ function showVideo(src) {
 }
 
 const HANDLERS = {
+  observed(d) {
+    add("info", "Camera · observed", '<div class="trace">' + d.observation.replaceAll("\n", "<br>") + "</div>");
+  },
   plan(d) {
     if (d.action === "abstain") return;      // the abstained card carries the same note
     add("", d.kind === "propose" ? "Claude · plan" : "Claude · repair " + d.round,
         `<div>${d.note}</div><div class="trace">${traceText(d.trace)}</div>`);
   },
+  step(d) {
+    add("", d.repair ? `Opus · repair ${d.repair} for step ${d.index}/${d.total}` : `Opus · step ${d.index}/${d.total}`,
+        `<div>Move the ${d.object} onto the ${d.destination}.</div><div class="trace">${traceText(d.trace)}</div>`);
+  },
   verdict(d) {
     const p = d.imagined_success_probability;
-    const headline = d.approved
+    const headline = d.verifier === "rules"
+      ? (d.approved ? "Passed deterministic geometry and reachability checks" : `Rejected — ${d.likely_failure}`)
+      : d.approved
       ? `Approved — p(success) ${round(p)} ± ${round(d.ensemble_uncertainty)}`
       : `Rejected — p(success) ${round(p)} ± ${round(d.ensemble_uncertainty)} — ${d.likely_failure}`;
     const detail = d.approved ? "" :
       `<div class="trace">p(lifted) ${round(d.p_block_lifted)}   p(in zone) ${round(d.p_block_in_landing_zone)}` +
       `   imagined block xy ${point(d.imagined_final_block_xy)}</div>`;
-    add("verdict " + (d.approved ? "ok" : "no"), "World model", `<div>${headline}</div>
+    const verifier = d.verifier === "rules" ? "Simple plan checks" : "World model";
+    add("verdict " + (d.approved ? "ok" : "no"), verifier, `<div>${headline}</div>
       <div class="bar"><i class="${d.approved ? "" : "no"}" style="width:${(p * 100).toFixed(0)}%"></i></div>${detail}`);
   },
-  unverified: d => add("warn", "World model · skipped", `<div>${d.reason}</div>`),
+  unverified: d => add("warn", "Verifier · skipped", `<div>${d.reason}</div>`),
   executing() {
     running = add("", "MuJoCo", `<div><span class="spin"></span>executing…</div>`);
   },
   executed(d) {
     const free = d.success === undefined;
     const line = free ? `${d.outcome} Gripper ended at ${point(d.final_gripper_xyz)}.`
-                      : d.success ? `Success — block landed ${round(d.target_distance)} m from the pad centre`
-                                  : `Failed: ${d.failure_mode} — block at ${point(d.final_block_xy)}`;
+                      : d.success ? `Success — ${d.object} landed ${round(d.target_distance)} m from ${d.destination}`
+                                  : `Failed: ${d.failure_mode} — ${d.object} at ${point(d.final_block_xy)}`;
     (running || add("", "MuJoCo", "")).outerHTML =
       `<div class="msg ${free ? "" : "verdict " + (d.success ? "ok" : "no")}">
          <div class="who">MuJoCo · what really happened</div><div>${line}</div></div>`;
@@ -158,7 +168,9 @@ const HANDLERS = {
     if (d.can_run_anyway) offerRunAnyway();
     const foot = document.createElement("div");
     foot.className = "foot";
-    foot.textContent = [d.decision, d.seconds && d.seconds + " s", d.cost_usd != null && "$" + d.cost_usd,
+    foot.textContent = [d.model, d.verifier && (d.verifier + " verifier"), d.decision,
+                        d.rounds && (d.rounds.length + " planner/verifier round(s)"),
+                        d.seconds && d.seconds + " s", d.cost_usd != null && "$" + d.cost_usd,
                         d.log].filter(Boolean).join("  ·  ");
     log.appendChild(foot);
     log.scrollTop = log.scrollHeight;
