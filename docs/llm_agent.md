@@ -1,9 +1,11 @@
 # The LLM planner and the repair loop
 
-This is the layer [issue #17](https://github.com/Trolleroof/skill-level-world-model/issues/17)
-asked for: Claude Opus 5 proposes a structured skill trace, the local world model
-imagines it, and Claude gets one repair at a time until the plan is approved,
-abandoned, or run.
+Claude Opus 5 proposes a structured skill trace, the local world model imagines it, and
+Claude gets one repair at a time until the plan is approved, abandoned, or run.
+
+This is the interactive loop. The offline benchmark ranks *programs* rather than traces:
+see [`program_schema.md`](program_schema.md) for the bounded code-as-policy schema, how a
+program grounds into exactly the plan format below, and how candidate pools are cached.
 
 ```text
 natural-language command          camera

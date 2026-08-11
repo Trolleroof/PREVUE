@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import shutil
@@ -81,7 +82,9 @@ class SkillStep:
 
     def summary(self) -> dict:
         return {"object": self.object, "destination": self.destination,
-                "trace": [{"phase": e["phase"], **({"target": [round(v, 4) for v in e["target"]]} if "target" in e else {})}
+                "trace": [{"phase": e["phase"],
+                           **({"target": [round(v, 4) for v in e["target"]]} if "target" in e else {}),
+                           **({"yaw": round(e["yaw"], 4)} if "yaw" in e else {})}
                           for e in self.trace]}
 
 
@@ -164,7 +167,20 @@ def validate(payload: dict) -> Plan:
                 if not low <= value <= high:
                     raise PlanError(f"steps[{step_index}].trace[{i}] ({phase}): {axis}={value:.3f} "
                                     f"is outside the workspace {low}..{high}")
-            cleaned.append({"phase": phase, "target": point})
+            waypoint = {"phase": phase, "target": point}
+            if entry.get("yaw") is not None:
+                # Optional wrist heading in radians, used by the code-as-policy programs. Left
+                # out, the rotation about the approach axis stays in the IK's null space.
+                try:
+                    yaw = float(entry["yaw"])
+                except (TypeError, ValueError):
+                    raise PlanError(f"steps[{step_index}].trace[{i}] ({phase}): yaw must be a number "
+                                    f"in radians, got {entry['yaw']!r}")
+                if not -math.pi <= yaw <= math.pi:
+                    raise PlanError(f"steps[{step_index}].trace[{i}] ({phase}): yaw={yaw:.3f} is outside "
+                                    f"-pi..pi radians")
+                waypoint["yaw"] = yaw
+            cleaned.append(waypoint)
         steps.append(SkillStep(object_name, destination, cleaned))
     return Plan(str(payload["intent"]), payload["action"], steps, str(payload["note"]))
 
@@ -231,10 +247,11 @@ class ClaudePlanner:
     retries: int = 2
     binary: str = field(default_factory=lambda: shutil.which("claude") or "claude")
     calls: list[dict] = field(default_factory=list)
+    system_prompt: str = SYSTEM_PROMPT     # the candidate-pool generator swaps in the program API
 
     def complete(self, prompt: str) -> str:
         command = [self.binary, "-p", prompt, "--output-format", "json", "--model", self.model,
-                   "--system-prompt", SYSTEM_PROMPT, "--allowed-tools", "", "--strict-mcp-config",
+                   "--system-prompt", self.system_prompt, "--allowed-tools", "", "--strict-mcp-config",
                    "--disable-slash-commands", "--max-turns", "1"]
         environment = {**os.environ, "CLAUDE_CODE_ENTRYPOINT": "waddle-planner"}
         finished = subprocess.run(command, capture_output=True, text=True, timeout=self.timeout,
