@@ -80,8 +80,9 @@ That is a clearer demo and research question than “we trained a world model.�
 | Perception primitives (`bounding_box`, `detect_in_base`, `approach_until`) | done |
 | Claude Opus 5 planner and repair loop | done |
 | Browser demo with a chat bar | done |
+| Bounded code-as-policy program schema and cached Claude candidate pools | done |
 
-See [`transition_schema.md`](transition_schema.md) for the data contract, [`results.md`](results.md) for measured verifier performance, [`backbone_decision.md`](backbone_decision.md) for the frozen-backbone choice, and [`llm_agent.md`](llm_agent.md) for the planner, the perception primitives, and the repair loop.
+See [`transition_schema.md`](transition_schema.md) for the data contract, [`results.md`](results.md) for measured verifier performance, [`backbone_decision.md`](backbone_decision.md) for the frozen-backbone choice, [`llm_agent.md`](llm_agent.md) for the planner, the perception primitives, and the repair loop, and [`program_schema.md`](program_schema.md) for the candidate format the program-ranking benchmark uses.
 
 ## Architecture
 
@@ -144,4 +145,9 @@ Still open:
 6. **Grasp-failure detection** — the weak axis. `lifted` accuracy is 0.720 against `in_target`'s
    0.851, so an offset grasp is often approved. This is what the agent needs next, not more planning.
 7. **Skills above primitives** — Waddle's middle layer: let the agent name and reuse parametrised
-   skills instead of emitting one flat trace per command.
+   skills instead of emitting one flat trace per command. The bounded program schema in
+   [`program_schema.md`](program_schema.md) is the first half of this: Claude picks the strategy
+   and bounded parameters, the compiler keeps the waypoints.
+8. **Program ranking** — with candidate pools cached, execute every candidate from an identical
+   MuJoCo snapshot and compare Claude self-rank, the estimated-state heuristic, and the visual
+   world model against the oracle.

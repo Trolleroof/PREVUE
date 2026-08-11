@@ -1,0 +1,475 @@
+"""Cached candidate pools: independent Claude program samples, plus a scripted fault suite.
+
+One command per split produces, for every scene seed, two artifacts:
+
+* a **natural** pool — up to 64 independent `claude -p` samples of the program schema in
+  `waddle_wm.program`, drawn under one identical model, prompt, and observation, kept in
+  sample order so every downstream verifier ranks the same nested prefixes;
+* a **diagnostic** pool — the scripted correct/faulty programs from `program.fault_programs`,
+  deterministic and Claude-free, reported separately because a planted bug says nothing
+  about what Claude proposes.
+
+    uv run python -m waddle_wm.pools --split test --pool-size 64
+    uv run python -m waddle_wm.pools --seeds 0,1,2 --pool-size 8 --model claude-haiku-4-5-20251001
+    uv run python -m waddle_wm.pools --validate data/pools
+
+Pools are generated once and cached. Everything downstream (#23 execution, #18 ranking,
+#26 search) reads the cache and never regenerates, so a verifier can never be compared
+against a pool it helped shape. Claude sees the camera observation and nothing else: no
+MuJoCo state, no outcome, no label.
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import subprocess
+import time
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+
+import numpy as np
+
+from waddle_wm import program as prog
+from waddle_wm.perception import QUERIES as DETECTOR_QUERIES, SceneCamera, landing_pad
+from waddle_wm.planner import ClaudePlanner, MODEL, describe_observation
+from waddle_wm.program import MAX_OPS, RANGES, SCHEMA_VERSION, ProgramError, SceneObservation
+from waddle_wm.sim import relling_scene as scene
+from waddle_wm.sim.env import TabletopEnv
+
+PROTOCOL_VERSION = 1
+DEFAULT_ROOT = Path("data/pools")
+POOL_SIZE = 64
+PREFIXES = (1, 4, 16, 32, 64)
+# Disjoint scene seeds. Nothing tuned on `test` may have been fitted on the others.
+SPLITS = {"train": range(0, 40), "calibration": range(40, 60), "test": range(100, 160)}
+
+SYSTEM_PROMPT = f"""You write short robot policy programs for a UR5e arm with a Robotiq 2F-85 gripper on a
+tabletop. You choose the strategy and the numbers; a deterministic compiler turns your program into
+Cartesian waypoints, solves IK, and runs it. You never see the outcome.
+
+Reply with ONE JSON object and nothing else. No prose, no markdown fence.
+
+{{"schema_version": {SCHEMA_VERSION},
+  "strategy": "<a few words naming your approach>",
+  "task": {{"object": "<red block|blue block|yellow block>",
+           "destination": "<green pad|red block|blue block|yellow block>"}},
+  "ops": [ ... ],
+  "note": "<one or two sentences on what you chose and why>"}}
+
+The complete API — any other operation is rejected:
+
+  {{"op": "detect", "query": "<red block|blue block|yellow block|green pad>", "as": "<symbol>"}}
+      Look the thing up with the camera and bind its centre to a symbol. Every later
+      operation refers to symbols, never to raw coordinates. Detecting again rebinds the
+      symbol to wherever the thing is at that point in the program.
+  {{"op": "move_above", "ref": "<symbol>", "offset_mm": [dx, dy], "height_mm": h,
+   "direction": "<top|+x|-x|+y|-y>", "standoff_mm": s}}
+      Move the pinch point to the symbol, offset laterally by offset_mm, and s mm further
+      along `direction` ("top" means straight over it), at height h above the table.
+  {{"op": "descend_to", "ref": "<symbol>", "offset_mm": [dx, dy], "height_mm": h}}
+      Come down over the symbol to height h above the table.
+  {{"op": "grasp"}}    close the gripper
+  {{"op": "release"}}  open the gripper
+  {{"op": "lift", "height_mm": h}}      rise straight up to h above the table
+  {{"op": "retreat", "height_mm": h}}   rise straight up to h above the table, at the end
+  {{"op": "on_failure", "policy": "<abort|redetect_regrasp>", "max_attempts": 0..2}}
+      Optional, last operation only. What to do if the object is not held after the lift.
+
+Bounds — a program outside them is rejected without ever being run:
+- offset_mm and standoff_mm components: {RANGES['offset_mm'][0]:.0f}..{RANGES['offset_mm'][1]:.0f} mm.
+- move_above / lift / retreat height_mm: {RANGES['hover_mm'][0]:.0f}..{RANGES['hover_mm'][1]:.0f} mm.
+- descend_to height_mm: {RANGES['grasp_mm'][0]:.0f}..{RANGES['grasp_mm'][1]:.0f} mm before the grasp,
+  {RANGES['release_mm'][0]:.0f}..{RANGES['release_mm'][1]:.0f} mm after it.
+- At most {MAX_OPS} operations, and at most 8 of them may be motion or gripper operations.
+- Retries are bounded: max_attempts is at most {RANGES['max_attempts'][1]}.
+- You must grasp() exactly what the task names, and you must release() before the program ends.
+
+Geometry you can rely on: the blocks are cubes 36 mm on a side sitting on the table, so their
+centres are 18 mm up and their tops are 36 mm up. To stack one block on another, release above
+the destination block's top. The green pad is flat.
+
+You are one of many independent proposals for the same scene. Commit to a single concrete
+program — do not hedge, do not explain alternatives, do not ask questions."""
+
+
+def sample_prompt(instruction: str, observation: str) -> str:
+    return (f"Task instruction (from the operator):\n{instruction}\n\n"
+            f"Camera observation of the scene right now:\n{observation}\n\n"
+            "Write the program. Reply with the JSON object only.")
+
+
+@dataclass
+class Candidate:
+    candidate_id: str
+    index: int                    # position in the ranked pool; prefixes are `index < N`
+    sample_index: int             # which generation attempt produced it
+    program: dict
+    grounded_trace: list[dict]
+    dedup_key: str
+    duplicate_of: str | None
+    validation: dict
+    retry: dict
+    redetect_ops: list[int]
+    fault: str | None = None
+    strategy: str = ""
+    note: str = ""
+    generation: dict = field(default_factory=dict)
+    raw: str = ""
+
+
+@dataclass
+class Rejected:
+    sample_index: int
+    stage: str                    # generation | schema | grounding | reachability
+    error: str
+    raw: str = ""
+    generation: dict = field(default_factory=dict)
+
+
+def settings_hash(settings: dict) -> str:
+    return hashlib.sha1(json.dumps(settings, sort_keys=True).encode()).hexdigest()[:12]
+
+
+def git_sha() -> str:
+    try:
+        return subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True,
+                              timeout=10).stdout.strip() or "unknown"
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+
+
+class Scene:
+    """One seeded tabletop, its rendered observation, and the reachability check for it."""
+
+    def __init__(self, seed: int):
+        self.seed = seed
+        self.env = TabletopEnv(seed=seed)
+        self.blocks = {name: [round(float(v), 5) for v in point]
+                       for name, point in self.env.sample_blocks().items()}
+        self.env.reset(blocks=self.blocks)
+        self.camera = SceneCamera(self.env.model, self.env.data)
+        detections = self.camera.detect_all(DETECTOR_QUERIES)
+        self.text = describe_observation(detections, landing_pad(self.env.model), self.env.home_waypoint())
+        self.observation = SceneObservation.from_perception(
+            detections, landing_pad(self.env.model), self.env.home_waypoint(), seed, self.text)
+        self.truth = {name: [round(float(v), 4) for v in point]
+                      for name, point in self.env.block_positions().items()}
+
+    def restore(self):
+        """Put the tabletop back exactly where the observation was taken, for a replay."""
+        self.env.reset(blocks=self.blocks)
+
+    def reachable(self, trace) -> str | None:
+        """Walk the trace through the same damped-least-squares IK the executor uses."""
+        q = np.array([self.env.data.joint(joint).qpos[0] for joint in scene.ARM_JOINTS])
+        for entry in trace:
+            if "target" not in entry:
+                continue
+            try:
+                q = self.env._ik(entry["target"], q)
+            except RuntimeError as error:
+                return f"{entry['phase']} waypoint is unreachable: {error}"
+        return None
+
+    def close(self):
+        self.camera.close()
+
+
+def admit(scene_obj: Scene, program: prog.Program, sample_index: int, keys: dict,
+          generation: dict, fault: str | None = None) -> tuple[Candidate | None, Rejected | None]:
+    """Ground, check reachability, and dedup one program against the pool built so far."""
+    try:
+        grounded = prog.ground(program, scene_obj.observation)
+    except ProgramError as error:
+        return None, Rejected(sample_index, "grounding", str(error), program.raw, generation)
+    trace = grounded.step.summary()["trace"]
+    unreachable = scene_obj.reachable(grounded.step.trace)
+    if unreachable:
+        return None, Rejected(sample_index, "reachability", unreachable, program.raw, generation)
+
+    key = grounded.dedup_key()
+    payload = json.dumps(program.as_json(), sort_keys=True)
+    candidate_id = hashlib.sha1(f"{scene_obj.observation.observation_id}:{sample_index}:{payload}"
+                                .encode()).hexdigest()[:12]
+    return Candidate(candidate_id, -1, sample_index, program.as_json(), trace, key, keys.get(key),
+                     {"ok": True, "stage": "accepted", "error": None},
+                     program.retry, program.redetects, fault, program.strategy, program.note,
+                     generation, program.raw), None
+
+
+def one_sample(index: int, instruction: str, observation_text: str, model: str, timeout: float) -> dict:
+    """One independent `claude -p` call. Never re-asked: every candidate gets the same budget."""
+    caller = ClaudePlanner(model=model, timeout=timeout, retries=0, system_prompt=SYSTEM_PROMPT)
+    started = time.time()
+    try:
+        raw = caller.complete(sample_prompt(instruction, observation_text))
+    except (RuntimeError, OSError, subprocess.SubprocessError, json.JSONDecodeError) as error:
+        return {"index": index, "error": f"{type(error).__name__}: {error}", "raw": "",
+                "generation": {"model": model, "seconds": round(time.time() - started, 2)}}
+    call = caller.calls[-1] if caller.calls else {}
+    return {"index": index, "error": None, "raw": raw,
+            "generation": {"model": model, "cost_usd": call.get("cost_usd"),
+                           "duration_ms": call.get("duration_ms"), "session_id": call.get("session_id"),
+                           "seconds": round(time.time() - started, 2)}}
+
+
+def natural_pool(scene_obj: Scene, instruction: str, object_name: str, destination: str,
+                 size: int, model: str, workers: int, oversample: float, timeout: float) -> tuple[list, list]:
+    """Independent samples until `size` of them are valid, in sample order."""
+    accepted, rejected, keys = [], [], {}
+    budget = max(size, int(round(size * oversample)))
+    issued, pending = 0, []
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        while len(accepted) < size and issued < budget:
+            batch = min(workers, budget - issued, (size - len(accepted)) * 2)
+            futures = [pool.submit(one_sample, issued + offset, instruction, scene_obj.observation.text,
+                                   model, timeout) for offset in range(batch)]
+            issued += batch
+            pending.extend(future.result() for future in futures)
+            pending.sort(key=lambda item: item["index"])
+            while pending and len(accepted) < size:
+                item = pending.pop(0)
+                if item["error"]:
+                    rejected.append(Rejected(item["index"], "generation", item["error"], "", item["generation"]))
+                    continue
+                try:
+                    program = prog.parse(item["raw"])
+                except (ProgramError, ValueError, TypeError, KeyError) as error:
+                    # One malformed reply is a rejected sample, never a lost pool: the run
+                    # is long and paid for, so anything unparseable is recorded and skipped.
+                    rejected.append(Rejected(item["index"], "schema", f"{type(error).__name__}: {error}",
+                                             item["raw"], item["generation"]))
+                    continue
+                if program.object != object_name or program.destination != destination:
+                    rejected.append(Rejected(item["index"], "schema",
+                                             f"program targets {program.object} -> {program.destination}, "
+                                             f"the task is {object_name} -> {destination}",
+                                             item["raw"], item["generation"]))
+                    continue
+                candidate, reject = admit(scene_obj, program, item["index"], keys, item["generation"])
+                if reject is not None:
+                    rejected.append(reject)
+                    continue
+                keys.setdefault(candidate.dedup_key, candidate.candidate_id)
+                accepted.append(candidate)
+    for position, candidate in enumerate(accepted):
+        candidate.index = position
+    return accepted, rejected
+
+
+def diagnostic_pool(scene_obj: Scene, object_name: str, destination: str) -> tuple[list, list]:
+    """The scripted suite: deterministic, no Claude, one entry per named fault."""
+    shift = np.random.default_rng(scene_obj.seed).uniform(30.0, 60.0, 2) * np.array([1.0, -1.0])
+    accepted, rejected, keys = [], [], {}
+    for index, (name, program) in enumerate(prog.fault_programs(object_name, destination,
+                                                               stale_shift_mm=tuple(shift.round(1)))):
+        candidate, reject = admit(scene_obj, program, index, keys,
+                                  {"model": "scripted", "cost_usd": 0.0}, fault=name)
+        if reject is not None:
+            reject.stage = f"{reject.stage} ({name})"
+            rejected.append(reject)
+            continue
+        keys.setdefault(candidate.dedup_key, candidate.candidate_id)
+        accepted.append(candidate)
+    for position, candidate in enumerate(accepted):
+        candidate.index = position
+    return accepted, rejected
+
+
+def build_pool(scene_obj: Scene, kind: str, instruction: str, object_name: str, destination: str,
+               size: int, model: str, split: str, workers: int, oversample: float,
+               timeout: float) -> dict:
+    settings = {"kind": kind, "model": model if kind == "natural" else "scripted",
+                "system_prompt_sha1": hashlib.sha1(SYSTEM_PROMPT.encode()).hexdigest()[:12],
+                "prompt_template_sha1": hashlib.sha1(sample_prompt("", "").encode()).hexdigest()[:12],
+                "sampling": "claude CLI defaults, one stateless turn, no tools, no retry on a bad sample",
+                "max_turns": 1, "pool_size": size, "program_schema_version": SCHEMA_VERSION,
+                "protocol_version": PROTOCOL_VERSION}
+    started = time.time()
+    if kind == "natural":
+        accepted, rejected = natural_pool(scene_obj, instruction, object_name, destination,
+                                          size, model, workers, oversample, timeout)
+    else:
+        accepted, rejected = diagnostic_pool(scene_obj, object_name, destination)
+    pool_id = (f"{kind}-{object_name.replace(' ', '_')}-to-{destination.replace(' ', '_')}"
+               f"-seed{scene_obj.seed:04d}-{settings_hash(settings)}")
+
+    unique = {}
+    for candidate in accepted:
+        unique.setdefault(candidate.dedup_key, candidate.candidate_id)
+    pool = {
+        "pool_id": pool_id, "kind": kind, "split": split,
+        "protocol": {"protocol_version": PROTOCOL_VERSION, "program_schema_version": SCHEMA_VERSION,
+                     "git_sha": git_sha(), "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                     "generator": settings, "generation_seconds": round(time.time() - started, 1)},
+        "task": {"instruction": instruction, "object": object_name, "destination": destination},
+        "scene": {"seed": scene_obj.seed, "observation_id": scene_obj.observation.observation_id,
+                  "observation": scene_obj.observation.text,
+                  "detections": scene_obj.observation.detections,
+                  "landing_pad": {"centre": scene_obj.observation.points["green pad"][:2],
+                                  "radius": scene_obj.observation.pad_radius},
+                  "hidden_truth": scene_obj.truth, "block_spawn": scene_obj.blocks},
+        "candidates": [asdict(candidate) for candidate in accepted],
+        "rejected": [asdict(item) for item in rejected],
+        "prefixes": {str(n): [c.candidate_id for c in accepted[:n]] for n in PREFIXES if n <= len(accepted)},
+        "summary": {"accepted": len(accepted), "rejected": len(rejected),
+                    "attempted": len(accepted) + len(rejected),
+                    "short_of_requested": max(0, size - len(accepted)) if kind == "natural" else 0,
+                    "unique_programs": len(unique),
+                    "duplicate_fraction": round(1 - len(unique) / max(1, len(accepted)), 3),
+                    "cost_usd": round(sum((c.generation.get("cost_usd") or 0.0) for c in accepted)
+                                      + sum((r.generation.get("cost_usd") or 0.0) for r in rejected), 4),
+                    "reject_reasons": {stage: sum(1 for r in rejected if r.stage.startswith(stage))
+                                       for stage in ("generation", "schema", "grounding", "reachability")}},
+    }
+    return pool
+
+
+# --------------------------------------------------------------------------- integrity
+
+
+def check_pool(pool: dict) -> list[str]:
+    """The checks a downstream benchmark is entitled to assume. Empty list means the pool is usable."""
+    problems = []
+    candidates = pool["candidates"]
+    ids = [c["candidate_id"] for c in candidates]
+    if len(set(ids)) != len(ids):
+        problems.append("duplicate candidate_id")
+    if [c["index"] for c in candidates] != list(range(len(candidates))):
+        problems.append("candidate index is not a contiguous ranking from 0")
+    if [c["sample_index"] for c in candidates] != sorted(c["sample_index"] for c in candidates):
+        problems.append("candidates are not in generation order")
+
+    previous = []
+    for n in sorted(int(key) for key in pool["prefixes"]):
+        prefix = pool["prefixes"][str(n)]
+        if len(prefix) != n:
+            problems.append(f"prefix {n} holds {len(prefix)} candidates")
+        if prefix[:len(previous)] != previous:
+            problems.append(f"prefix {n} is not nested inside the smaller prefixes")
+        if prefix != ids[:n]:
+            problems.append(f"prefix {n} does not match the pool ordering")
+        previous = prefix
+
+    observation_id = pool["scene"]["observation_id"]
+    for candidate in candidates:
+        for key in ("program", "grounded_trace", "dedup_key", "validation", "candidate_id"):
+            if key not in candidate:
+                problems.append(f"{candidate.get('candidate_id')}: missing {key}")
+        if candidate["program"].get("schema_version") != SCHEMA_VERSION:
+            problems.append(f"{candidate['candidate_id']}: wrong program schema version")
+        if not candidate["grounded_trace"]:
+            problems.append(f"{candidate['candidate_id']}: empty grounded trace")
+        leaked = json.dumps(candidate["program"])
+        for name, point in pool["scene"]["hidden_truth"].items():
+            if f"{point[0]:.4f}" in leaked:
+                problems.append(f"{candidate['candidate_id']}: program contains {name} ground truth")
+    if pool["kind"] == "natural" and pool["protocol"]["generator"]["model"] == "scripted":
+        problems.append("a natural pool must be generated by Claude")
+    if pool["kind"] == "diagnostic":
+        faults = [c["fault"] for c in candidates]
+        if len(set(faults)) != len(faults):
+            problems.append("diagnostic pool repeats a fault")
+    if not observation_id:
+        problems.append("missing observation id")
+    return problems
+
+
+def validate_root(root: Path) -> int:
+    """Check every cached pool under `root`; return the number of problems found."""
+    total, files = 0, sorted(root.rglob("*.json"))
+    files = [path for path in files if path.name != "index.json"]
+    for path in files:
+        problems = check_pool(json.loads(path.read_text()))
+        total += len(problems)
+        status = "ok" if not problems else "; ".join(problems[:4])
+        print(f"{'PASS' if not problems else 'FAIL'} {path}: {status}")
+    print(f"\n{len(files)} pools checked, {total} problems")
+    return total
+
+
+# --------------------------------------------------------------------------- cli
+
+
+def parse_seeds(text: str) -> list[int]:
+    seeds = []
+    for part in text.split(","):
+        part = part.strip()
+        if "-" in part.lstrip("-"):
+            low, high = part.split("-")
+            seeds.extend(range(int(low), int(high) + 1))
+        elif part:
+            seeds.append(int(part))
+    return seeds
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--split", choices=tuple(SPLITS), default="test",
+                    help="which disjoint seed range to draw scenes from when --seeds is not given")
+    ap.add_argument("--seeds", help="explicit scene seeds, e.g. 0,1,2 or 100-107")
+    ap.add_argument("--scenes", type=int, default=8, help="how many seeds of the split to use")
+    ap.add_argument("--kind", choices=("natural", "diagnostic", "both"), default="both")
+    ap.add_argument("--pool-size", type=int, default=POOL_SIZE)
+    ap.add_argument("--instruction", default="pick up the {object} and put it on the {destination}")
+    ap.add_argument("--object", default="red block")
+    ap.add_argument("--destination", default="green pad")
+    ap.add_argument("--model", default=MODEL)
+    ap.add_argument("--workers", type=int, default=8, help="concurrent claude CLI calls")
+    ap.add_argument("--oversample", type=float, default=1.5,
+                    help="attempt budget as a multiple of the pool size, for rejected samples")
+    ap.add_argument("--timeout", type=float, default=180.0)
+    ap.add_argument("--root", type=Path, default=DEFAULT_ROOT)
+    ap.add_argument("--regenerate", action="store_true", help="ignore the cache and sample again")
+    ap.add_argument("--validate", type=Path, help="check cached pools under this directory and exit")
+    args = ap.parse_args()
+
+    if args.validate is not None:
+        raise SystemExit(1 if validate_root(args.validate) else 0)
+
+    seeds = parse_seeds(args.seeds) if args.seeds else list(SPLITS[args.split])[:args.scenes]
+    kinds = ("natural", "diagnostic") if args.kind == "both" else (args.kind,)
+    instruction = args.instruction.format(object=args.object, destination=args.destination)
+    index_path = args.root / "index.json"
+    index = json.loads(index_path.read_text()) if index_path.exists() else {}
+
+    for seed in seeds:
+        scene_obj = None
+        for kind in kinds:
+            directory = args.root / kind / f"{args.object.replace(' ', '_')}_to_{args.destination.replace(' ', '_')}"
+            path = directory / f"{args.split}-seed{seed:04d}.json"
+            if path.exists() and not args.regenerate:
+                cached = json.loads(path.read_text())
+                if cached["protocol"]["generator"]["pool_size"] >= args.pool_size:
+                    print(f"cached  {path}  ({cached['summary']['accepted']} candidates)")
+                    continue
+            if scene_obj is None:
+                scene_obj = Scene(seed)
+            pool = build_pool(scene_obj, kind, instruction, args.object, args.destination,
+                              args.pool_size, args.model, args.split, args.workers,
+                              args.oversample, args.timeout)
+            problems = check_pool(pool)
+            directory.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(pool, indent=2, default=float))
+            index[pool["pool_id"]] = {"path": str(path), "kind": kind, "split": args.split,
+                                      "seed": seed, "observation_id": pool["scene"]["observation_id"],
+                                      **pool["summary"]}
+            print(f"{'wrote  ' if not problems else 'PROBLEM'} {path}  "
+                  f"{json.dumps(pool['summary'], default=float)}")
+            if pool["summary"]["short_of_requested"]:
+                print(f"  ! only {pool['summary']['accepted']} of {args.pool_size} candidates were "
+                      f"accepted within the {args.oversample}x attempt budget; raise --oversample")
+            for problem in problems:
+                print(f"  ! {problem}")
+        if scene_obj is not None:
+            scene_obj.close()
+
+    args.root.mkdir(parents=True, exist_ok=True)
+    index_path.write_text(json.dumps(index, indent=2, default=float))
+    print(f"\nindex {index_path} ({len(index)} pools)")
+
+
+if __name__ == "__main__":
+    main()

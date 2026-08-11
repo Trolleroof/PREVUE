@@ -231,10 +231,11 @@ class ClaudePlanner:
     retries: int = 2
     binary: str = field(default_factory=lambda: shutil.which("claude") or "claude")
     calls: list[dict] = field(default_factory=list)
+    system_prompt: str = SYSTEM_PROMPT     # the candidate-pool generator swaps in the program API
 
     def complete(self, prompt: str) -> str:
         command = [self.binary, "-p", prompt, "--output-format", "json", "--model", self.model,
-                   "--system-prompt", SYSTEM_PROMPT, "--allowed-tools", "", "--strict-mcp-config",
+                   "--system-prompt", self.system_prompt, "--allowed-tools", "", "--strict-mcp-config",
                    "--disable-slash-commands", "--max-turns", "1"]
         environment = {**os.environ, "CLAUDE_CODE_ENTRYPOINT": "waddle-planner"}
         finished = subprocess.run(command, capture_output=True, text=True, timeout=self.timeout,
