@@ -81,8 +81,9 @@ That is a clearer demo and research question than â€œwe trained a world model.â€
 | Claude Opus 5 planner and repair loop | done |
 | Browser demo with a chat bar | done |
 | Bounded code-as-policy program schema and cached Claude candidate pools | done |
+| Benchmark artifact schema, oracle ordering, and integrity validator | done |
 
-See [`transition_schema.md`](transition_schema.md) for the data contract, [`results.md`](results.md) for measured verifier performance, [`backbone_decision.md`](backbone_decision.md) for the frozen-backbone choice, [`llm_agent.md`](llm_agent.md) for the planner, the perception primitives, and the repair loop, and [`program_schema.md`](program_schema.md) for the candidate format the program-ranking benchmark uses.
+See [`transition_schema.md`](transition_schema.md) for the data contract, [`results.md`](results.md) for measured verifier performance, [`backbone_decision.md`](backbone_decision.md) for the frozen-backbone choice, [`llm_agent.md`](llm_agent.md) for the planner, the perception primitives, and the repair loop, [`program_schema.md`](program_schema.md) for the candidate format the program-ranking benchmark uses, and [`benchmark_protocol.md`](benchmark_protocol.md) for what a locked run records, how the oracle orders candidates, and what the validator refuses.
 
 ## Architecture
 
