@@ -4,7 +4,8 @@ This is the contract [issue #24](https://github.com/Trolleroof/skill-level-world
 asked for: what a locked benchmark run has to record, how the oracle orders candidates, where
 the selector's clock starts and stops, and what a validator refuses. It sits between
 [`program_schema.md`](program_schema.md) (what a candidate is, #17) and the counterfactual
-execution in [#23](https://github.com/Trolleroof/skill-level-world-model/issues/23), and it is
+execution in [`counterfactual_execution.md`](counterfactual_execution.md) (#23, which writes
+the outcome records this module orders), and it is
 what [#18](https://github.com/Trolleroof/skill-level-world-model/issues/18) and
 [#26](https://github.com/Trolleroof/skill-level-world-model/issues/26) report from.
 

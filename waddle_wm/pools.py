@@ -177,6 +177,10 @@ class Scene:
         self.text = self.observation.text
         self.truth = {name: [round(float(v), 4) for v in point]
                       for name, point in self.env.block_positions().items()}
+        # The exact bytes the observation was taken from. Every replay starts here, so a
+        # candidate is never advantaged or handicapped by whatever ran before it.
+        self.snapshot = self.env.snapshot()
+        self.snapshot_id = self.snapshot["digest"]
 
     def observe(self) -> SceneObservation:
         """Read the current camera scene; used initially and at live redetect operations."""
@@ -185,9 +189,15 @@ class Scene:
         text = describe_observation(detections, pad, gripper)
         return SceneObservation.from_perception(detections, pad, gripper, self.seed, text)
 
-    def restore(self):
-        """Put the tabletop back exactly where the observation was taken, for a replay."""
-        self.env.reset(blocks=self.blocks)
+    def restore(self, snapshot: dict | None = None) -> bool:
+        """Put the tabletop back exactly where the observation was taken, for a replay.
+
+        Returns whether the restored state fingerprint matches the snapshot's own, so a
+        caller can record a failed restore instead of quietly comparing two different scenes.
+        """
+        snapshot = self.snapshot if snapshot is None else snapshot
+        self.env.restore(snapshot)
+        return self.env.state_digest() == snapshot["digest"]
 
     def reachable(self, trace) -> str | None:
         """Walk the trace through the same damped-least-squares IK the executor uses."""
@@ -201,8 +211,14 @@ class Scene:
                 return f"{entry['phase']} waypoint is unreachable: {error}"
         return None
 
-    def execute(self, program: prog.Program) -> list:
-        """Replay one complete policy, including live redetection and bounded retries."""
+    def execute(self, program: prog.Program, observation: SceneObservation | None = None) -> list:
+        """Replay one complete policy, including live redetection and bounded retries.
+
+        `observation` is what the program's symbols bind to at the start. It defaults to a
+        fresh look at the scene; the counterfactual benchmark passes the pool's own
+        observation instead, so a perturbed replay cannot silently re-ground onto the
+        perturbation the candidate was never told about.
+        """
         block, destination = program.object.replace(" ", "_"), program.destination.replace(" ", "_")
 
         def run_attempt(segments):
@@ -210,7 +226,7 @@ class Scene:
             return self.env.run_trace_segments(segments, block=block, destination=destination,
                                                params={"program": program.strategy})
 
-        return prog.execute(program, self.observe(), self.observe, run_attempt)
+        return prog.execute(program, observation or self.observe(), self.observe, run_attempt)
 
     def close(self):
         self.camera.close()
