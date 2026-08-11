@@ -14,6 +14,7 @@ import argparse
 import json
 import math
 from copy import deepcopy
+from types import SimpleNamespace
 
 from waddle_wm import program as prog
 from waddle_wm.program import ProgramError, SceneObservation
@@ -194,7 +195,51 @@ def check_grounding():
           f"{len(diagnostics)} diagnostics")
 
 
+def check_runtime_policy():
+    """Redetection and retry must change execution, not only artifact metadata."""
+    updated = deepcopy(SCENE)
+    updated.points["green pad"] = [0.55, 0.25, 0.0]
+    recovering = prog.canonical_program(redetect=True, max_attempts=1)
+
+    segments = list(prog.trace_segments(recovering, SCENE, lambda: updated))
+    assert [[entry["phase"] for entry in segment] for segment in segments] == [
+        ["approach", "descend", "close", "lift"],
+        ["move", "place", "open", "retreat"],
+    ], segments
+    move = next(entry for entry in segments[1] if entry["phase"] == "move")
+    assert move["target"][:2] == updated.points["green pad"][:2], move
+
+    occluded = recovering.as_json()
+    occluded["ops"] = [op for index, op in enumerate(occluded["ops"]) if index != 1]
+    initial = deepcopy(SCENE)
+    initial.points.pop("green pad")
+    revealed = list(prog.trace_segments(prog.validate_program(occluded), initial, lambda: updated))
+    assert next(entry for entry in revealed[1] if entry["phase"] == "move")["target"][:2] == \
+        updated.points["green pad"][:2]
+
+    outcomes = iter((SimpleNamespace(success=False, failure_mode="missed"),
+                     SimpleNamespace(success=True, failure_mode=None)))
+    observations, attempts = [], []
+
+    def observe():
+        observations.append(True)
+        return updated
+
+    def run_attempt(trace_segments):
+        attempts.append(list(trace_segments))
+        return next(outcomes)
+
+    results = prog.execute(recovering, SCENE, observe, run_attempt)
+    assert [result.success for result in results] == [False, True], results
+    assert len(attempts) == 2 and observations, (attempts, observations)
+    target_miss = lambda segments: SimpleNamespace(success=False, failure_mode="target_miss")
+    assert len(prog.execute(recovering, SCENE, observe, target_miss)) == 1
+    assert prog.execute(prog.diagnostic_programs()[6][2], SCENE, observe, run_attempt) == []
+    print("runtime policy passed: redetection rebinds live geometry, retry is bounded, abort does not run")
+
+
 def check_pool_contract():
+    from waddle_wm import pools
     from waddle_wm.pools import PREFIXES, check_pool
 
     candidates = []
@@ -208,9 +253,12 @@ def check_pool_contract():
                            "retry": program.retry, "redetect_ops": program.redetects,
                            "aborts": program.aborts, "diagnostic": name, "diagnostic_kind": kind})
     ids = [candidate["candidate_id"] for candidate in candidates]
+    generator = pools.generator_settings("diagnostic", "scripted", len(ids),
+                                         "put the red block on the green pad", 1, 1.0, 1.0)
     pool = {"pool_id": "diagnostic-test", "kind": "diagnostic", "split": "train",
             "protocol": {"protocol_version": 1, "program_schema_version": prog.SCHEMA_VERSION,
-                         "git_sha": "test", "generator": {"model": "scripted", "pool_size": len(ids)}},
+                         "git_sha": "test", "git_dirty": False, "generator": generator,
+                         "generator_hash": pools.generator_hash(generator)},
             "task": {"instruction": "put the red block on the green pad", "object": "red block",
                      "destination": "green pad"},
             "scene": {"seed": 0, "observation_id": SCENE.observation_id, "observation": "",
@@ -226,6 +274,7 @@ def check_pool_contract():
         ("non-nested prefix", lambda p: p["prefixes"].__setitem__("4", list(reversed(p["prefixes"]["4"]))),
          "not nested"),
         ("short prefix", lambda p: p["prefixes"].__setitem__("4", p["prefixes"]["4"][:2]), "holds 2 candidates"),
+        ("missing expected prefix", lambda p: p["prefixes"].pop("4"), "expected prefixes"),
         ("gap in the ranking", lambda p: p["candidates"][2].update(index=9),
          "not a contiguous ranking"),
         ("missing grounded trace", lambda p: p["candidates"][0].update(grounded_trace=[]), "empty grounded trace"),
@@ -243,19 +292,77 @@ def check_pool_contract():
         ("leaked ground truth",
          lambda p: p["candidates"][0]["program"]["ops"].append({"op": "note", "x": 0.3801}),
          "ground truth"),
+        ("changed generator settings", lambda p: p["protocol"].update(
+            generator={"model": "scripted", "pool_size": len(ids)}, generator_hash="wrong"),
+         "generator hash"),
     ]
     for name, break_it, fragment in negatives:
         broken = deepcopy(pool)
         break_it(broken)
         problems = check_pool(broken)
         assert any(fragment in problem for problem in problems), (name, problems)
+
+    class OfflineScene:
+        observation = SCENE
+
+        @staticmethod
+        def reachable(trace):
+            return None
+
+    calls = []
+    original = pools.one_sample
+
+    def sample(index, instruction, observation, model, timeout):
+        calls.append(index)
+        return {"index": index, "error": None, "raw": json.dumps(prog.canonical_program().as_json()),
+                "generation": {"model": model, "cost_usd": 0.01}}
+
+    pools.one_sample = sample
+    try:
+        accepted, rejected = pools.natural_pool(
+            OfflineScene(), "task", "red block", "green pad", 3, "test", 8, 1.5, 1.0)
+        assert len(accepted) == 3 and not rejected and calls == [0, 1, 2], (len(accepted), rejected, calls)
+        extended, rejected = pools.natural_pool(
+            OfflineScene(), "task", "red block", "green pad", 5, "test", 8, 1.5, 1.0,
+            accepted=accepted, rejected=rejected)
+        assert [candidate.sample_index for candidate in extended] == list(range(5)), extended
+        assert calls == list(range(5)), calls
+    finally:
+        pools.one_sample = original
+
+    settings = pools.generator_settings("natural", "test", 64, "task", 8, 1.5, 180.0)
+    for key in ("parameter_ranges", "generator_code_sha1", "attempt_budget", "workers", "timeout"):
+        assert key in settings, (key, settings)
+
+    seen_yaw = []
+
+    class FakeEnv:
+        data = SimpleNamespace(joint=lambda name: SimpleNamespace(qpos=[0.0]))
+
+        @staticmethod
+        def _ik(target, q, yaw=None):
+            seen_yaw.append(yaw)
+            return q
+
+    reachable_scene = pools.Scene.__new__(pools.Scene)
+    reachable_scene.env = FakeEnv()
+    assert reachable_scene.reachable([{"phase": "descend", "target": [0.4, 0.0, 0.02], "yaw": 0.7}]) is None
+    assert seen_yaw == [0.7], seen_yaw
+
+    from waddle_wm.verifier import require_action_compatibility
+    require_action_compatibility(prog.ground(prog.canonical_program(), SCENE).trace)
+    try:
+        require_action_compatibility(prog.ground(prog.canonical_program(grasp_yaw_deg=45), SCENE).trace)
+    except ValueError as error:
+        assert "yaw-aware" in str(error), error
+    else:
+        raise AssertionError("a legacy checkpoint must not silently collapse distinct grasp yaws")
     print(f"pool contract passed: clean pool accepted, {len(negatives)} integrity checks fire")
 
 
 def check_live(scenes: int):
     """Run every diagnostic program in MuJoCo from the identical restored scene."""
     from waddle_wm.pools import Scene
-    from waddle_wm.sim.env import PRELUDE_FRAMES
 
     counts = {}
     for seed in range(scenes):
@@ -264,17 +371,23 @@ def check_live(scenes: int):
             f"seed {seed}: the observation is not reproducible"
         print(f"\nseed {seed}  observation {scene_obj.observation.observation_id}")
         for name, kind, program in prog.diagnostic_programs():
-            grounded = prog.ground(program, scene_obj.observation)
-            if grounded.step is None:
+            if program.aborts:
                 counts.setdefault(name, []).append(False)
-                print(f"  {name:26s} declined: {grounded.aborts}")
+                print(f"  {name:26s} declined: {program.aborts}")
                 continue
             scene_obj.restore()
-            episode = scene_obj.env.run_trace(grounded.step.trace, prelude_frames=PRELUDE_FRAMES,
-                                              block="red_block", destination="green_pad")
+            episodes = scene_obj.execute(program)
+            episode = episodes[-1]
             counts.setdefault(name, []).append(bool(episode.success))
             print(f"  {name:26s} success={str(episode.success):5s} failure={episode.failure_mode or '-':12s} "
-                  f"lift={episode.state_after['max_block_z']:.3f} target={episode.state_after['target_distance']:.3f}")
+                  f"attempts={len(episodes)} lift={episode.state_after['max_block_z']:.3f} "
+                  f"target={episode.state_after['target_distance']:.3f}")
+        scene_obj.restore()
+        retry_probe = prog.canonical_program(grasp_offset_mm=(35.0, 0.0), max_attempts=1)
+        retry_episodes = scene_obj.execute(retry_probe)
+        assert len(retry_episodes) == 2 and all(e.failure_mode == "missed" for e in retry_episodes), \
+            [episode.failure_mode for episode in retry_episodes]
+        print("  bounded retry probe        attempts=2 (both missed, then stopped)")
         scene_obj.close()
 
     print(f"\ndiagnostic suite over {scenes} scenes (a planted fault is a bug in the program, not a "
@@ -310,6 +423,7 @@ def main():
 
     check_schema()
     check_grounding()
+    check_runtime_policy()
     check_pool_contract()
     if args.live:
         check_live(args.live)

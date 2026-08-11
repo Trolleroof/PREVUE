@@ -22,6 +22,7 @@ import hashlib
 import json
 import math
 from dataclasses import dataclass, field
+from typing import Callable, Iterable
 
 from waddle_wm import planner
 from waddle_wm.planner import DESTINATIONS, MAX_PHASES, OBJECTS, PlanError, SkillStep
@@ -348,7 +349,9 @@ _PHASE = {("move_above", False): "approach", ("move_above", True): "move",
           ("retreat", True): "retreat", ("retreat", False): "retreat"}
 
 
-def ground(program: Program, observation: SceneObservation) -> GroundedProgram:
+def ground(program: Program, observation: SceneObservation,
+           redetections: dict[int, SceneObservation] | None = None,
+           stop_at: int | None = None) -> GroundedProgram:
     """Program + observation -> the exact plan the UR5e path executes.
 
     Symbols resolve against the observation, offsets are added in metres, and the result
@@ -356,12 +359,13 @@ def ground(program: Program, observation: SceneObservation) -> GroundedProgram:
     the eight-phase budget are enforced by the same code the chat planner goes through.
     """
     bindings, trace, held, yaw = {}, [], False, None
+    redetections = redetections or {}
     point = list(observation.points.get("gripper", [0.4, 0.0, 0.3]))
-    for index, op in enumerate(program.ops):
+    for index, op in enumerate(program.ops[:stop_at]):
         name = op["op"]
         if name == "detect":
             try:
-                bindings[op["as"]] = observation.point(op["query"])
+                bindings[op["as"]] = redetections.get(index, observation).point(op["query"])
             except ProgramError:
                 # "I looked and it is not there" is the commonest honest reason to decline,
                 # so a failed lookup inside a declining program is its point, not its bug.
@@ -401,6 +405,57 @@ def ground(program: Program, observation: SceneObservation) -> GroundedProgram:
     except PlanError as error:
         raise ProgramError(f"the grounded waypoints were rejected: {error}")
     return GroundedProgram(program, plan.steps[0], observation.observation_id)
+
+
+def _trace_count(ops: list[dict]) -> int:
+    return sum(op["op"] not in ("detect", "on_failure", "abort") for op in ops)
+
+
+def trace_segments(program: Program, observation: SceneObservation,
+                   observe: Callable[[], SceneObservation]) -> Iterable[list[dict]]:
+    """Yield executable trace segments, refreshing symbols at live redetect operations.
+
+    The generator resumes only after its previous segment has been executed, so `observe()`
+    sees the current scene rather than the pool-generation snapshot.
+    """
+    if program.aborts:
+        return
+    redetections: dict[int, SceneObservation] = {}
+    start = 0
+    for op_index in program.redetects:
+        cut = _trace_count(program.ops[:op_index])
+        if cut > start:
+            yield ground(program, observation, redetections, stop_at=op_index).trace[start:]
+        redetections[op_index] = observe()
+        start = cut
+    remainder = ground(program, observation, redetections).trace[start:]
+    if remainder:
+        yield remainder
+
+
+def execute(program: Program, observation: SceneObservation,
+            observe: Callable[[], SceneObservation], run_attempt: Callable[[Iterable[list[dict]]], object]) -> list:
+    """Execute a policy with live redetection and its bounded retry contract.
+
+    `run_attempt` owns the controller-specific mechanics. It consumes the lazy trace segments
+    and returns an object or dict carrying `success`; this keeps policy semantics shared by
+    MuJoCo today and a robot executor later.
+    """
+    if program.aborts:
+        return []
+    outcomes = []
+    retry = program.retry
+    for attempt in range(retry["max_attempts"] + 1):
+        outcome = run_attempt(trace_segments(program, observation, observe))
+        outcomes.append(outcome)
+        success = outcome.get("success") if isinstance(outcome, dict) else getattr(outcome, "success", None)
+        failure = (outcome.get("failure_mode") if isinstance(outcome, dict)
+                   else getattr(outcome, "failure_mode", None))
+        if (success or failure != "missed" or retry["policy"] != "redetect_regrasp"
+                or attempt == retry["max_attempts"]):
+            break
+        observation = observe()
+    return outcomes
 
 
 # --------------------------------------------------------------------------- reference programs

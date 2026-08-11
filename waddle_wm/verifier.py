@@ -27,6 +27,13 @@ from waddle_wm.train_multiblock_world_model import StateWorldModel, task_feature
 from waddle_wm.train_latent_dynamics import STATE_DIM, Dynamics, ObjectReadout, Readout, rollout, success_probability
 
 
+def require_action_compatibility(trace) -> None:
+    """Refuse controller choices that the legacy checkpoint cannot distinguish."""
+    if any(entry.get("yaw") is not None for entry in trace):
+        raise ValueError("this checkpoint's action encoding has no grasp yaw; train a yaw-aware "
+                         "#18 scorer instead of ranking distinct orientations as identical")
+
+
 def through_codec(frames, fps: int = 10) -> list[np.ndarray]:
     """Round-trip freshly rendered frames through h264, the way the training clips were stored.
 
@@ -112,6 +119,7 @@ class Verifier:
 
     def plan_chunks(self, trace) -> torch.Tensor:
         """Skill trace -> (steps, 1, window_frames, ACTION_DIM), normalised."""
+        require_action_compatibility(trace)
         actions = compile_plan(trace, self.manifest["phase_frames"], self.manifest["home_waypoint"],
                                self.manifest["frames_total"], self.manifest["prelude_frames"])
         plan = torch.from_numpy(chunks(actions, self.manifest["window_frames"])[1:]).to(self.device)
@@ -119,6 +127,7 @@ class Verifier:
 
     def verify(self, latent: torch.Tensor, trace, object_name="red_block", destination="green_pad",
                scene_positions=None) -> VerificationResult:
+        require_action_compatibility(trace)
         with torch.inference_mode():
             if self.model_type == "multiblock_state":
                 if scene_positions is None:

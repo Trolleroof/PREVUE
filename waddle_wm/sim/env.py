@@ -291,26 +291,40 @@ class TabletopEnv:
         `FRAMES_TOTAL` keeps the episode on the dataset's frame grid so the verifier's
         compiled rollout and the executed episode describe the same 48 frames.
         """
+        return self.run_trace_segments((list(trace),), frames_total, prelude_frames, skill, params,
+                                       block, destination)
+
+    def run_trace_segments(self, segments, frames_total=None, prelude_frames=PRELUDE_FRAMES,
+                           skill="trace", params=None, block="red_block", destination="green_pad"):
+        """Execute lazily produced trace segments as one episode.
+
+        A policy generator may observe the live scene between yielded segments; controller
+        state, lift history, recording, and the final outcome remain one atomic attempt.
+        """
         self.track_task(block, destination)
         self._idle(prelude_frames)
-        return self._execute(list(trace), self.state(), skill, dict(params or {}), frames_total)
+        return self._execute_segments(segments, self.state(), skill, dict(params or {}), frames_total)
 
     def _execute(self, plan, before, skill, params, frames_total):
+        return self._execute_segments((plan,), before, skill, params, frames_total)
+
+    def _execute_segments(self, segments, before, skill, params, frames_total):
         q = np.array([self.data.joint(j).qpos[0] for j in scene.ARM_JOINTS])
         trace = []
-        for entry in plan:
-            phase, point = entry["phase"], entry.get("target")
-            start = self._begin(phase, point)
-            if phase == "close":
-                self._settle(GRIPPER_CLOSED)
-            elif phase == "open":
-                self._settle(GRIPPER_OPEN, 0.35)
-            elif phase == "idle":
-                self._settle(self.data.actuator(scene.GRIPPER_ACTUATOR).ctrl[0], 0.35)
-            else:
-                q = self._ik(point, q, entry.get("yaw"))
-                self._move(q, GRIPPER_OPEN if phase in OPEN_PHASES else GRIPPER_CLOSED)
-            self._end(phase, start, trace, point=point, value=entry.get("value"), yaw=entry.get("yaw"))
+        for plan in segments:
+            for entry in plan:
+                phase, point = entry["phase"], entry.get("target")
+                start = self._begin(phase, point)
+                if phase == "close":
+                    self._settle(GRIPPER_CLOSED)
+                elif phase == "open":
+                    self._settle(GRIPPER_OPEN, 0.35)
+                elif phase == "idle":
+                    self._settle(self.data.actuator(scene.GRIPPER_ACTUATOR).ctrl[0], 0.35)
+                else:
+                    q = self._ik(point, q, entry.get("yaw"))
+                    self._move(q, GRIPPER_OPEN if phase in OPEN_PHASES else GRIPPER_CLOSED)
+                self._end(phase, start, trace, point=point, value=entry.get("value"), yaw=entry.get("yaw"))
         if frames_total is not None:
             if len(self._frames) > frames_total:
                 raise RuntimeError(f"execution needed {len(self._frames)} frames, over the {frames_total}-frame grid")

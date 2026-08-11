@@ -22,11 +22,13 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import inspect
 import json
 import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -153,6 +155,14 @@ def git_sha() -> str:
         return "unknown"
 
 
+def git_dirty() -> bool:
+    try:
+        return bool(subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"],
+                                   capture_output=True, text=True, timeout=10).stdout.strip())
+    except (OSError, subprocess.SubprocessError):
+        return True
+
+
 class Scene:
     """One seeded tabletop, its rendered observation, and the reachability check for it."""
 
@@ -163,12 +173,17 @@ class Scene:
                        for name, point in self.env.sample_blocks().items()}
         self.env.reset(blocks=self.blocks)
         self.camera = SceneCamera(self.env.model, self.env.data)
-        detections = self.camera.detect_all(DETECTOR_QUERIES)
-        self.text = describe_observation(detections, landing_pad(self.env.model), self.env.home_waypoint())
-        self.observation = SceneObservation.from_perception(
-            detections, landing_pad(self.env.model), self.env.home_waypoint(), seed, self.text)
+        self.observation = self.observe()
+        self.text = self.observation.text
         self.truth = {name: [round(float(v), 4) for v in point]
                       for name, point in self.env.block_positions().items()}
+
+    def observe(self) -> SceneObservation:
+        """Read the current camera scene; used initially and at live redetect operations."""
+        detections = self.camera.detect_all(DETECTOR_QUERIES)
+        pad, gripper = landing_pad(self.env.model), self.env.home_waypoint()
+        text = describe_observation(detections, pad, gripper)
+        return SceneObservation.from_perception(detections, pad, gripper, self.seed, text)
 
     def restore(self):
         """Put the tabletop back exactly where the observation was taken, for a replay."""
@@ -181,10 +196,21 @@ class Scene:
             if "target" not in entry:
                 continue
             try:
-                q = self.env._ik(entry["target"], q)
+                q = self.env._ik(entry["target"], q, entry.get("yaw"))
             except RuntimeError as error:
                 return f"{entry['phase']} waypoint is unreachable: {error}"
         return None
+
+    def execute(self, program: prog.Program) -> list:
+        """Replay one complete policy, including live redetection and bounded retries."""
+        block, destination = program.object.replace(" ", "_"), program.destination.replace(" ", "_")
+
+        def run_attempt(segments):
+            self.env.clear_recording()
+            return self.env.run_trace_segments(segments, block=block, destination=destination,
+                                               params={"program": program.strategy})
+
+        return prog.execute(program, self.observe(), self.observe, run_attempt)
 
     def close(self):
         self.camera.close()
@@ -229,21 +255,26 @@ def one_sample(index: int, instruction: str, observation_text: str, model: str, 
 
 
 def natural_pool(scene_obj: Scene, instruction: str, object_name: str, destination: str,
-                 size: int, model: str, workers: int, oversample: float, timeout: float) -> tuple[list, list]:
+                 size: int, model: str, workers: int, oversample: float, timeout: float,
+                 accepted: list[Candidate] | None = None,
+                 rejected: list[Rejected] | None = None) -> tuple[list, list]:
     """Independent samples until `size` of them are valid, in sample order."""
-    accepted, rejected, keys = [], [], {}
+    accepted, rejected = list(accepted or []), list(rejected or [])
+    keys = {}
+    for candidate in accepted:
+        keys.setdefault(candidate.dedup_key, candidate.candidate_id)
     budget = max(size, int(round(size * oversample)))
-    issued, pending = 0, []
+    attempted = [item.sample_index for item in (*accepted, *rejected)]
+    issued = max(attempted, default=-1) + 1
     with ThreadPoolExecutor(max_workers=workers) as pool:
         while len(accepted) < size and issued < budget:
-            batch = min(workers, budget - issued, (size - len(accepted)) * 2)
+            # Never issue more paid calls than there are open candidate slots. Rejections
+            # simply trigger another batch; every completed call is therefore recorded.
+            batch = min(workers, budget - issued, size - len(accepted))
             futures = [pool.submit(one_sample, issued + offset, instruction, scene_obj.observation.text,
                                    model, timeout) for offset in range(batch)]
             issued += batch
-            pending.extend(future.result() for future in futures)
-            pending.sort(key=lambda item: item["index"])
-            while pending and len(accepted) < size:
-                item = pending.pop(0)
+            for item in (future.result() for future in futures):
                 if item["error"]:
                     rejected.append(Rejected(item["index"], "generation", item["error"], "", item["generation"]))
                     continue
@@ -292,13 +323,34 @@ def diagnostic_pool(scene_obj: Scene, object_name: str, destination: str) -> tup
     return accepted, rejected
 
 
-def generator_settings(kind: str, model: str, size: int, instruction: str) -> dict:
+@lru_cache(maxsize=1)
+def claude_cli_version() -> str:
+    try:
+        result = subprocess.run(["claude", "--version"], capture_output=True, text=True, timeout=10)
+        return (result.stdout or result.stderr).strip().splitlines()[0][:120] or "unknown"
+    except (OSError, subprocess.SubprocessError):
+        return "unavailable"
+
+
+def generator_code_hash() -> str:
+    functions = (prog.validate_program, prog.ground, prog.trace_segments, prog.execute,
+                 prog.GroundedProgram.dedup_key, Scene.observe, Scene.reachable, admit, natural_pool)
+    return hashlib.sha1("\n".join(inspect.getsource(function) for function in functions).encode()).hexdigest()[:12]
+
+
+def generator_settings(kind: str, model: str, size: int, instruction: str,
+                       workers: int, oversample: float, timeout: float) -> dict:
     """Everything that decides what a candidate looks like, so a cached pool can be trusted."""
     return {"kind": kind, "model": model if kind == "natural" else "scripted",
             "instruction": instruction,
             "system_prompt_sha1": hashlib.sha1(SYSTEM_PROMPT.encode()).hexdigest()[:12],
             "prompt_template_sha1": hashlib.sha1(sample_prompt("", "").encode()).hexdigest()[:12],
-            "sampling": "claude CLI defaults, one stateless turn, no tools, no retry on a bad sample",
+            "sampling": {"temperature": "claude CLI default", "max_output_tokens": "claude CLI default",
+                         "stateless": True, "tools": False, "retry_bad_sample": False},
+            "claude_cli_version": claude_cli_version() if kind == "natural" else "not-used",
+            "parameter_ranges": RANGES, "generator_code_sha1": generator_code_hash(),
+            "workers": workers, "oversample": oversample, "timeout": timeout,
+            "attempt_budget": max(size, int(round(size * oversample))),
             "max_turns": 1, "pool_size": size, "program_schema_version": SCHEMA_VERSION,
             "protocol_version": PROTOCOL_VERSION}
 
@@ -306,17 +358,21 @@ def generator_settings(kind: str, model: str, size: int, instruction: str) -> di
 def generator_hash(settings: dict) -> str:
     """The settings hash the cache keys on. `pool_size` is excluded: a larger pool of the same
     kind extends a smaller one, but a changed prompt, model, or schema does not."""
-    return settings_hash({key: value for key, value in settings.items() if key != "pool_size"})
+    return settings_hash({key: value for key, value in settings.items()
+                          if key not in ("pool_size", "attempt_budget")})
 
 
 def build_pool(scene_obj: Scene, kind: str, instruction: str, object_name: str, destination: str,
                size: int, model: str, split: str, workers: int, oversample: float,
-               timeout: float) -> dict:
-    settings = generator_settings(kind, model, size, instruction)
+               timeout: float, previous: dict | None = None) -> dict:
+    settings = generator_settings(kind, model, size, instruction, workers, oversample, timeout)
     started = time.time()
     if kind == "natural":
+        old_candidates = [Candidate(**candidate) for candidate in previous["candidates"]] if previous else None
+        old_rejected = [Rejected(**item) for item in previous["rejected"]] if previous else None
         accepted, rejected = natural_pool(scene_obj, instruction, object_name, destination,
-                                          size, model, workers, oversample, timeout)
+                                          size, model, workers, oversample, timeout,
+                                          old_candidates, old_rejected)
     else:
         accepted, rejected = diagnostic_pool(scene_obj, object_name, destination)
     pool_id = (f"{kind}-{object_name.replace(' ', '_')}-to-{destination.replace(' ', '_')}"
@@ -328,9 +384,11 @@ def build_pool(scene_obj: Scene, kind: str, instruction: str, object_name: str, 
     pool = {
         "pool_id": pool_id, "kind": kind, "split": split,
         "protocol": {"protocol_version": PROTOCOL_VERSION, "program_schema_version": SCHEMA_VERSION,
-                     "git_sha": git_sha(), "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                     "git_sha": git_sha(), "git_dirty": git_dirty(),
+                     "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
                      "generator": settings, "generator_hash": generator_hash(settings),
-                     "generation_seconds": round(time.time() - started, 1)},
+                     "generation_seconds": round((previous or {}).get("protocol", {}).get(
+                         "generation_seconds", 0.0) + time.time() - started, 1)},
         "task": {"instruction": instruction, "object": object_name, "destination": destination},
         "scene": {"seed": scene_obj.seed, "observation_id": scene_obj.observation.observation_id,
                   "observation": scene_obj.observation.text,
@@ -378,6 +436,9 @@ def check_pool(pool: dict) -> list[str]:
         problems.append("candidates are not in generation order")
 
     previous = []
+    expected = {str(n) for n in PREFIXES if n <= len(candidates)}
+    if set(pool["prefixes"]) != expected:
+        problems.append(f"expected prefixes {sorted(expected)}, got {sorted(pool['prefixes'])}")
     for n in sorted(int(key) for key in pool["prefixes"]):
         prefix = pool["prefixes"][str(n)]
         if len(prefix) != n:
@@ -405,6 +466,9 @@ def check_pool(pool: dict) -> list[str]:
                 problems.append(f"{candidate['candidate_id']}: program contains {name} ground truth")
     if pool["kind"] == "natural" and pool["protocol"]["generator"]["model"] == "scripted":
         problems.append("a natural pool must be generated by Claude")
+    generator = pool["protocol"].get("generator", {})
+    if pool["protocol"].get("generator_hash") != generator_hash(generator):
+        problems.append("generator hash does not match the recorded settings")
     if pool["kind"] == "diagnostic":
         named = [c["diagnostic"] for c in candidates]
         if len(set(named)) != len(named):
@@ -464,11 +528,15 @@ def main():
     ap.add_argument("--timeout", type=float, default=180.0)
     ap.add_argument("--root", type=Path, default=DEFAULT_ROOT)
     ap.add_argument("--regenerate", action="store_true", help="ignore the cache and sample again")
+    ap.add_argument("--allow-dirty", action="store_true", help="allow exploratory generation from tracked edits")
     ap.add_argument("--validate", type=Path, help="check cached pools under this directory and exit")
     args = ap.parse_args()
 
     if args.validate is not None:
         raise SystemExit(1 if validate_root(args.validate) else 0)
+    if git_dirty() and not args.allow_dirty:
+        raise SystemExit("refusing to generate pools from a dirty tracked worktree; commit the locked code "
+                         "or pass --allow-dirty for an explicitly exploratory pool")
 
     seeds = parse_seeds(args.seeds) if args.seeds else list(SPLITS[args.split])[:args.scenes]
     kinds = ("natural", "diagnostic") if args.kind == "both" else (args.kind,)
@@ -479,17 +547,20 @@ def main():
     for seed in seeds:
         scene_obj = None
         for kind in kinds:
+            previous = None
             directory = args.root / kind / f"{args.object.replace(' ', '_')}_to_{args.destination.replace(' ', '_')}"
             path = directory / f"{args.split}-seed{seed:04d}.json"
             if path.exists() and not args.regenerate:
                 cached = json.loads(path.read_text())
-                wanted = generator_hash(generator_settings(kind, args.model, args.pool_size, instruction))
+                wanted = generator_hash(generator_settings(kind, args.model, args.pool_size, instruction,
+                                                            args.workers, args.oversample, args.timeout))
                 if cached["protocol"].get("generator_hash") != wanted:
                     print(f"stale   {path}  (generator settings changed since it was cached; "
                           f"regenerating)")
                 elif cached["protocol"]["generator"]["pool_size"] < args.pool_size:
                     print(f"small   {path}  ({cached['summary']['accepted']} candidates, "
-                          f"{args.pool_size} wanted; regenerating)")
+                          f"{args.pool_size} wanted; extending)")
+                    previous = cached
                 else:
                     print(f"cached  {path}  ({cached['summary']['accepted']} candidates)")
                     continue
@@ -497,7 +568,7 @@ def main():
                 scene_obj = Scene(seed)
             pool = build_pool(scene_obj, kind, instruction, args.object, args.destination,
                               args.pool_size, args.model, args.split, args.workers,
-                              args.oversample, args.timeout)
+                              args.oversample, args.timeout, previous)
             problems = check_pool(pool)
             directory.mkdir(parents=True, exist_ok=True)
             path.write_text(json.dumps(pool, indent=2, default=float))
