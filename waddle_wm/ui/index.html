@@ -120,6 +120,7 @@ function showVideo(src) {
 
 const HANDLERS = {
   plan(d) {
+    if (d.action === "abstain") return;      // the abstained card carries the same note
     add("", d.kind === "propose" ? "Claude · plan" : "Claude · repair " + d.round,
         `<div>${d.note}</div><div class="trace">${traceText(d.trace)}</div>`);
   },
@@ -153,6 +154,8 @@ const HANDLERS = {
   error: d => add("err", "Error", `<div>${d.reason}</div>`),
   done(d) {
     if (d.video) showVideo(d.video);
+    else showEmpty(NOT_RUN[d.decision] || "Nothing ran.");
+    if (d.can_run_anyway) offerRunAnyway();
     const foot = document.createElement("div");
     foot.className = "foot";
     foot.textContent = [d.decision, d.seconds && d.seconds + " s", d.cost_usd != null && "$" + d.cost_usd,
@@ -161,6 +164,38 @@ const HANDLERS = {
     log.scrollTop = log.scrollHeight;
   },
 };
+
+const NOT_RUN = {
+  rejected: "Not executed — the world model rejected the plan.",
+  abstained: "Not executed — Claude abstained.",
+  error: "Nothing ran — the run errored.",
+};
+
+/** A refused plan is the interesting case: run it and see whether the prediction held. */
+function offerRunAnyway() {
+  const card = add("warn", "Nothing was executed",
+    `<div>Run the refused plan anyway to see whether the predicted failure is real.</div>`);
+  const button = document.createElement("button");
+  button.textContent = "Run it anyway";
+  button.style.marginTop = "10px";
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    button.textContent = "running…";
+    const result = await (await fetch("/api/run-anyway", { method: "POST",
+      headers: { "Content-Type": "application/json" }, body: "{}" })).json();
+    button.remove();
+    if (result.error) return add("err", "Error", `<div>${result.error}</div>`);
+    const e = result.execution, failed = e.success === false;
+    add("verdict " + (failed ? "no" : "ok"), "MuJoCo · ran it anyway",
+      `<div>${failed ? `Failed: ${e.failure_mode} — block ended at ${point(e.final_block_xy)}, `
+                       + `${round(e.target_distance)} m from the pad centre. The verifier was right.`
+                     : `It succeeded — ${round(e.target_distance)} m from the pad centre. `
+                       + `The verifier was wrong to refuse it.`}</div>`);
+    if (result.video) showVideo(result.video);
+  });
+  card.appendChild(button);
+  log.scrollTop = log.scrollHeight;
+}
 
 async function send(instruction) {
   if (busy || !instruction) return;

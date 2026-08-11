@@ -42,7 +42,7 @@ class Session:
     """
 
     def __init__(self, checkpoint: Path, seed: int, model: str, repairs: int, threshold: float, verify: bool):
-        self.seed = seed
+        self.seed, self.refused = seed, None
         self._jobs: queue.Queue = queue.Queue()
         self._display_frames: list = []
         threading.Thread(target=self._worker, daemon=True).start()
@@ -109,6 +109,7 @@ class Session:
             self.agent.env.rng = np.random.default_rng(seed)
         env = self.agent.env
         self.block_xy = env.sample_scene()      # every command re-runs this scene until it is reset
+        self.refused = None
         env.reset(self.block_xy)
         return self.snapshot()
 
@@ -133,8 +134,22 @@ class Session:
         log = RUNS / f"{stamp}.json"
         log.write_text(json.dumps(payload, indent=2, default=float))
         payload["log"] = str(log)
-        payload["snapshot"] = self.snapshot()   # the live view holds wherever the arm ended up
+        # A rejected plan never ran, so the failure the verifier predicted is invisible
+        # until someone asks for it. Keep it around so the page can offer exactly that.
+        self.refused = run.final_plan if run.decision == "rejected" else None
+        payload["can_run_anyway"] = self.refused is not None
         emit("done", payload)
+
+    def run_anyway(self) -> dict:
+        """Execute the plan the verifier refused, so its prediction can be checked."""
+        if self.refused is None:
+            return {"error": "no refused plan to run"}
+        self._display_frames = []
+        execution, frames = self.agent.replay(self.refused, self.block_xy)
+        video = RUNS / f"{time.strftime('%Y%m%d-%H%M%S')}-anyway.mp4"
+        display = self._display_frames if len(self._display_frames) == len(frames) else frames
+        iio.imwrite(video, np.asarray(display), fps=10, codec="libx264")
+        return {"execution": execution, "video": f"/runs/{video.name}"}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -169,6 +184,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/reset":
             snapshot = self.session.call(lambda: self.session.reset(body.get("seed")))
             return self._send(200, json.dumps(snapshot).encode(), "application/json")
+        if self.path == "/api/run-anyway":
+            result = self.session.call(self.session.run_anyway)
+            return self._send(200, json.dumps(result, default=float).encode(), "application/json")
         if self.path != "/api/command":
             return self._send(404, b"not found", "text/plain")
 

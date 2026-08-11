@@ -66,12 +66,15 @@ class AgentRun:
     planner_calls: list[dict] = field(default_factory=list)
     seconds: float = 0.0
     frames: object = field(default=None, repr=False)   # rendered episode, kept out of the log
+    final_plan: object = field(default=None, repr=False)   # the Plan the loop ended on, for a re-run
 
     def as_json(self) -> dict:
-        frames, self.frames = self.frames, None
+        carried = self.frames, self.final_plan
+        self.frames = self.final_plan = None
         payload = asdict(self)
-        self.frames = frames
+        self.frames, self.final_plan = carried
         payload.pop("frames")
+        payload.pop("final_plan")
         payload["cost_usd"] = round(sum(call.get("cost_usd") or 0.0 for call in self.planner_calls), 4)
         return payload
 
@@ -164,9 +167,16 @@ class SkillAgent:
             run.execution["frames"] = len(frames)
             emit("executed", run.execution)
             run.frames = frames
+        run.final_plan = plan
         run.planner_calls = list(self.planner.calls)
         run.seconds = round(time.time() - started, 2)
         return run
+
+    def replay(self, plan: Plan, block_xy=None):
+        """Run a plan on the same scene with no verifier veto — how a rejection really ends."""
+        self.env.reset(block_xy if block_xy is not None else self.env.sample_scene())
+        self.env.observation_frames(WINDOW_FRAMES)
+        return self.execute(plan)
 
     def execute(self, plan: Plan):
         """Run the accepted trace on the real simulator, continuing from the observation window."""
