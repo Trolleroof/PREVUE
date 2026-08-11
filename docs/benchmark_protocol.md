@@ -150,8 +150,9 @@ diagnostic pools are reported separately — a planted bug says nothing about wh
 proposes. And nothing here ranks a selector by predicted performance: only measured paired
 results from the locked run.
 
-## Still to wire
+## Selector integration
 
-Everything above is the schema, the orderings, and the checks. Populating a real artifact
-needs #23's counterfactual sweep to exist; the writer that fills `counterfactual` from it, and
-the report that renders `aggregate` output, land once #23 merges.
+The #23 counterfactual sweep now fills the outcome records and `aggregate` reports them.
+Issue #18 still owns the three real selector implementations and their measured scores,
+uncertainty, cost, and end-to-end latency; precomputed rankings are only execution-pipeline
+smoke inputs and are not locked selector evidence.

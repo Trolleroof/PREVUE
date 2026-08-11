@@ -87,7 +87,8 @@ def offline_artifact(pool: dict, successes=(1, 2)) -> tuple[dict, dict]:
         git_sha="abc123", git_dirty=False, created_at="2026-01-01T00:00:00")
     artifact = {"artifact_version": br.ARTIFACT_VERSION, "metadata": metadata, "scenes": scenes,
                 "excluded": [], "kind": pool["kind"],
-                "preflight": {cf.scenario_id_of(pool): {"ok": True, "order_mismatches": []}},
+                "preflight": {cf.scenario_id_of(pool): {"ok": True, "order_probes": 3,
+                                                         "order_mismatches": []}},
                 "execution": {cf.scenario_id_of(pool): [
                     {"snapshot_id": "snap", "physics_seed": 0, "candidates": len(outcomes),
                      "successes": len(successes), "declined": 1, "errors": 0,
@@ -208,6 +209,9 @@ def check_integrity():
         ("failed preflight",
          lambda b: b["preflight"][next(iter(b["preflight"]))].update(ok=False), None,
          "preflight did not pass"),
+        ("preflight skipped order probes",
+         lambda b: b["preflight"][next(iter(b["preflight"]))].update(order_probes=0), None,
+         "did not execute an order probe"),
         ("dirty worktree", lambda b: b["metadata"].update(git_dirty=True), None, "dirty worktree"),
         ("an edited oracle definition",
          lambda b: b["metadata"]["oracle_definition"].update(final_tie_break="whatever wins"),
@@ -251,6 +255,13 @@ def check_aggregates():
     empty = br.aggregate(hopeless, prefix=4)["prefixes"]["4"]["selectors"]["first"]
     # Undefined, not zero: no selector could have succeeded, so none is charged for it.
     assert empty["selection_efficiency"] is None, empty
+
+    # The diagnostic pool has 13 candidates but its widest reporting prefix is 4. Coverage
+    # belongs to all 13 executions, including a success outside every reported prefix.
+    outside, _ = offline_artifact(pool, successes=(10,))
+    assert not any(scene["pool_has_success"] for scene in outside["scenes"])
+    assert cf.pool_coverage(outside, [pool]) == {pool["pool_id"]: True}
+    assert cf.pool_coverage(hopeless, [pool]) == {pool["pool_id"]: False}
     print("aggregation passed: benchmark_record reports from the artifact unchanged")
 
 

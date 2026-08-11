@@ -393,24 +393,20 @@ def check_metrics():
     assert set(report["false_accepts_by_prefix"]["heuristic"]) == {"1", "4"}
     assert report["excluded"] and report["scenes"] == 4
 
-    # Aggregation is refused, not silently averaged, when the cells do not line up.
+    # Aggregation validates first rather than trusting every caller to remember the gate.
     unpaired = valid_run()
     unpaired["scenes"][1]["selectors"].pop("world-model")
-    for broken, why in ((unpaired, "arm"),
-                        (duplicated_cells(), "cell")):
+    unequal = valid_run()
+    unequal_budgets(unequal)
+    shifted = valid_run()
+    shifted["metadata"]["definition_hash"] = "0" * 12
+    for broken, why in ((unpaired, "arm"), (duplicated_cells(), "cell"),
+                        (unequal, "budget"), (shifted, "definition")):
         try:
             aggregate(broken)
         except NotComparable:
             continue
-        raise AssertionError(f"aggregate accepted a run with a missing {why}")
-
-    shifted = valid_run()
-    shifted["metadata"]["definition_hash"] = "0" * 12
-    shifted["scenes"][1]["prefix"] = 4
-    try:
-        aggregate(shifted)
-    except NotComparable:
-        pass
+        raise AssertionError(f"aggregate accepted a run with an invalid {why}")
     assert definition_hash() == valid_run()["metadata"]["definition_hash"]
     print("paired metrics ok")
 
