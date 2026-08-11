@@ -1,4 +1,4 @@
-# Counterfactual execution and the hidden oracle
+# Counterfactual execution: every candidate, from one identical state
 
 This is the contract [issue #23](https://github.com/Trolleroof/skill-level-world-model/issues/23)
 asked for: every candidate in a pool executed from *one identical simulator state*, so that
@@ -20,25 +20,33 @@ cached pool (#17)                 snapshot: the complete MuJoCo integration stat
    shuffle the candidates          identity travels with the candidate, not the position
         |
         v
-   for each: restore -> execute -> record   success, failure mode, lift, target error,
-        |                                    failed attempts, timeout/error, time
-        v
-   oracle ordering (locked)        the hidden answer key
+   for each: restore -> execute -> record   the nine locked OUTCOME_FIELDS
         |
         v
-   pool_has_success / pass@N | oracle success@N | selected success@N | gap
+   benchmark_record (#24)          the oracle ordering, the artifact schema, the validator
 ```
 
-One file: [`waddle_wm/counterfactual.py`](../waddle_wm/counterfactual.py), with the snapshot
-mechanics in [`waddle_wm/sim/env.py`](../waddle_wm/sim/env.py) and the checks in
+**This module owns execution and nothing else.** The oracle ordering, the artifact schema,
+the selector tie-break and the validator all live in
+[`benchmark_protocol.md`](benchmark_protocol.md) / `waddle_wm/benchmark_record.py`. The
+records written here are exactly its `OUTCOME_FIELDS`, the artifact is what its `check_run`
+validates, and its `aggregate` reports from that artifact unchanged. There is one definition
+of "best" in this repo and it is not here — `test_counterfactual` greps this module's source
+to keep it that way.
+
+Files: [`waddle_wm/counterfactual.py`](../waddle_wm/counterfactual.py), the snapshot mechanics
+in [`waddle_wm/sim/env.py`](../waddle_wm/sim/env.py), the checks in
 [`waddle_wm/test_counterfactual.py`](../waddle_wm/test_counterfactual.py).
 
 ```bash
-uv run python -m waddle_wm.counterfactual --kind diagnostic          # execute the cached pools
-uv run python -m waddle_wm.counterfactual --split test --physics-seeds 3 --perturbation-mm 5
-uv run python -m waddle_wm.counterfactual --validate data/counterfactual   # integrity only
-uv run python -m waddle_wm.test_counterfactual --live 1                    # contract + MuJoCo
+uv run python -m waddle_wm.counterfactual --split train --kind diagnostic
+uv run python -m waddle_wm.counterfactual --split test --kind natural --physics-seeds 3 --perturbation-mm 5
+uv run python -m waddle_wm.counterfactual --validate data/counterfactual/test-natural.json
+uv run python -m waddle_wm.test_counterfactual --live 1
 ```
+
+One artifact per `(split, kind)`: the two kinds have different generators, and a run's
+metadata records one.
 
 ## The snapshot is the whole state, not the block positions
 
@@ -52,13 +60,13 @@ warmstart accelerations, plugin state, `ctrl`, applied forces, equality flags, m
 userdata — plus `model.site_pos`, which is where the landing pad lives and which `reset`
 can move. `restore()` writes it back and clears the recording. `state_digest()` fingerprints
 the result, so a restore that did not land where it claimed is *recorded* rather than
-assumed: every execution record carries `restore_ok`, and `check_run` fails the run if any
-of them is false.
+assumed: every execution record carries `restore_ok`, and `check_execution` fails the run if
+any of them is false.
 
 ## The preflight
 
-No outcome is trusted until three things hold, and the run refuses to be aggregated
-otherwise (`preflight.ok`, checked by `check_run`):
+No outcome is trusted until three things hold. A scenario whose preflight fails is dropped
+into `excluded` rather than quietly averaged in:
 
 | check | what it proves |
 | --- | --- |
@@ -67,11 +75,14 @@ otherwise (`preflight.ok`, checked by `check_run`):
 | `order_mismatches` | executing the first few candidates in the reverse order gives the same success, failure mode, lift and target error, to 0.1 mm |
 
 The last one is what makes a shuffled execution order safe. Order is randomized (seeded on
-the scenario id) precisely so that a systematic order effect would show up as noise across
-scenarios rather than as a consistent advantage for whoever ran first — and the preflight is
-the direct test that there is no order effect to begin with. Candidate identity travels in
-the record (`candidate_id`, `candidate_index`, `execution_order`), so shuffling costs
-nothing.
+the scenario id and physics seed) precisely so that a systematic order effect would show up
+as noise across scenarios rather than as a consistent advantage for whoever ran first — and
+the preflight is the direct test that there is no order effect to begin with. Candidate
+identity travels in the record (`candidate_id`, `candidate_index`, `execution_order`), so
+shuffling costs nothing.
+
+The 0.1 mm probe tolerance is deliberately tighter than the oracle's 0.5 mm bucket: the claim
+being tested is that restoration is *exact*, not that it is close enough to sort by.
 
 Measured on the diagnostic pools: zero order mismatches, and a candidate re-executed after
 all twelve others have run reproduces its target error to under 0.1 mm.
@@ -90,54 +101,44 @@ that redetects mid-flight can recover from a scene that moved and one that binds
 `Scene.execute` therefore takes the pool's observation explicitly rather than looking again,
 so a perturbed replay cannot silently re-ground onto the truth the candidate never saw.
 
-`check_run` fails if the pools are unequal across physics seeds: every candidate gets exactly
-one execution record per seed, or the comparison is void.
+`check_execution` fails if the pools are unequal across physics seeds: every candidate gets
+exactly one execution record per seed, or the comparison is void.
 
-## The oracle ordering, locked before anything runs
+## Where the executions live, and why not only in the scenes
 
-Defined in `ORACLE_ORDERING`, in this order, all ascending in badness:
+#24's `scenes` are keyed by pool *prefix* — 1, 4, 16, 32, 64 — because that is the cell its
+paired metrics are paired on. A pool whose size is not a prefix boundary therefore has
+executions that no scene covers: the 13-candidate diagnostic pool has prefixes 1 and 4, so
+nine of its thirteen executions appear in no scene at all.
 
-1. **success** — a candidate that did the task outranks every candidate that did not.
-2. **failed attempts** — a bounded retry that was needed is worse than one that was not.
-3. **final target error**, rounded to 0.1 mm.
-4. **execution time**, rounded to 0.1 s.
-5. **pool index** — so the ordering is *total* and independent of execution order.
-
-Keys 3 and 4 are rounded on purpose. Two placements 20 µm apart are the same placement, and
-wall-clock time is noisy enough that it should decide only coarse differences; below those
-granularities the pool index decides, which is reproducible. `tied_with` reports how many
-candidates the ordering could not separate before that tie-break, and a selector that picks
-one of them is scored as `within_oracle_tie` rather than as wrong.
-
-A run that errored or timed out has no measured placement and sorts behind every measured
-one. A candidate that *declined* (`abort`) is a real candidate: it loses to any success and
-beats a crash, and its "final target error" is the untouched scene's, because it moved
-nothing.
-
-**The oracle is not a verifier.** It is obtained only by executing every candidate from the
-restored state, which nothing deployable can do. It is an offline answer key, and the whole
-point of the module is that it is *hidden*.
+"Every candidate has exactly one execution record" is a claim about all thirteen. So the
+complete set is kept whole under `execution[scenario_id][]`, and the scenes are the
+#24-facing slices of it. `check_execution` runs the fairness checks over the complete set —
+one snapshot, one record each, an execution order that is a permutation of the pool — and
+separately checks that every scene is a faithful slice: no scored candidate that was never
+executed, and no outcome that was edited after execution.
 
 ## What a selector is allowed to see
 
 `selector_view(pool)` is the only input #18 gets: the observation text, the detections, the
 landing pad, the nested prefixes, and every candidate's program, grounded trace, dedup key,
-retry policy, redetect ops and abort reason. It is reconstructed field by field rather than
+retry policy, redetect ops and abort reason. It is written beside the artifact as
+`<split>-<kind>-views.json`, and it is reconstructed field by field rather than
 copied-and-deleted, so a new key in the pool artifact has to be added to the view *on
 purpose* before any verifier can read it.
 
-`check_run` then walks the view's keys structurally and fails if any of `HIDDEN_FIELDS`
-appears — `hidden_truth`, `block_spawn`, `snapshot`, `success`, `failure_mode`,
-`target_error_m`, `max_lift_m`, `failed_attempts`, `oracle`, `pool_has_success`, … The check
-is on keys, not on text: Claude's `note` is free prose and may well contain the word
-"success", which is not a leak. A *field* named after an outcome is.
+`check_execution` then walks the view's keys structurally and fails if any of
+`HIDDEN_FIELDS` appears — #24's `LEAKED_FIELDS` plus the nine `OUTCOME_FIELDS` plus
+`block_spawn`, `snapshot`, `restore_ok` and friends. The check is on keys, not on text:
+Claude's `note` is free prose and may well contain the word "success", which is not a leak.
+A *field* named after an outcome is.
 
 Nothing in this module calls Claude, the estimated-state heuristic, or the visual verifier.
 Selectors arrive from the outside, as rankings.
 
-## Selectors and the gap
+## Selectors
 
-A selector is a ranking of candidate ids. Two reference rankings are built in so the report
+A selector is a ranking of candidate ids. Two reference rankings are built in so the artifact
 is never vacuous — `first` (the earliest sample, what an agent that asks Claude once already
 does) and `random` (the coin flip any ranking has to beat). Real verifiers arrive through
 `--selections`:
@@ -146,36 +147,26 @@ does) and `random` (the coin flip any ranking has to beat). Real verifiers arriv
 {"<pool_id>": {"<selector name>": ["<candidate_id>", "<candidate_id>", ...]}}
 ```
 
-Selected-at-N is the top-ranked candidate that is inside prefix N, so one ranking scores at
-every prefix and a selector can never reach past the prefix it was given (`check_run`
-enforces it). Per pick:
-
-| field | meaning |
-| --- | --- |
-| `success` | did the chosen program actually work |
-| `oracle_rank` | where the pick sits in the oracle ordering, 0 being best |
-| `target_error_gap_m` | chosen final error minus the oracle's |
-| `agrees_with_oracle` / `within_oracle_tie` | exact id match, and the weaker claim that the ordering could not separate them |
-| `missed_available_success` | the pool held a success and the selector chose a failure |
+A ranking is turned into *scores*, one per candidate in the prefix, and the choice is then
+made by #24's `selector_choice` — the locked argmax with a pool-index tie-break — rather than
+by a second, private notion of "the selector's pick". Latency is measured across #24's
+`observation_ready_at` → `chosen_at` boundary like any other selector's; for these two it is
+the cost of an index lookup, which is the honest number. Everything downstream —
+`selected_success`, `selection_efficiency`, `oracle_gap`, the paired differences and their
+bootstrap CIs — comes from `benchmark_record.aggregate`.
 
 ## Attribution: whose fault is a failure
 
-The report keeps generation and selection apart, because they fail for different reasons.
+Kept apart in the artifact, because they fail for different reasons.
 
-- **`pool_has_success` / pass@N** is a fact about what Claude proposed. If it is false, *no*
-  selector could have succeeded; that is candidate-generation coverage, not verifier failure.
-- **oracle success@N** is the ceiling. By construction it equals pass@N — the oracle takes a
-  success whenever one exists — and `check_run` fails the run if they ever disagree, which is
-  a direct test that the ordering is still an answer key.
-- **selected success@N** is what a selector actually reached.
-- **selection efficiency** is selected over oracle, computed *only* over scenarios where the
-  oracle found a success. A pool with nothing in it cannot make a selector look bad, and a
-  pool of nothing but successes cannot make one look good.
-- **missed available successes** is the count that matters: `pool_has_success` and the
-  selector chose a failure anyway.
-
-Exact candidate-id agreement is reported but never the score. Several candidates can be
-genuinely good, and a selector that picks a different real success has not chosen worse.
+- **`pool_has_success`** is a fact about what Claude proposed. If it is false, *no* selector
+  could have succeeded; that is candidate-generation coverage, not verifier failure. It is
+  written back into the pool artifact, where #17 reserved room for it, from physics seed 0.
+- **The oracle** is the ceiling: it takes a success whenever the prefix holds one.
+  `check_execution` fails the run if the two ever disagree, which is a direct test that the
+  ordering is still an answer key.
+- **`selection_efficiency`** is `None`, not 0, on a scenario where the pool held nothing. A
+  pool with no success in it cannot make a selector look bad.
 
 ## What the diagnostic pools say
 
@@ -191,23 +182,28 @@ Two scenes, thirteen scripted candidates each, three physics seeds (unperturbed 
 | strategy | `offset_grasp` | 2/2 | 4/4 | 24.3 mm |
 | strategy | `controlled_release` | 2/2 | 4/4 | 24.7 mm |
 | strategy | `abort_on_uncertainty` | 0/2 | 0/4 | — declines |
-| fault | `stale_coordinates` | 0/2 | 0/4 | 456 mm |
-| fault | `bad_grasp` | 0/2 | 0/4 | 460 mm |
+| fault | `stale_coordinates` | 0/2 | 0/4 | 456.5 mm |
+| fault | `bad_grasp` | 0/2 | 0/4 | 460.4 mm |
 | fault | `missing_lift` | 0/2 | 0/4 | 50.6 mm |
 | fault | `early_release` | 2/2 | 4/4 | **5.8 mm** |
 | fault | `high_release` | 2/2 | 4/4 | 18.7 mm |
-| fault | `wrong_target` | 0/2 | 0/4 | 546 mm |
+| fault | `wrong_target` | 0/2 | 0/4 | 546.2 mm |
 
-Two things to read off it.
+Three things to read off it.
 
-**The oracle picked a planted fault in five of six scenarios.** `early_release` opens the
-gripper at transit height, and on a flat pad 105 mm across the block drops nearly dead
-centre — 5.8 mm, better than any of the strategies. The answer key is what physics did, not
-what the label says. A verifier that "correctly" rejects `early_release` on this scene suite
-is producing a false reject, and the counterfactual is what makes that visible instead of
-letting it hide inside an aggregate accuracy number. Making the release height matter is the
-scene suite's job ([#25](https://github.com/Trolleroof/skill-level-world-model/issues/25)),
-not the oracle's.
+**Over the whole pool the oracle picked a planted fault in five of six scenarios.**
+`early_release` opens the gripper at transit height, and on a flat pad 105 mm across the block
+drops nearly dead centre — 5.8 mm, better than any of the strategies. The answer key is what
+physics did, not what the label says. A verifier that "correctly" rejects `early_release` on
+this scene suite is producing a false reject, and the counterfactual is what makes that
+visible instead of letting it hide inside an aggregate accuracy number. Making the release
+height matter is the scene suite's job
+([#25](https://github.com/Trolleroof/skill-level-world-model/issues/25)), not the oracle's.
+
+**At prefix 4 the answer is different**, and legitimately so: `early_release` is candidate 10,
+outside the prefix, and the reported oracle is `orientation_aware_grasp` in five of six
+scenarios, decided on target error. This is the reason the oracle is computed per prefix
+rather than once per pool — "the best available" is a statement about what was available.
 
 **5 mm of block jitter changed no outcome.** The gripper's lateral tolerance swallows it, so
 these runs are a check that the pairing machinery works, not yet a robustness result. A
@@ -217,39 +213,44 @@ move something the program bound early — which is the same scene-suite problem
 The selection numbers on these pools are deliberately not quoted. The diagnostic pool is
 ordered strategies-first, faults-last, so its first four candidates are all successes and
 every selector scores 1.0 at N=4. That ordering is a fixed ruler, not a sampling
-distribution; pass@N and selection efficiency only mean something on the natural pools.
+distribution; `selected_success` and `selection_efficiency` only mean something on the
+natural pools.
 
-## What each artifact records
+## What the artifact records
 
-`data/counterfactual/<kind>/<object>_to_<destination>/<split>-seed<NNNN>.json`, mirroring the
-pool tree:
+`data/counterfactual/<split>-<kind>.json` is a #24 benchmark artifact — `metadata`, `scenes`,
+`excluded` — plus two keys this module adds:
 
 | field | contents |
 | --- | --- |
-| `protocol` | protocol and schema version, git SHA + dirty flag, the pool's generator hash, candidate timeout, physics seeds, perturbation, wall clock |
-| `preflight` | snapshot id, both restore checks, the order probes and any mismatch |
-| `selector_view` | the complete, outcome-free input #18 consumes |
-| `oracle_ordering` | the locked keys, copied into the artifact so a later edit is detectable |
-| `scenarios[]` | one per physics seed: scenario id, snapshot id, perturbation, `pool_has_success`, successes, declines, errors, the oracle with its full ranking and `tied_with`, the selector rankings, the per-prefix breakdown, and every execution |
-| `scenarios[].executions[]` | scenario/snapshot/pool/candidate ids, candidate index, execution order, `restore_ok`, declined, success, failure mode, attempts and failed attempts, max lift, final target error, wall clock, simulated seconds, frames, timeout flag, error |
+| `preflight` | per scenario: snapshot id, both restore checks, the order probes and any mismatch |
+| `execution` | per scenario, per physics seed: snapshot id, perturbation, candidate/success/decline/error counts, and `outcomes` — the complete execution set, keyed by candidate id |
 
-`summary.json` at the root holds the aggregate: generation coverage, the oracle ceiling, and
-every selector's success@N, selection efficiency, missed available successes, mean target-error
-gap and mean oracle rank — plus `integrity`, which is empty on a usable run.
+Each outcome record carries the nine locked `OUTCOME_FIELDS` — `success`, `failure_mode`,
+`max_lift_mm`, `final_target_error_mm`, `failed_attempts`, `timed_out`, `error`,
+`execution_seconds`, `execution_order` — plus this module's own evidence that the execution
+was fair: `restore_ok`, `snapshot_id`, `declined`, `attempts`, `sim_seconds`, `frames`,
+`candidate_index`, `diagnostic`.
 
-`pool_has_success` for physics seed 0 is written back into the pool artifact, where
-[#17](https://github.com/Trolleroof/skill-level-world-model/issues/17) reserved room for it.
-The perturbed seeds are a robustness slice and do not restate what Claude proposed.
+Millimetres, not metres, because that is what the oracle quantises in; a metres field here
+would become a silent 1000× error in the answer key rather than a type error.
+`data/counterfactual/<split>-<kind>-views.json` holds the selector views.
 
 ## Integrity
 
-`uv run python -m waddle_wm.counterfactual --validate data/counterfactual` fails on a failed
-preflight, a missing or duplicated candidate, an execution order that is not a permutation of
-the pool, a restore mismatch, candidates started from more than one snapshot, unequal pools
-across physics seeds, `pool_has_success` disagreeing with the executions, an oracle that
-missed an available success, an edited oracle ordering, a selector that reached outside its
-prefix, and any hidden field appearing in the selector view.
+`uv run python -m waddle_wm.counterfactual --validate <artifact>` runs everything
+`benchmark_record.check_run` checks — schema, metadata, the definition hash, split hygiene,
+prefix nesting, the recomputed oracle and selector choice, the timing boundary, the leak scan
+inside selector blocks — and then the execution-side claims on top: a failed preflight, a
+missing or incomplete outcome record, an execution order that is not a permutation of the
+pool, a restore mismatch, candidates started from more than one snapshot, unequal pools
+across physics seeds, a scene that scores a candidate never executed or whose outcomes were
+edited after the fact, an oracle that missed an available success, and any hidden field in a
+selector view.
 
-`test_counterfactual` carries a negative fixture for each of those plus the ordering
-semantics, so a check that stops firing fails the contract test rather than passing silently.
-`--live` runs the real thing in MuJoCo and asserts the fairness controls hold end to end.
+A run from a dirty worktree fails validation by design — its git SHA describes nothing — so
+`--allow-dirty` is for exploratory runs only, never the locked one.
+
+`test_counterfactual` carries a negative fixture for each of those, so a check that stops
+firing fails the contract test rather than passing silently. `--live` runs the real thing in
+MuJoCo and asserts the fairness controls hold end to end.

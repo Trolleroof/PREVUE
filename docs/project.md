@@ -81,11 +81,10 @@ That is a clearer demo and research question than “we trained a world model.�
 | Claude Opus 5 planner and repair loop | done |
 | Browser demo with a chat bar | done |
 | Bounded code-as-policy program schema and cached Claude candidate pools | done |
-| Counterfactual execution of every candidate and the hidden oracle | done |
+| Benchmark artifact schema, oracle ordering, and integrity validator | done |
+| Counterfactual execution of every candidate from one identical state | done |
 
-See [`transition_schema.md`](transition_schema.md) for the data contract, [`results.md`](results.md) for measured verifier performance, [`backbone_decision.md`](backbone_decision.md) for the frozen-backbone choice, [`llm_agent.md`](llm_agent.md) for the planner, the perception primitives, and the repair loop, [`program_schema.md`](program_schema.md) for the candidate format the program-ranking benchmark uses,
-and [`counterfactual_execution.md`](counterfactual_execution.md) for how every candidate is executed
-from one identical simulator state to produce the hidden oracle a verifier is judged against.
+See [`transition_schema.md`](transition_schema.md) for the data contract, [`results.md`](results.md) for measured verifier performance, [`backbone_decision.md`](backbone_decision.md) for the frozen-backbone choice, [`llm_agent.md`](llm_agent.md) for the planner, the perception primitives, and the repair loop, [`program_schema.md`](program_schema.md) for the candidate format the program-ranking benchmark uses, [`benchmark_protocol.md`](benchmark_protocol.md) for what a locked run records, how the oracle orders candidates, and what the validator refuses, and [`counterfactual_execution.md`](counterfactual_execution.md) for how the outcome records that answer key is built from are produced — every candidate executed from one identical simulator snapshot.
 
 ## Architecture
 

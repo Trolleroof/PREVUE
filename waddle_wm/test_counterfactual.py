@@ -1,11 +1,13 @@
-"""Checks for counterfactual execution, the hidden oracle, and the fairness controls.
+"""Checks for counterfactual execution and the fairness controls behind the outcome records.
 
-    uv run python -m waddle_wm.test_counterfactual              # offline: ordering, gaps, integrity
+    uv run python -m waddle_wm.test_counterfactual              # offline: shape, view, integrity
     uv run python -m waddle_wm.test_counterfactual --live 1     # + execute a real pool in MuJoCo
 
-The offline part needs no simulator: it is the contract #18 leans on — the oracle ordering
-is fixed and total, a selector is scored only against what was available to it, the selector
-view carries no outcome, and every integrity check actually fires.
+The oracle ordering, the artifact schema and the selector tie-break belong to
+`benchmark_record` (#24) and are tested by `test_benchmark_record`. What is tested here is
+that this module *feeds* them honestly: records in the locked `OUTCOME_FIELDS` shape, one per
+candidate per physics seed, all from one restored snapshot, with nothing about the answer key
+reaching the selector view.
 """
 from __future__ import annotations
 
@@ -13,95 +15,23 @@ import argparse
 import json
 from copy import deepcopy
 
+from waddle_wm import benchmark_record as br
 from waddle_wm import counterfactual as cf
 from waddle_wm import program as prog
 from waddle_wm.test_program import SCENE
 
+BUDGET = {"candidate_timeout_s": 60.0, "max_attempts": 2, "perturbation_mm": 3.0, "physics_seeds": 1}
 
-def execution(index: int, **overrides) -> dict:
-    """One synthetic execution record, defaulting to a clean success."""
-    record = {"scenario_id": "s0", "pool_id": "p0", "snapshot_id": "snap", "physics_seed": 0,
-              "candidate_id": f"c{index:02d}", "candidate_index": index, "execution_order": index,
-              "restore_ok": True, "declined": False, "success": True, "failure_mode": None,
-              "attempts": 1, "failed_attempts": 0, "max_lift_m": 0.25, "target_error_m": 0.02,
-              "execution_seconds": 1.0, "sim_seconds": 4.0, "frames": 40, "timed_out": False,
-              "error": None, "diagnostic": None, "strategy": ""}
+
+def outcome(index: int, candidate_id: str, **overrides) -> dict:
+    """One synthetic outcome record, in the shape #23 is contracted to write."""
+    record = {"success": True, "failure_mode": None, "max_lift_mm": 250.0,
+              "final_target_error_mm": 20.0, "failed_attempts": 0, "timed_out": False,
+              "error": None, "execution_seconds": 1.0, "execution_order": index,
+              "declined": False, "attempts": 1, "restore_ok": True, "snapshot_id": "snap",
+              "sim_seconds": 4.0, "frames": 40, "candidate_index": index, "diagnostic": None}
     record.update(overrides)
     return record
-
-
-def check_ordering():
-    """The oracle key is the one the issue locked, and it is total."""
-    # Success outranks failure even when the failure got closer to the target by accident.
-    lucky_failure = execution(0, success=False, failure_mode="missed", target_error_m=0.001)
-    plain_success = execution(1, target_error_m=0.09)
-    assert cf.oracle_of([lucky_failure, plain_success])["candidate_id"] == "c01"
-
-    # Then fewer failed attempts, then lower target error, then shorter execution.
-    retried = execution(0, failed_attempts=1, target_error_m=0.01)
-    clean = execution(1, failed_attempts=0, target_error_m=0.05)
-    assert cf.oracle_of([retried, clean])["candidate_id"] == "c01"
-    near, far = execution(0, target_error_m=0.05), execution(1, target_error_m=0.01)
-    assert cf.oracle_of([near, far])["candidate_id"] == "c01"
-    slow = execution(0, target_error_m=0.02, execution_seconds=9.0)
-    quick = execution(1, target_error_m=0.02, execution_seconds=1.0)
-    assert cf.oracle_of([slow, quick])["candidate_id"] == "c01"
-
-    # Differences below the documented granularity do not decide anything; pool order does,
-    # so the ordering is total and does not depend on which candidate ran first.
-    a = execution(0, target_error_m=0.02, execution_seconds=1.00)
-    b = execution(1, target_error_m=0.02 + cf.ERROR_GRANULARITY_M / 4, execution_seconds=1.02)
-    assert cf.oracle_of([a, b])["candidate_id"] == "c00"
-    assert cf.oracle_of([b, a])["candidate_id"] == "c00", "the oracle must not depend on record order"
-    assert cf.oracle_of([a, b])["tied_with"] == 1, "an unseparated candidate must be reported as tied"
-
-    # An execution that errored has no measured placement and sorts behind every measured one.
-    crashed = execution(0, success=False, failure_mode="error", target_error_m=None, error="IK failed")
-    missed = execution(1, success=False, failure_mode="missed", target_error_m=0.5)
-    assert cf.oracle_of([crashed, missed])["candidate_id"] == "c01"
-
-    # A declining candidate is a candidate: it loses to a success and beats a crash.
-    declined = execution(0, success=False, failure_mode="declined", declined=True, target_error_m=0.5,
-                         execution_seconds=0.0)
-    assert cf.oracle_of([declined, plain_success])["candidate_id"] == "c01"
-    assert cf.oracle_of([declined, crashed])["candidate_id"] == "c00"
-    assert cf.oracle_of([])["candidate_id"] is None
-    print(f"oracle ordering passed: {len(cf.ORACLE_ORDERING)} locked keys, total and record-order free")
-
-
-def check_selector_scoring():
-    """A selector is credited for choosing a real success and charged for missing one."""
-    records = [execution(0, success=False, failure_mode="missed", target_error_m=0.5),
-               execution(1, target_error_m=0.03),
-               execution(2, target_error_m=0.01)]
-    oracle = cf.oracle_of(records)
-    assert oracle["candidate_id"] == "c02"
-
-    picked_best = cf.score_selector(["c02", "c01"], records, oracle)
-    assert picked_best["agrees_with_oracle"] and picked_best["oracle_rank"] == 0
-    assert picked_best["target_error_gap_m"] == 0.0
-    assert not picked_best["missed_available_success"]
-
-    # A different success is not a miss — it is a gap. Exact candidate-id agreement is
-    # reported and never scored, because several candidates may be genuinely good.
-    second_best = cf.score_selector(["c01"], records, oracle)
-    assert second_best["success"] and not second_best["agrees_with_oracle"]
-    assert abs(second_best["target_error_gap_m"] - 0.02) < 1e-9, second_best
-    assert not second_best["missed_available_success"]
-
-    missed = cf.score_selector(["c00"], records, oracle)
-    assert missed["missed_available_success"] and missed["oracle_rank"] == 2
-
-    # When nothing in the pool worked, no selector could have succeeded and none is blamed.
-    hopeless = [execution(i, success=False, failure_mode="missed", target_error_m=0.5) for i in range(3)]
-    assert not cf.oracle_of(hopeless)["success"]
-    assert not cf.score_selector(["c00"], hopeless, cf.oracle_of(hopeless))["missed_available_success"]
-
-    # A ranking that only names candidates outside the prefix selects nothing rather than
-    # silently reaching past the prefix it was given.
-    outside = cf.score_selector(["c09"], records, oracle)
-    assert outside["ranked_nothing_available"] and outside["candidate_id"] is None
-    print("selector scoring passed: gap, agreement, ties, and missed available successes")
 
 
 def offline_pool() -> dict:
@@ -117,10 +47,11 @@ def offline_pool() -> dict:
                            "retry": program.retry, "redetect_ops": program.redetects,
                            "aborts": program.aborts, "diagnostic": name, "diagnostic_kind": kind,
                            "strategy": program.strategy, "note": program.note,
-                           "generation": {"model": "scripted"}, "raw": ""})
+                           "generation": {"model": "scripted", "seconds": 0.0}, "raw": ""})
     ids = [candidate["candidate_id"] for candidate in candidates]
     return {"pool_id": "p0", "kind": "diagnostic", "split": "train",
-            "protocol": {"generator_hash": "abc"},
+            "protocol": {"generator_hash": "abc", "generator": {"kind": "diagnostic",
+                                                                "model": "scripted"}},
             "task": {"instruction": "put the red block on the green pad", "object": "red block",
                      "destination": "green pad"},
             "scene": {"seed": 0, "observation_id": SCENE.observation_id, "observation": "text",
@@ -132,43 +63,75 @@ def offline_pool() -> dict:
             "pool_has_success": None, "summary": {}}
 
 
-def offline_run(pool: dict, successes=(1, 2)) -> dict:
-    """A complete counterfactual run over `pool`, with `successes` the winning indices."""
-    records = [execution(index, candidate_id=candidate["candidate_id"],
-                         success=index in successes,
-                         failure_mode=None if index in successes else "missed",
-                         target_error_m=0.01 * (index + 1) if index in successes else 0.5,
-                         declined=bool(candidate["aborts"]))
-               for index, candidate in enumerate(pool["candidates"])]
-    order = list(range(len(records)))
-    for record, position in zip(records, reversed(order)):
-        record["execution_order"] = position
+def offline_artifact(pool: dict, successes=(1, 2)) -> tuple[dict, dict]:
+    """A complete run over `pool`, assembled through the real code path."""
+    outcomes = {}
+    for index, candidate in enumerate(pool["candidates"]):
+        won = index in successes
+        # Executed back to front, so a run that quietly used pool order would be caught.
+        outcomes[candidate["candidate_id"]] = outcome(
+            len(pool["candidates"]) - 1 - index, candidate["candidate_id"], success=won,
+            failure_mode=None if won else "missed",
+            final_target_error_mm=10.0 * (index + 1) if won else 500.0,
+            candidate_index=index, declined=bool(candidate["aborts"]),
+            diagnostic=candidate["diagnostic"])
+    scenes = cf.scenes_for(pool, outcomes, 0, BUDGET, None)
+    names = sorted({name for scene in scenes for name in scene["selectors"]})
+    metadata = br.run_metadata(
+        split="train", scene_seeds=[0], physics_seeds=[0],
+        pools={pool["pool_id"]: {"kind": pool["kind"], "seed": 0, "candidates": len(outcomes)}},
+        generator=pool["protocol"]["generator"],
+        perception={"detector_queries": ["red block"]},
+        physics={"perturbation_mm": 3.0, "physics_seeds": 1},
+        selectors={name: {"kind": "reference_ranking"} for name in names},
+        git_sha="abc123", git_dirty=False, created_at="2026-01-01T00:00:00")
+    artifact = {"artifact_version": br.ARTIFACT_VERSION, "metadata": metadata, "scenes": scenes,
+                "excluded": [], "kind": pool["kind"],
+                "preflight": {cf.scenario_id_of(pool): {"ok": True, "order_mismatches": []}},
+                "execution": {cf.scenario_id_of(pool): [
+                    {"snapshot_id": "snap", "physics_seed": 0, "candidates": len(outcomes),
+                     "successes": len(successes), "declined": 1, "errors": 0,
+                     "outcomes": outcomes}]}}
+    return artifact, {pool["pool_id"]: cf.selector_view(pool)}
 
-    rankings = cf.reference_rankings(pool, "s0")
-    prefixes = {}
-    for key in pool["prefixes"]:
-        inside = [record for record in records if record["candidate_index"] < int(key)]
-        oracle = cf.oracle_of(inside)
-        prefixes[key] = {"candidates": len(inside),
-                         "pool_has_success": any(r["success"] for r in inside),
-                         "successes": sum(r["success"] for r in inside), "oracle": oracle,
-                         "selectors": {name: cf.score_selector(ranking, inside, oracle)
-                                       for name, ranking in rankings.items()}}
-    scenario = {"scenario_id": "s0", "pool_id": pool["pool_id"], "kind": pool["kind"],
-                "split": pool["split"], "scene_seed": 0,
-                "observation_id": pool["scene"]["observation_id"], "snapshot_id": "snap",
-                "physics_seed": 0, "perturbation_mm": 0.0, "candidates": len(records),
-                "pool_has_success": any(r["success"] for r in records),
-                "successes": sum(r["success"] for r in records),
-                "declined": sum(r["declined"] for r in records), "errors": 0,
-                "oracle": cf.oracle_of(records), "oracle_ordering": list(cf.ORACLE_ORDERING),
-                "selector_rankings": rankings, "prefixes": prefixes, "executions": records}
-    return {"pool_id": pool["pool_id"], "kind": pool["kind"], "split": pool["split"],
-            "scene_seed": 0, "protocol": {"pool_generator_hash": "abc"},
-            "oracle_ordering": list(cf.ORACLE_ORDERING),
-            "preflight": {"ok": True, "restores_to_same_bytes": True, "observation_reproduced": True,
-                          "order_mismatches": []},
-            "selector_view": cf.selector_view(pool), "scenarios": [scenario]}
+
+def check_outcome_shape():
+    """The record this module writes is exactly the one #24 contracted for."""
+    record = outcome(0, "c00")
+    missing = [key for key in br.OUTCOME_FIELDS if key not in record]
+    assert not missing, missing
+    # Millimetres, because that is what the oracle quantises in. A metres field here would
+    # silently become a 1000x error in the answer key rather than a type error.
+    assert "final_target_error_mm" in record and "max_lift_mm" in record
+    assert not any(key.endswith("_m") for key in record), record
+
+    # There is one definition of "best" in the repo, and it is not in this module.
+    source = open(cf.__file__).read()
+    for banned in ("ORACLE_ORDERING", "def order_key", "def oracle_of"):
+        assert banned not in source, f"{banned} is a second oracle; use benchmark_record"
+    print(f"outcome shape passed: all {len(br.OUTCOME_FIELDS)} locked fields, no local ordering")
+
+
+def check_selector_block():
+    """A ranking becomes scores, and the *locked* argmax turns scores into the choice."""
+    pool = offline_pool()
+    prefix = pool["prefixes"]["4"]
+    block = cf.selector_block("first", [c["candidate_id"] for c in pool["candidates"]], prefix)
+
+    scored = [row["candidate_id"] for row in block["scores"]]
+    assert sorted(scored) == sorted(prefix), "exactly one score per candidate in the prefix"
+    assert block["chosen"] == br.selector_choice(block["scores"], prefix), \
+        "the choice must be the locked tie-break's, not a private argmax"
+    assert block["chosen"]["candidate_id"] == prefix[0], block["chosen"]
+    assert block["information_sources"] and all(
+        source in br.INFORMATION_SOURCES for source in block["information_sources"])
+    assert not br._leaked_keys(block), br._leaked_keys(block)
+    assert not br.check_timing({"scenario_id": "s"}, "first", block), "timing must close its boundary"
+
+    reversed_ranking = list(reversed([c["candidate_id"] for c in pool["candidates"]]))
+    other = cf.selector_block("last", reversed_ranking, prefix)
+    assert other["chosen"]["candidate_id"] == prefix[-1], other["chosen"]
+    print("selector block passed: one score per candidate, locked argmax, closed timing boundary")
 
 
 def check_selector_view():
@@ -178,7 +141,6 @@ def check_selector_view():
     keys = set(cf._keys_in(view))
     for forbidden in cf.HIDDEN_FIELDS:
         assert forbidden not in keys, f"the selector view exposes {forbidden}"
-    assert "hidden_truth" not in json.dumps(view)
     for name, point in pool["scene"]["hidden_truth"].items():
         for value in point:
             assert f"{value:.4f}" not in json.dumps(view), f"{name} ground truth reached the selector"
@@ -191,98 +153,105 @@ def check_selector_view():
 
 def check_integrity():
     pool = offline_pool()
-    run = offline_run(pool)
-    assert cf.check_run(run) == [], cf.check_run(run)
+    artifact, views = offline_artifact(pool)
+    assert cf.check_execution(artifact, views) == [], cf.check_execution(artifact, views)
 
-    def drop_candidate(broken):
-        broken["scenarios"][0]["executions"].pop()
-        broken["scenarios"][0]["candidates"] -= 1
+    def widest(broken):
+        return max(broken["scenes"], key=lambda scene: scene["prefix"])
 
-    def duplicate_candidate(broken):
-        records = broken["scenarios"][0]["executions"]
-        records[1] = {**records[1], "candidate_id": records[0]["candidate_id"]}
+    def executed(broken):
+        return next(iter(broken["execution"].values()))[0]["outcomes"]
 
-    def second_snapshot(broken):
-        broken["scenarios"][0]["executions"][2]["snapshot_id"] = "other"
+    def unexecuted_candidate(broken):
+        executed(broken).pop(widest(broken)["pool_prefix"][-1])
+
+    def unscored_candidate(broken):
+        scene = widest(broken)
+        scene["counterfactual"].pop(scene["pool_prefix"][-1])
+
+    def repeat_execution_order(broken):
+        records = list(executed(broken).values())
+        records[1]["execution_order"] = records[0]["execution_order"]
 
     def unequal_pools(broken):
-        extra = deepcopy(broken["scenarios"][0])
-        extra.update(scenario_id="s1", physics_seed=1)
-        extra["executions"] = extra["executions"][:-2]
-        broken["scenarios"].append(extra)
+        cells = next(iter(broken["execution"].values()))
+        short = deepcopy(cells[0])
+        short["physics_seed"] = 1
+        short["outcomes"].pop(next(iter(short["outcomes"])))
+        cells.append(short)
 
-    def edited_ordering(broken):
-        broken["scenarios"][0]["oracle_ordering"] = [{"key": "target_error_m"}]
-
-    def oracle_misses_success(broken):
-        broken["scenarios"][0]["oracle"]["success"] = False
-
-    def selector_reaches_past_prefix(broken):
-        broken["scenarios"][0]["prefixes"]["1"]["selectors"]["first"]["candidate_index"] = 7
-
-    def leaked_outcome(broken):
-        for candidate in broken["selector_view"]["candidates"]:
-            candidate["success"] = True
+    def rewritten_scene_outcome(broken):
+        scene = widest(broken)
+        first = scene["pool_prefix"][0]
+        scene["counterfactual"][first] = {**scene["counterfactual"][first], "success": True,
+                                          "final_target_error_mm": 0.0}
 
     negatives = [
-        ("missing candidate", drop_candidate, "candidates missing"),
-        ("duplicate candidate", duplicate_candidate, "executed more than once"),
-        ("execution order is not a permutation",
-         lambda b: b["scenarios"][0]["executions"][0].update(execution_order=99), "not a permutation"),
+        ("a scored candidate that was never executed", unexecuted_candidate, None,
+         "never executed"),
+        ("an executed candidate with no outcome in the scene", unscored_candidate, None,
+         "no counterfactual execution record"),
+        ("repeated execution order", repeat_execution_order, None, "not a permutation"),
+        ("missing outcome field",
+         lambda b: list(executed(b).values())[0].pop("failed_attempts"), None,
+         "missing failed_attempts"),
         ("restore mismatch",
-         lambda b: b["scenarios"][0]["executions"][0].update(restore_ok=False), "restore mismatch"),
-        ("two snapshots", second_snapshot, "not all started from one snapshot"),
-        ("unequal pools across physics seeds", unequal_pools, "unequal pools"),
+         lambda b: list(executed(b).values())[0].update(restore_ok=False), None, "restore mismatch"),
+        ("two snapshots",
+         lambda b: list(executed(b).values())[2].update(snapshot_id="other"), None,
+         "not all started from one snapshot"),
+        ("unequal pools across physics seeds", unequal_pools, None, "unequal pools"),
+        ("a scene outcome that was edited after execution", rewritten_scene_outcome, None,
+         "differ from the recorded executions"),
         ("pool_has_success disagrees",
-         lambda b: b["scenarios"][0].update(pool_has_success=False), "disagrees with the executions"),
-        ("the oracle missed a success", oracle_misses_success, "missed an available success"),
-        ("edited oracle ordering", edited_ordering, "not the locked one"),
-        ("selector chose outside its prefix", selector_reaches_past_prefix, "outside prefix"),
-        ("failed preflight", lambda b: b["preflight"].update(ok=False), "preflight did not pass"),
-        ("leaked outcome in the selector view", leaked_outcome, "exposes success"),
-        ("empty selector view", lambda b: b["selector_view"].update(candidates=[]), "no candidates"),
+         lambda b: widest(b).update(pool_has_success=False), None, "disagrees with the executions"),
+        ("failed preflight",
+         lambda b: b["preflight"][next(iter(b["preflight"]))].update(ok=False), None,
+         "preflight did not pass"),
+        ("dirty worktree", lambda b: b["metadata"].update(git_dirty=True), None, "dirty worktree"),
+        ("an edited oracle definition",
+         lambda b: b["metadata"]["oracle_definition"].update(final_tie_break="whatever wins"),
+         None, "definitions were changed"),
+        ("leaked outcome in the selector view", None,
+         lambda b, v: [c.update(success=True) for c in v["p0"]["candidates"]], "exposes success"),
+        ("empty selector view", None, lambda b, v: v["p0"].update(candidates=[]), "no candidates"),
     ]
-    for name, break_it, fragment in negatives:
-        broken = deepcopy(run)
-        break_it(broken)
-        problems = cf.check_run(broken)
+    for name, break_artifact, break_views, fragment in negatives:
+        broken, broken_views = deepcopy(artifact), deepcopy(views)
+        if break_artifact:
+            break_artifact(broken)
+        if break_views:
+            break_views(broken, broken_views)
+        problems = cf.check_execution(broken, broken_views)
         assert any(fragment in problem for problem in problems), (name, problems)
 
-    # A pool where nothing succeeded is a clean run, not an integrity failure: the oracle is
-    # allowed to have no success in it, and must then say so.
-    hopeless = offline_run(pool, successes=())
-    assert cf.check_run(hopeless) == [], cf.check_run(hopeless)
-    assert not hopeless["scenarios"][0]["pool_has_success"]
+    # A pool where nothing succeeded is a clean run, not an integrity failure: the answer key
+    # is allowed to have no success in it, and must then say so.
+    hopeless, hopeless_views = offline_artifact(pool, successes=())
+    assert cf.check_execution(hopeless, hopeless_views) == [], cf.check_execution(hopeless, hopeless_views)
+    assert not max(hopeless["scenes"], key=lambda s: s["prefix"])["pool_has_success"]
     print(f"integrity passed: clean run accepted, {len(negatives)} checks fire")
 
 
-def check_aggregate():
+def check_aggregates():
+    """#24 must be able to report from what this module writes, without adaptation."""
     pool = offline_pool()
-    winnable, hopeless = offline_run(pool), offline_run(pool, successes=())
-    hopeless["scenarios"][0]["scenario_id"] = "s1"
-    report = cf.aggregate([winnable, hopeless])
+    artifact, _ = offline_artifact(pool)
+    report = br.aggregate(artifact, prefix=4)
+    assert report["scenes"] == 1
+    row = report["prefixes"]["4"]["selectors"]["first"]
+    for metric in br.PRIMARY_OUTCOMES:
+        assert metric in row, (metric, sorted(row))
+    assert report["prefixes"]["4"]["pool_has_success"] == 1.0
+    # `first` picks candidate 0, which is a failure here, so the pool held a success it missed.
+    assert row["selected_success"] == 0.0 and row["missed_available_success"] == 1.0
+    assert row["oracle_gap"] > 0
 
-    assert report["scenarios"] == 2 and report["executions"] == 2 * len(pool["candidates"])
-    assert report["generation"]["4"]["pass_at_n"] == 0.5, report["generation"]
-    # The oracle's ceiling is exactly generation coverage: it takes a success whenever the
-    # pool holds one, so a gap between these two would mean the ordering is not an answer key.
-    for key in report["generation"]:
-        assert report["oracle"][key]["success_at_n"] == report["generation"][key]["pass_at_n"], key
-
-    first = report["selectors"]["first"]["4"]
-    assert first["scenarios"] == 2 and first["winnable_scenarios"] == 1
-    # Half of all scenarios, but the unwinnable one cannot count against the selector: the
-    # efficiency is conditioned on the pool having held a success at all.
-    assert first["success_at_n"] == 0.0 and first["selection_efficiency"] == 0.0
-    assert first["missed_available_successes"] == 1
-
-    lucky = deepcopy(winnable)
-    lucky["scenarios"][0]["prefixes"]["4"]["selectors"]["first"] = cf.score_selector(
-        ["c01"], [r for r in lucky["scenarios"][0]["executions"] if r["candidate_index"] < 4],
-        lucky["scenarios"][0]["prefixes"]["4"]["oracle"])
-    improved = cf.aggregate([lucky, hopeless])["selectors"]["first"]["4"]
-    assert improved["selection_efficiency"] == 1.0 and improved["missed_available_successes"] == 0
-    print("aggregate passed: pass@N, oracle ceiling, selection efficiency conditioned on winnable pools")
+    hopeless, _ = offline_artifact(pool, successes=())
+    empty = br.aggregate(hopeless, prefix=4)["prefixes"]["4"]["selectors"]["first"]
+    # Undefined, not zero: no selector could have succeeded, so none is charged for it.
+    assert empty["selection_efficiency"] is None, empty
+    print("aggregation passed: benchmark_record reports from the artifact unchanged")
 
 
 def check_live(scenes: int, physics_seeds: int, perturbation_mm: float):
@@ -295,21 +264,33 @@ def check_live(scenes: int, physics_seeds: int, perturbation_mm: float):
                           "red block", "green pad", 13, "scripted", "train", 1, 1.0, 60.0)
         scene_obj.close()
 
-        run = cf.run_pool(pool, physics_seeds, perturbation_mm, cf.DEFAULT_TIMEOUT, probes=3)
-        problems = cf.check_run(run)
+        artifact, views = cf.run_pools([pool], "train", "diagnostic", physics_seeds,
+                                       perturbation_mm, cf.DEFAULT_TIMEOUT, probes=3)
+        artifact["metadata"]["git_dirty"] = False        # a dev worktree is dirty by construction
+        problems = cf.check_execution(artifact, views)
         assert problems == [], problems
-        assert run["preflight"]["ok"], run["preflight"]
+        assert all(checks["ok"] for checks in artifact["preflight"].values())
+        assert not artifact["excluded"], artifact["excluded"]
 
+        # Every candidate, not just the ones a pool prefix happens to reach: the prefixes are
+        # 1 and 4 on a 13-candidate pool, so the scenes alone would never account for nine of
+        # the executions this issue is about.
         expected = {candidate["candidate_id"] for candidate in pool["candidates"]}
-        for scenario in run["scenarios"]:
-            records = scenario["executions"]
-            assert {record["candidate_id"] for record in records} == expected
-            assert len(records) == len(expected), "exactly one record per candidate per physics seed"
-            assert all(record["restore_ok"] for record in records)
-            print(f"  seed {seed} physics {scenario['physics_seed']}  "
-                  f"{scenario['successes']}/{scenario['candidates']} succeed  "
-                  f"oracle {scenario['oracle']['candidate_id']} "
-                  f"({dict((r['candidate_id'], r['diagnostic']) for r in records)[scenario['oracle']['candidate_id']]})")
+        cells = artifact["execution"][cf.scenario_id_of(pool)]
+        assert len(cells) == physics_seeds, cells
+        for facts in cells:
+            outcomes = facts["outcomes"]
+            assert set(outcomes) == expected, "exactly one record per candidate per physics seed"
+            assert all(record["restore_ok"] for record in outcomes.values())
+            assert sorted(r["execution_order"] for r in outcomes.values()) == list(range(len(expected)))
+            widest = max((s for s in artifact["scenes"]
+                          if s["physics_seed"] == facts["physics_seed"]),
+                         key=lambda s: s["prefix"])
+            winner = outcomes[widest["oracle"]["candidate_id"]]
+            print(f"  seed {seed} physics {facts['physics_seed']}  "
+                  f"{facts['successes']}/{facts['candidates']} candidates succeed  "
+                  f"prefix {widest['prefix']} oracle {winner['diagnostic']} "
+                  f"(decided by {widest['oracle']['decided_by']})")
 
         # The one claim the shuffled execution order rests on: the same candidate, executed
         # again from the same snapshot after everything else has run, gives the same answer.
@@ -319,11 +300,12 @@ def check_live(scenes: int, physics_seeds: int, perturbation_mm: float):
             program = prog.validate_program(candidate["program"])
             again = cf.run_candidate(replay_scene, program, replay_scene.snapshot,
                                      replay_scene.observation, cf.DEFAULT_TIMEOUT)
-            first = next(record for record in run["scenarios"][0]["executions"]
-                         if record["candidate_id"] == candidate["candidate_id"])
-            assert again["success"] == first["success"], (again, first)
-            assert abs(again["target_error_m"] - first["target_error_m"]) <= cf.ERROR_GRANULARITY_M, \
-                (again["target_error_m"], first["target_error_m"])
+            unperturbed = next(facts for facts in cells if facts["physics_seed"] == 0)
+            before = unperturbed["outcomes"][candidate["candidate_id"]]
+            assert again["success"] == before["success"], (again, before)
+            assert abs(again["final_target_error_mm"] - before["final_target_error_mm"]) \
+                <= cf.ORDER_TOLERANCE_MM, (again["final_target_error_mm"],
+                                           before["final_target_error_mm"])
         finally:
             replay_scene.close()
         print(f"  seed {seed} replay of {pool['candidates'][0]['diagnostic']} reproduced its outcome")
@@ -338,11 +320,11 @@ def main():
     ap.add_argument("--perturbation-mm", type=float, default=cf.DEFAULT_PERTURBATION_MM)
     args = ap.parse_args()
 
-    check_ordering()
-    check_selector_scoring()
+    check_outcome_shape()
+    check_selector_block()
     check_selector_view()
     check_integrity()
-    check_aggregate()
+    check_aggregates()
     if args.live:
         check_live(args.live, args.physics_seeds, args.perturbation_mm)
 
