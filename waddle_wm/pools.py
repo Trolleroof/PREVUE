@@ -5,9 +5,9 @@ One command per split produces, for every scene seed, two artifacts:
 * a **natural** pool — up to 64 independent `claude -p` samples of the program schema in
   `waddle_wm.program`, drawn under one identical model, prompt, and observation, kept in
   sample order so every downstream verifier ranks the same nested prefixes;
-* a **diagnostic** pool — the scripted correct/faulty programs from `program.fault_programs`,
-  deterministic and Claude-free, reported separately because a planted bug says nothing
-  about what Claude proposes.
+* a **diagnostic** pool — the named strategies and planted faults from
+  `program.diagnostic_programs`, deterministic and Claude-free, reported separately because a
+  planted bug says nothing about what Claude proposes.
 
     uv run python -m waddle_wm.pools --split test --pool-size 64
     uv run python -m waddle_wm.pools --seeds 0,1,2 --pool-size 8 --model claude-haiku-4-5-20251001
@@ -65,10 +65,10 @@ The complete API — any other operation is rejected:
       operation refers to symbols, never to raw coordinates. Detecting again rebinds the
       symbol to wherever the thing is at that point in the program.
   {{"op": "move_above", "ref": "<symbol>", "offset_mm": [dx, dy], "height_mm": h,
-   "direction": "<top|+x|-x|+y|-y>", "standoff_mm": s}}
+   "direction": "<top|+x|-x|+y|-y>", "standoff_mm": s, "yaw_deg": y}}
       Move the pinch point to the symbol, offset laterally by offset_mm, and s mm further
       along `direction` ("top" means straight over it), at height h above the table.
-  {{"op": "descend_to", "ref": "<symbol>", "offset_mm": [dx, dy], "height_mm": h}}
+  {{"op": "descend_to", "ref": "<symbol>", "offset_mm": [dx, dy], "height_mm": h, "yaw_deg": y}}
       Come down over the symbol to height h above the table.
   {{"op": "grasp"}}    close the gripper
   {{"op": "release"}}  open the gripper
@@ -76,6 +76,16 @@ The complete API — any other operation is rejected:
   {{"op": "retreat", "height_mm": h}}   rise straight up to h above the table, at the end
   {{"op": "on_failure", "policy": "<abort|redetect_regrasp>", "max_attempts": 0..2}}
       Optional, last operation only. What to do if the object is not held after the lift.
+  {{"op": "abort", "reason": "<why>"}}
+      Decline to act. Only detect() may come before it and nothing may come after. Use it
+      when the task names something the observation does not contain, or when acting would
+      be unsafe. Declining is a real answer, not a failure — but do not use it to avoid a
+      task the scene supports.
+
+`yaw_deg` is optional on move_above and descend_to: the heading of the gripper's jaws about
+the vertical, in degrees, held until you change it. Leave it out and the wrist settles
+wherever the solver puts it; set it to grasp a rotated object along its short side. The jaws
+are symmetric, so -90..90 covers every distinct heading.
 
 Bounds — a program outside them is rejected without ever being run:
 - offset_mm and standoff_mm components: {RANGES['offset_mm'][0]:.0f}..{RANGES['offset_mm'][1]:.0f} mm.
@@ -84,7 +94,8 @@ Bounds — a program outside them is rejected without ever being run:
   {RANGES['release_mm'][0]:.0f}..{RANGES['release_mm'][1]:.0f} mm after it.
 - At most {MAX_OPS} operations, and at most 8 of them may be motion or gripper operations.
 - Retries are bounded: max_attempts is at most {RANGES['max_attempts'][1]}.
-- You must grasp() exactly what the task names, and you must release() before the program ends.
+- You must grasp() exactly what the task names and release() before the program ends, unless
+  you abort().
 
 Geometry you can rely on: the blocks are cubes 36 mm on a side sitting on the table, so their
 centres are 18 mm up and their tops are 36 mm up. To stack one block on another, release above
@@ -112,7 +123,9 @@ class Candidate:
     validation: dict
     retry: dict
     redetect_ops: list[int]
-    fault: str | None = None
+    aborts: str | None = None     # the reason, when the candidate declines to act
+    diagnostic: str | None = None      # which named strategy or fault this is, in a diagnostic pool
+    diagnostic_kind: str | None = None # "strategy" or "fault"
     strategy: str = ""
     note: str = ""
     generation: dict = field(default_factory=dict)
@@ -178,14 +191,14 @@ class Scene:
 
 
 def admit(scene_obj: Scene, program: prog.Program, sample_index: int, keys: dict,
-          generation: dict, fault: str | None = None) -> tuple[Candidate | None, Rejected | None]:
+          generation: dict, diagnostic: str | None = None) -> tuple[Candidate | None, Rejected | None]:
     """Ground, check reachability, and dedup one program against the pool built so far."""
     try:
         grounded = prog.ground(program, scene_obj.observation)
     except ProgramError as error:
         return None, Rejected(sample_index, "grounding", str(error), program.raw, generation)
-    trace = grounded.step.summary()["trace"]
-    unreachable = scene_obj.reachable(grounded.step.trace)
+    trace = grounded.step.summary()["trace"] if grounded.step else []
+    unreachable = scene_obj.reachable(grounded.trace)
     if unreachable:
         return None, Rejected(sample_index, "reachability", unreachable, program.raw, generation)
 
@@ -195,8 +208,8 @@ def admit(scene_obj: Scene, program: prog.Program, sample_index: int, keys: dict
                                 .encode()).hexdigest()[:12]
     return Candidate(candidate_id, -1, sample_index, program.as_json(), trace, key, keys.get(key),
                      {"ok": True, "stage": "accepted", "error": None},
-                     program.retry, program.redetects, fault, program.strategy, program.note,
-                     generation, program.raw), None
+                     program.retry, program.redetects, program.aborts, diagnostic, None,
+                     program.strategy, program.note, generation, program.raw), None
 
 
 def one_sample(index: int, instruction: str, observation_text: str, model: str, timeout: float) -> dict:
@@ -260,17 +273,18 @@ def natural_pool(scene_obj: Scene, instruction: str, object_name: str, destinati
 
 
 def diagnostic_pool(scene_obj: Scene, object_name: str, destination: str) -> tuple[list, list]:
-    """The scripted suite: deterministic, no Claude, one entry per named fault."""
+    """The scripted suite: deterministic, no Claude, one entry per named strategy and fault."""
     shift = np.random.default_rng(scene_obj.seed).uniform(30.0, 60.0, 2) * np.array([1.0, -1.0])
     accepted, rejected, keys = [], [], {}
-    for index, (name, program) in enumerate(prog.fault_programs(object_name, destination,
-                                                               stale_shift_mm=tuple(shift.round(1)))):
+    for index, (name, kind, program) in enumerate(prog.diagnostic_programs(
+            object_name, destination, stale_shift_mm=tuple(shift.round(1)))):
         candidate, reject = admit(scene_obj, program, index, keys,
-                                  {"model": "scripted", "cost_usd": 0.0}, fault=name)
+                                  {"model": "scripted", "cost_usd": 0.0}, diagnostic=name)
         if reject is not None:
             reject.stage = f"{reject.stage} ({name})"
             rejected.append(reject)
             continue
+        candidate.diagnostic_kind = kind
         keys.setdefault(candidate.dedup_key, candidate.candidate_id)
         accepted.append(candidate)
     for position, candidate in enumerate(accepted):
@@ -278,15 +292,27 @@ def diagnostic_pool(scene_obj: Scene, object_name: str, destination: str) -> tup
     return accepted, rejected
 
 
+def generator_settings(kind: str, model: str, size: int, instruction: str) -> dict:
+    """Everything that decides what a candidate looks like, so a cached pool can be trusted."""
+    return {"kind": kind, "model": model if kind == "natural" else "scripted",
+            "instruction": instruction,
+            "system_prompt_sha1": hashlib.sha1(SYSTEM_PROMPT.encode()).hexdigest()[:12],
+            "prompt_template_sha1": hashlib.sha1(sample_prompt("", "").encode()).hexdigest()[:12],
+            "sampling": "claude CLI defaults, one stateless turn, no tools, no retry on a bad sample",
+            "max_turns": 1, "pool_size": size, "program_schema_version": SCHEMA_VERSION,
+            "protocol_version": PROTOCOL_VERSION}
+
+
+def generator_hash(settings: dict) -> str:
+    """The settings hash the cache keys on. `pool_size` is excluded: a larger pool of the same
+    kind extends a smaller one, but a changed prompt, model, or schema does not."""
+    return settings_hash({key: value for key, value in settings.items() if key != "pool_size"})
+
+
 def build_pool(scene_obj: Scene, kind: str, instruction: str, object_name: str, destination: str,
                size: int, model: str, split: str, workers: int, oversample: float,
                timeout: float) -> dict:
-    settings = {"kind": kind, "model": model if kind == "natural" else "scripted",
-                "system_prompt_sha1": hashlib.sha1(SYSTEM_PROMPT.encode()).hexdigest()[:12],
-                "prompt_template_sha1": hashlib.sha1(sample_prompt("", "").encode()).hexdigest()[:12],
-                "sampling": "claude CLI defaults, one stateless turn, no tools, no retry on a bad sample",
-                "max_turns": 1, "pool_size": size, "program_schema_version": SCHEMA_VERSION,
-                "protocol_version": PROTOCOL_VERSION}
+    settings = generator_settings(kind, model, size, instruction)
     started = time.time()
     if kind == "natural":
         accepted, rejected = natural_pool(scene_obj, instruction, object_name, destination,
@@ -294,7 +320,7 @@ def build_pool(scene_obj: Scene, kind: str, instruction: str, object_name: str, 
     else:
         accepted, rejected = diagnostic_pool(scene_obj, object_name, destination)
     pool_id = (f"{kind}-{object_name.replace(' ', '_')}-to-{destination.replace(' ', '_')}"
-               f"-seed{scene_obj.seed:04d}-{settings_hash(settings)}")
+               f"-seed{scene_obj.seed:04d}-{generator_hash(settings)}")
 
     unique = {}
     for candidate in accepted:
@@ -303,7 +329,8 @@ def build_pool(scene_obj: Scene, kind: str, instruction: str, object_name: str, 
         "pool_id": pool_id, "kind": kind, "split": split,
         "protocol": {"protocol_version": PROTOCOL_VERSION, "program_schema_version": SCHEMA_VERSION,
                      "git_sha": git_sha(), "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
-                     "generator": settings, "generation_seconds": round(time.time() - started, 1)},
+                     "generator": settings, "generator_hash": generator_hash(settings),
+                     "generation_seconds": round(time.time() - started, 1)},
         "task": {"instruction": instruction, "object": object_name, "destination": destination},
         "scene": {"seed": scene_obj.seed, "observation_id": scene_obj.observation.observation_id,
                   "observation": scene_obj.observation.text,
@@ -314,11 +341,19 @@ def build_pool(scene_obj: Scene, kind: str, instruction: str, object_name: str, 
         "candidates": [asdict(candidate) for candidate in accepted],
         "rejected": [asdict(item) for item in rejected],
         "prefixes": {str(n): [c.candidate_id for c in accepted[:n]] for n in PREFIXES if n <= len(accepted)},
+        # Filled in by #23, once every candidate has been executed from the shared snapshot.
+        # It stays in the artifact from here on: whether a pool contained a success at all is
+        # a fact about generation, and a selector must never be blamed or credited for it.
+        "pool_has_success": None,
         "summary": {"accepted": len(accepted), "rejected": len(rejected),
                     "attempted": len(accepted) + len(rejected),
                     "short_of_requested": max(0, size - len(accepted)) if kind == "natural" else 0,
                     "unique_programs": len(unique),
                     "duplicate_fraction": round(1 - len(unique) / max(1, len(accepted)), 3),
+                    # Generation outcomes, reported here so they are never read as selector quality.
+                    "aborting_candidates": sum(1 for c in accepted if c.aborts),
+                    "acting_candidates": sum(1 for c in accepted if not c.aborts),
+                    "strategies": sorted({c.strategy for c in accepted}),
                     "cost_usd": round(sum((c.generation.get("cost_usd") or 0.0) for c in accepted)
                                       + sum((r.generation.get("cost_usd") or 0.0) for r in rejected), 4),
                     "reject_reasons": {stage: sum(1 for r in rejected if r.stage.startswith(stage))
@@ -360,8 +395,10 @@ def check_pool(pool: dict) -> list[str]:
                 problems.append(f"{candidate.get('candidate_id')}: missing {key}")
         if candidate["program"].get("schema_version") != SCHEMA_VERSION:
             problems.append(f"{candidate['candidate_id']}: wrong program schema version")
-        if not candidate["grounded_trace"]:
+        if not candidate["grounded_trace"] and not candidate.get("aborts"):
             problems.append(f"{candidate['candidate_id']}: empty grounded trace")
+        if candidate.get("aborts") and candidate["grounded_trace"]:
+            problems.append(f"{candidate['candidate_id']}: a declining candidate must not carry a trace")
         leaked = json.dumps(candidate["program"])
         for name, point in pool["scene"]["hidden_truth"].items():
             if f"{point[0]:.4f}" in leaked:
@@ -369,11 +406,15 @@ def check_pool(pool: dict) -> list[str]:
     if pool["kind"] == "natural" and pool["protocol"]["generator"]["model"] == "scripted":
         problems.append("a natural pool must be generated by Claude")
     if pool["kind"] == "diagnostic":
-        faults = [c["fault"] for c in candidates]
-        if len(set(faults)) != len(faults):
-            problems.append("diagnostic pool repeats a fault")
+        named = [c["diagnostic"] for c in candidates]
+        if len(set(named)) != len(named):
+            problems.append("diagnostic pool repeats a named strategy or fault")
+        if any(c["diagnostic_kind"] not in ("strategy", "fault") for c in candidates):
+            problems.append("every diagnostic must be labelled a strategy or a fault")
     if not observation_id:
         problems.append("missing observation id")
+    if "pool_has_success" not in pool:
+        problems.append("pool_has_success was dropped; generation coverage must survive downstream")
     return problems
 
 
@@ -442,7 +483,14 @@ def main():
             path = directory / f"{args.split}-seed{seed:04d}.json"
             if path.exists() and not args.regenerate:
                 cached = json.loads(path.read_text())
-                if cached["protocol"]["generator"]["pool_size"] >= args.pool_size:
+                wanted = generator_hash(generator_settings(kind, args.model, args.pool_size, instruction))
+                if cached["protocol"].get("generator_hash") != wanted:
+                    print(f"stale   {path}  (generator settings changed since it was cached; "
+                          f"regenerating)")
+                elif cached["protocol"]["generator"]["pool_size"] < args.pool_size:
+                    print(f"small   {path}  ({cached['summary']['accepted']} candidates, "
+                          f"{args.pool_size} wanted; regenerating)")
+                else:
                     print(f"cached  {path}  ({cached['summary']['accepted']} candidates)")
                     continue
             if scene_obj is None:
@@ -453,9 +501,11 @@ def main():
             problems = check_pool(pool)
             directory.mkdir(parents=True, exist_ok=True)
             path.write_text(json.dumps(pool, indent=2, default=float))
-            index[pool["pool_id"]] = {"path": str(path), "kind": kind, "split": args.split,
-                                      "seed": seed, "observation_id": pool["scene"]["observation_id"],
-                                      **pool["summary"]}
+            # Keyed by path, not pool id: regenerating under changed settings replaces the
+            # entry rather than leaving a dead id behind claiming a pool that no longer exists.
+            index[str(path)] = {"pool_id": pool["pool_id"], "kind": kind, "split": args.split,
+                                "seed": seed, "observation_id": pool["scene"]["observation_id"],
+                                **pool["summary"]}
             print(f"{'wrote  ' if not problems else 'PROBLEM'} {path}  "
                   f"{json.dumps(pool['summary'], default=float)}")
             if pool["summary"]["short_of_requested"]:

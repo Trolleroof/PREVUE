@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from copy import deepcopy
 
 from waddle_wm import program as prog
@@ -75,6 +76,15 @@ def check_schema():
         ("empty program", with_ops([]), "non-empty list"),
         ("unknown detect query",
          with_ops([{"op": "detect", "query": "the mug", "as": "src"}, *ops[1:]]), "detect() accepts"),
+        ("yaw out of range",
+         with_ops([{**op, "yaw_deg": 180} if op["op"] == "descend_to" else op for op in ops]),
+         "outside the allowed range"),
+        ("abort without a reason", with_ops([ops[0], {"op": "abort"}]), "needs"),
+        ("abort after acting", with_ops([*ops, {"op": "abort", "reason": "changed my mind"}]),
+         "cannot follow motion"),
+        ("work after an abort",
+         with_ops([ops[0], {"op": "abort", "reason": "nothing here"}, *ops[1:]]),
+         "must be the last operation"),
     ]
     for name, payload, fragment in cases:
         try:
@@ -151,24 +161,52 @@ def check_grounding():
     else:
         raise AssertionError("grounding against a scene without the object should fail")
 
-    faults = dict(prog.fault_programs())
-    assert set(faults) == {"correct", "correct_redetect_regrasp", *prog.FAULTS}, sorted(faults)
-    keys = {name: prog.ground(program, SCENE).dedup_key() for name, program in faults.items()}
+    # A commanded wrist heading reaches the trace in radians and persists to the descent.
+    by_name = {name: program for name, _, program in prog.diagnostic_programs()}
+    oriented = by_name["orientation_aware_grasp"]
+    grounded_yaw = prog.ground(oriented, SCENE)
+    descend = next(e for e in grounded_yaw.trace if e["phase"] == "descend")
+    assert abs(descend["yaw"] - math.radians(0.0)) < 1e-9, descend
+    assert next(e for e in grounded_yaw.trace if e["phase"] == "approach")["yaw"] == descend["yaw"]
+    tilted = prog.canonical_program(grasp_yaw_deg=60.0)
+    assert abs(next(e for e in prog.ground(tilted, SCENE).trace
+                    if e["phase"] == "lift")["yaw"] - math.radians(60.0)) < 1e-9, "yaw must persist"
+    assert "yaw" not in prog.ground(prog.canonical_program(), SCENE).trace[0], "yaw must default to free"
+
+    # A declining candidate grounds to no trace at all, and is not the same candidate as one
+    # that does the work.
+    declining = by_name["abort_on_uncertainty"]
+    aborted = prog.ground(declining, SCENE)
+    assert aborted.step is None and aborted.trace == [], aborted
+    assert aborted.aborts and "stopping" in aborted.aborts, aborted.aborts
+    assert aborted.dedup_key() != prog.ground(prog.canonical_program(), SCENE).dedup_key()
+    # Declining because the object is not there is the point of declining, not a bug.
+    assert prog.ground(declining, SceneObservation({"green pad": [0.5, 0.3, 0.0]}, seed=0)).step is None
+
+    diagnostics = prog.diagnostic_programs()
+    names = {name: kind for name, kind, _ in diagnostics}
+    assert set(names) == {*prog.STRATEGIES, *prog.FAULTS}, sorted(names)
+    assert all(names[name] == "strategy" for name in prog.STRATEGIES), names
+    assert all(names[name] == "fault" for name in prog.FAULTS), names
+    keys = {name: prog.ground(program, SCENE).dedup_key() for name, _, program in diagnostics}
     assert len(set(keys.values())) == len(keys), keys
-    print(f"grounding passed: canonical shape, offsets, symbolic source, dedup, {len(faults)} diagnostics")
+    print(f"grounding passed: canonical shape, offsets, yaw, abort, symbolic source, dedup, "
+          f"{len(diagnostics)} diagnostics")
 
 
 def check_pool_contract():
     from waddle_wm.pools import PREFIXES, check_pool
 
     candidates = []
-    for index, (name, program) in enumerate(prog.fault_programs()):
+    for index, (name, kind, program) in enumerate(prog.diagnostic_programs()):
         grounded = prog.ground(program, SCENE)
         candidates.append({"candidate_id": f"c{index:02d}", "index": index, "sample_index": index,
-                           "program": program.as_json(), "grounded_trace": grounded.step.summary()["trace"],
+                           "program": program.as_json(),
+                           "grounded_trace": grounded.step.summary()["trace"] if grounded.step else [],
                            "dedup_key": grounded.dedup_key(), "duplicate_of": None,
                            "validation": {"ok": True, "stage": "accepted", "error": None},
-                           "retry": program.retry, "redetect_ops": program.redetects, "fault": name})
+                           "retry": program.retry, "redetect_ops": program.redetects,
+                           "aborts": program.aborts, "diagnostic": name, "diagnostic_kind": kind})
     ids = [candidate["candidate_id"] for candidate in candidates]
     pool = {"pool_id": "diagnostic-test", "kind": "diagnostic", "split": "train",
             "protocol": {"protocol_version": 1, "program_schema_version": prog.SCHEMA_VERSION,
@@ -179,7 +217,7 @@ def check_pool_contract():
                       "detections": [], "hidden_truth": {"red_block": [0.3801, -0.1799, 0.018]}},
             "candidates": candidates,
             "prefixes": {str(n): ids[:n] for n in PREFIXES if n <= len(ids)},
-            "summary": {}}
+            "pool_has_success": None, "summary": {}}
     assert check_pool(pool) == [], check_pool(pool)
 
     negatives = [
@@ -191,10 +229,16 @@ def check_pool_contract():
         ("gap in the ranking", lambda p: p["candidates"][2].update(index=9),
          "not a contiguous ranking"),
         ("missing grounded trace", lambda p: p["candidates"][0].update(grounded_trace=[]), "empty grounded trace"),
+        ("a declining candidate that also acts",
+         lambda p: p["candidates"][0].update(aborts="changed my mind"), "must not carry a trace"),
+        ("dropped pool_has_success", lambda p: p.pop("pool_has_success"), "generation coverage"),
+        ("unlabelled diagnostic", lambda p: p["candidates"][0].update(diagnostic_kind=None),
+         "labelled a strategy or a fault"),
         ("wrong schema version", lambda p: p["candidates"][0]["program"].update(schema_version=99),
          "wrong program schema version"),
-        ("repeated fault", lambda p: p["candidates"][1].update(fault=p["candidates"][0]["fault"]),
-         "repeats a fault"),
+        ("repeated diagnostic",
+         lambda p: p["candidates"][1].update(diagnostic=p["candidates"][0]["diagnostic"]),
+         "repeats a named strategy or fault"),
         ("scripted natural pool", lambda p: p.update(kind="natural"), "must be generated by Claude"),
         ("leaked ground truth",
          lambda p: p["candidates"][0]["program"]["ops"].append({"op": "note", "x": 0.3801}),
@@ -219,8 +263,12 @@ def check_live(scenes: int):
         assert Scene(seed).observation.observation_id == scene_obj.observation.observation_id, \
             f"seed {seed}: the observation is not reproducible"
         print(f"\nseed {seed}  observation {scene_obj.observation.observation_id}")
-        for name, program in prog.fault_programs():
+        for name, kind, program in prog.diagnostic_programs():
             grounded = prog.ground(program, scene_obj.observation)
+            if grounded.step is None:
+                counts.setdefault(name, []).append(False)
+                print(f"  {name:26s} declined: {grounded.aborts}")
+                continue
             scene_obj.restore()
             episode = scene_obj.env.run_trace(grounded.step.trace, prelude_frames=PRELUDE_FRAMES,
                                               block="red_block", destination="green_pad")
@@ -231,8 +279,9 @@ def check_live(scenes: int):
 
     print(f"\ndiagnostic suite over {scenes} scenes (a planted fault is a bug in the program, not a "
           f"guaranteed failure — physics decides):")
+    kinds = {name: kind for name, kind, _ in prog.diagnostic_programs()}
     for name, outcomes in counts.items():
-        print(f"  {name:26s} {sum(outcomes)}/{len(outcomes)} succeeded")
+        print(f"  {kinds[name]:9s} {name:26s} {sum(outcomes)}/{len(outcomes)} succeeded")
 
 
 def check_claude(model: str):

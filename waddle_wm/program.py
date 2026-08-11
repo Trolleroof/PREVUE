@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 from dataclasses import dataclass, field
 
 from waddle_wm import planner
@@ -28,7 +29,7 @@ from waddle_wm.planner import DESTINATIONS, MAX_PHASES, OBJECTS, PlanError, Skil
 SCHEMA_VERSION = 1
 
 # The whole API a candidate may call. Anything else is rejected before grounding.
-OPS = ("detect", "move_above", "descend_to", "grasp", "lift", "release", "retreat", "on_failure")
+OPS = ("detect", "move_above", "descend_to", "grasp", "lift", "release", "retreat", "on_failure", "abort")
 QUERIES = (*OBJECTS, "green pad")
 DIRECTIONS = {"top": (0.0, 0.0), "+x": (1.0, 0.0), "-x": (-1.0, 0.0), "+y": (0.0, 1.0), "-y": (0.0, -1.0)}
 RETRY_POLICIES = ("abort", "redetect_regrasp")
@@ -42,9 +43,15 @@ RANGES = {
     "lift_mm": (40.0, 400.0),            # lift / retreat height above the table
     "grasp_mm": (12.0, 60.0),            # descend_to height before the grasp
     "release_mm": (12.0, 140.0),         # descend_to height after the grasp
+    "yaw_deg": (-90.0, 90.0),            # wrist heading; the jaws are symmetric, so +-90 covers it
     "max_attempts": (0, 2),              # bounded retries; unbounded retry is a reject
 }
 MAX_OPS = 16
+MAX_REASON = 200
+# The diagnostic suite names both halves, so a failure slice is interpretable: these are the
+# strategies a scene might call for, and these are the bugs a verifier ought to catch.
+STRATEGIES = ("correct", "redetect_regrasp", "orientation_aware_grasp", "alternate_approach",
+              "offset_grasp", "controlled_release", "abort_on_uncertainty")
 FAULTS = ("stale_coordinates", "bad_grasp", "missing_lift", "early_release", "high_release", "wrong_target")
 
 
@@ -106,6 +113,19 @@ class Program:
                 "ops": self.ops, "note": self.note}
 
     @property
+    def aborts(self) -> str | None:
+        """The reason this candidate declines to act, or None if it acts.
+
+        Declining is a first-class candidate: on a scene where nothing in the pool works,
+        the honest answer is to stop, and a selector that never gets to choose it cannot be
+        credited for avoiding a crash.
+        """
+        for op in self.ops:
+            if op["op"] == "abort":
+                return op["reason"]
+        return None
+
+    @property
     def retry(self) -> dict:
         for op in self.ops:
             if op["op"] == "on_failure":
@@ -129,17 +149,22 @@ class GroundedProgram:
     """A program plus the exact plan it compiles to on one observation."""
 
     program: Program
-    step: SkillStep
+    step: SkillStep | None            # None when the program declines to act
     observation_id: str
 
     @property
     def trace(self) -> list[dict]:
-        return self.step.trace
+        return self.step.trace if self.step else []
+
+    @property
+    def aborts(self) -> str | None:
+        return self.program.aborts
 
     def as_json(self) -> dict:
         return {"program": self.program.as_json(), "observation_id": self.observation_id,
-                "grounded_trace": self.step.summary()["trace"],
-                "pick_place_shaped": self.step.pick_place_shaped,
+                "grounded_trace": self.step.summary()["trace"] if self.step else [],
+                "pick_place_shaped": bool(self.step and self.step.pick_place_shaped),
+                "aborts": self.aborts,
                 "retry": self.program.retry, "redetect_ops": self.program.redetects}
 
     def dedup_key(self) -> str:
@@ -149,8 +174,10 @@ class GroundedProgram:
         whether a symbol is rebound mid-program — not the symbolic spelling, which Claude
         varies freely for plans that mean exactly the same thing.
         """
-        waypoints = [[entry["phase"], *[round(v, 4) for v in entry.get("target", [])]] for entry in self.trace]
+        waypoints = [[entry["phase"], *[round(v, 4) for v in entry.get("target", [])],
+                      None if entry.get("yaw") is None else round(entry["yaw"], 4)] for entry in self.trace]
         payload = {"task": [self.program.object, self.program.destination], "waypoints": waypoints,
+                   "aborts": bool(self.aborts),
                    "retry": self.program.retry, "redetect": bool(self.program.redetects)}
         return hashlib.sha1(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:16]
 
@@ -205,7 +232,7 @@ def validate_program(payload: dict) -> Program:
         raise ProgramError(f"program has {len(ops)} ops, at most {MAX_OPS} are allowed")
 
     bound: set[str] = set()
-    cleaned, held, seen_failure = [], False, False
+    cleaned, held, seen_failure, aborted = [], False, False, False
     for index, raw in enumerate(ops):
         where = f"ops[{index}]"
         if not isinstance(raw, dict):
@@ -215,6 +242,8 @@ def validate_program(payload: dict) -> Program:
             raise ProgramError(f"{where}: unknown operation {name!r}; the API is {OPS}")
         if seen_failure:
             raise ProgramError("on_failure must be the last operation")
+        if aborted:
+            raise ProgramError("abort must be the last operation; nothing runs after it")
 
         if name == "detect":
             query, symbol = raw.get("query"), raw.get("as")
@@ -230,6 +259,9 @@ def validate_program(payload: dict) -> Program:
             if symbol not in bound:
                 raise ProgramError(f"{where}: ref {symbol!r} was never bound by a detect()")
             offset = _offset(raw.get("offset_mm"), f"{where}.offset_mm")
+            yaw = raw.get("yaw_deg")
+            if yaw is not None:
+                yaw = _number(yaw, f"{where}.yaw_deg", RANGES["yaw_deg"])
             if name == "move_above":
                 height = _number(raw.get("height_mm", 240.0), f"{where}.height_mm", RANGES["hover_mm"])
                 direction = raw.get("direction", "top")
@@ -237,11 +269,12 @@ def validate_program(payload: dict) -> Program:
                     raise ProgramError(f"{where}: direction must be one of {tuple(DIRECTIONS)}, got {direction!r}")
                 standoff = _number(raw.get("standoff_mm", 0.0), f"{where}.standoff_mm", RANGES["standoff_mm"])
                 cleaned.append({"op": name, "ref": symbol, "offset_mm": offset, "height_mm": height,
-                                "direction": direction, "standoff_mm": standoff})
+                                "direction": direction, "standoff_mm": standoff, "yaw_deg": yaw})
             else:
                 bounds = RANGES["release_mm"] if held else RANGES["grasp_mm"]
                 height = _number(raw.get("height_mm", 15.0), f"{where}.height_mm", bounds)
-                cleaned.append({"op": name, "ref": symbol, "offset_mm": offset, "height_mm": height})
+                cleaned.append({"op": name, "ref": symbol, "offset_mm": offset, "height_mm": height,
+                                "yaw_deg": yaw})
 
         elif name in ("lift", "retreat"):
             height = _number(raw.get("height_mm", 240.0), f"{where}.height_mm", RANGES["lift_mm"])
@@ -259,6 +292,16 @@ def validate_program(payload: dict) -> Program:
             held = False
             cleaned.append({"op": "release"})
 
+        elif name == "abort":
+            if cleaned and any(op["op"] != "detect" for op in cleaned):
+                raise ProgramError(f"{where}: abort() cannot follow motion; a program either acts "
+                                   f"or declines, and only detect() may precede it")
+            reason = raw.get("reason")
+            if not isinstance(reason, str) or not reason.strip():
+                raise ProgramError(f'{where}: abort() needs "reason": "<why you decline>"')
+            aborted = True
+            cleaned.append({"op": "abort", "reason": reason.strip()[:MAX_REASON]})
+
         else:  # on_failure
             policy = raw.get("policy", "abort")
             if policy not in RETRY_POLICIES:
@@ -270,8 +313,8 @@ def validate_program(payload: dict) -> Program:
             seen_failure = True
             cleaned.append({"op": "on_failure", "policy": policy, "max_attempts": attempts})
 
-    if not any(op["op"] == "grasp" for op in cleaned):
-        raise ProgramError("a pick-and-place program must grasp() the object")
+    if not aborted and not any(op["op"] == "grasp" for op in cleaned):
+        raise ProgramError("a pick-and-place program must grasp() the object, or abort() with a reason")
     if held:
         raise ProgramError("the program ends still holding the object; add release()")
     return Program(strategy, object_name, destination, cleaned, str(payload.get("note", "")))
@@ -312,12 +355,20 @@ def ground(program: Program, observation: SceneObservation) -> GroundedProgram:
     is handed to `planner.validate` — so the workspace limits, the phase vocabulary, and
     the eight-phase budget are enforced by the same code the chat planner goes through.
     """
-    bindings, trace, held = {}, [], False
+    bindings, trace, held, yaw = {}, [], False, None
     point = list(observation.points.get("gripper", [0.4, 0.0, 0.3]))
     for index, op in enumerate(program.ops):
         name = op["op"]
         if name == "detect":
-            bindings[op["as"]] = observation.point(op["query"])
+            try:
+                bindings[op["as"]] = observation.point(op["query"])
+            except ProgramError:
+                # "I looked and it is not there" is the commonest honest reason to decline,
+                # so a failed lookup inside a declining program is its point, not its bug.
+                if program.aborts is None:
+                    raise
+        elif name == "abort":
+            return GroundedProgram(program, None, observation.observation_id)
         elif name == "grasp":
             trace.append({"phase": "close"}); held = True
         elif name == "release":
@@ -326,7 +377,7 @@ def ground(program: Program, observation: SceneObservation) -> GroundedProgram:
             continue
         elif name in ("lift", "retreat"):
             point = [point[0], point[1], op["height_mm"] / 1000.0]
-            trace.append({"phase": _PHASE[(name, held)], "target": list(point)})
+            trace.append({"phase": _PHASE[(name, held)], "target": list(point), "yaw": yaw})
         else:
             reference = bindings[op["ref"]]
             dx, dy = op["offset_mm"]
@@ -334,8 +385,11 @@ def ground(program: Program, observation: SceneObservation) -> GroundedProgram:
             if name == "move_above":
                 ux, uy = DIRECTIONS[op["direction"]]
                 x, y = x + ux * op["standoff_mm"] / 1000.0, y + uy * op["standoff_mm"] / 1000.0
+            # A commanded heading persists until the next one: the wrist does not spring back
+            # between the hover and the descent it was chosen for.
+            yaw = yaw if op["yaw_deg"] is None else math.radians(op["yaw_deg"])
             point = [x, y, op["height_mm"] / 1000.0]
-            trace.append({"phase": _PHASE[(name, held)], "target": list(point)})
+            trace.append({"phase": _PHASE[(name, held)], "target": list(point), "yaw": yaw})
 
     if len(trace) > MAX_PHASES:
         raise ProgramError(f"the program grounds to {len(trace)} phases; the arm accepts at most "
@@ -356,15 +410,17 @@ def canonical_program(object_name: str = "red block", destination: str = "green 
                       grasp_offset_mm=(0.0, 0.0), target_offset_mm=(0.0, 0.0), hover_mm: float = 240.0,
                       transit_mm: float = 300.0, grasp_mm: float = 15.0, release_mm: float | None = None,
                       lift_mm: float = 240.0, redetect: bool = False, max_attempts: int = 0,
+                      grasp_yaw_deg: float | None = None, approach: str = "top", standoff_mm: float = 0.0,
                       strategy: str = "straight_pick_place", note: str = "") -> Program:
-    """The correct pick-and-place, parameterised. The diagnostic faults are edits of this."""
+    """The correct pick-and-place, parameterised. Every diagnostic is an edit of this."""
     if release_mm is None:
         release_mm = 15.0 if destination == "green pad" else 51.0
     ops = [{"op": "detect", "query": object_name, "as": "src"},
            {"op": "detect", "query": destination, "as": "dst"},
            {"op": "move_above", "ref": "src", "offset_mm": list(grasp_offset_mm), "height_mm": hover_mm,
-            "direction": "top", "standoff_mm": 0.0},
-           {"op": "descend_to", "ref": "src", "offset_mm": list(grasp_offset_mm), "height_mm": grasp_mm},
+            "direction": approach, "standoff_mm": standoff_mm, "yaw_deg": grasp_yaw_deg},
+           {"op": "descend_to", "ref": "src", "offset_mm": list(grasp_offset_mm), "height_mm": grasp_mm,
+            "yaw_deg": grasp_yaw_deg},
            {"op": "grasp"},
            {"op": "lift", "height_mm": lift_mm},
            {"op": "move_above", "ref": "dst", "offset_mm": list(target_offset_mm), "height_mm": transit_mm,
@@ -381,25 +437,61 @@ def canonical_program(object_name: str = "red block", destination: str = "green 
                              "ops": ops, "note": note})
 
 
-def fault_programs(object_name: str = "red block", destination: str = "green pad",
-                   stale_shift_mm=(45.0, -30.0)) -> list[tuple[str, Program]]:
-    """The diagnostic suite: one correct program, one correct recovery, and six known faults.
+def diagnostic_programs(object_name: str = "red block", destination: str = "green pad",
+                        stale_shift_mm=(45.0, -30.0)) -> list[tuple[str, str, Program]]:
+    """The diagnostic suite: seven named strategies and six named faults, as (name, kind, program).
 
-    These are scripted, not sampled, so the same six failure modes appear in every scene and
-    a verifier that cannot see them has nowhere to hide. They are reported separately from the
-    natural Claude pool — a diagnostic fault is a deliberately planted bug, not evidence about
-    what Claude proposes.
+    Scripted, not sampled, so the same named behaviours appear in every scene and a failure
+    slice is interpretable — a verifier that cannot tell `bad_grasp` from `offset_grasp` has
+    nowhere to hide. Reported separately from the natural Claude pool: a planted bug is not
+    evidence about what Claude proposes.
 
-    `stale_coordinates` is the one emulation here: a single-step task has no earlier action to
-    go stale against, so the grasp is aimed at a fixed displacement from the detected centre,
+    The strategies are the ones the scene suite is meant to call for. Several of them are
+    indistinguishable from `correct` on a plain scene with an axis-aligned cube on a flat
+    pad — an orientation-aware grasp only matters once the object is rotated, an alternate
+    approach only matters once something is in the way. They are here so the pool can express
+    the strategy at all, which is the half of the problem this issue owns.
+
+    `stale_coordinates` is the one emulation: a single-step task has no earlier action to go
+    stale against, so the grasp is aimed at a fixed displacement from the detected centre,
     standing in for coordinates bound before the object last moved.
     """
-    programs = [
+    strategies = [
         ("correct", canonical_program(object_name, destination, note="canonical pick and place")),
-        ("correct_redetect_regrasp",
+        ("redetect_regrasp",
          canonical_program(object_name, destination, redetect=True, max_attempts=1,
                            strategy="pick_place_with_recovery",
                            note="redetects the destination before placing and regrasps once on a failed lift")),
+        # Blocks currently spawn axis-aligned, so aligning the jaws with the faces means yaw 0.
+        # `detect` reports a centre and no orientation, so this strategy can only pin a heading,
+        # not read one — until perception exposes a yaw, that is as orientation-aware as a
+        # program can be. A 45 degree grasp of an axis-aligned cube pinches two corners and
+        # slips about half the time, which is what the strategy exists to avoid.
+        ("orientation_aware_grasp",
+         canonical_program(object_name, destination, grasp_yaw_deg=0.0,
+                           strategy="pick_place_oriented_grasp",
+                           note="pins the wrist across the object's faces instead of leaving it to the solver")),
+        ("alternate_approach",
+         canonical_program(object_name, destination, approach="-x", standoff_mm=50.0,
+                           strategy="pick_place_lateral_approach",
+                           note="hovers to one side and descends across, rather than straight down")),
+        ("offset_grasp",
+         canonical_program(object_name, destination, grasp_offset_mm=(15.0, 0.0),
+                           strategy="pick_place_offset_grasp",
+                           note="grasps deliberately off-centre but inside the gripper's tolerance")),
+        ("controlled_release",
+         canonical_program(object_name, destination, release_mm=None, transit_mm=200.0,
+                           strategy="pick_place_controlled_release",
+                           note="carries lower and releases at the surface rather than dropping")),
+        ("abort_on_uncertainty",
+         validate_program({"schema_version": SCHEMA_VERSION, "strategy": "abort_on_uncertainty",
+                           "task": {"object": object_name, "destination": destination},
+                           "ops": [{"op": "detect", "query": object_name, "as": "src"},
+                                   {"op": "abort", "reason": "the grasp is not confidently supported by "
+                                                             "this observation; stopping instead of guessing"}],
+                           "note": "declines to act"})),
+    ]
+    faults = [
         ("stale_coordinates",
          canonical_program(object_name, destination, grasp_offset_mm=stale_shift_mm,
                            strategy="pick_place_stale_binding",
@@ -414,11 +506,9 @@ def fault_programs(object_name: str = "red block", destination: str = "green pad
                            note="releases from well above the destination")),
         ("wrong_target", None),
     ]
-    out = []
-    for name, program in programs:
-        if program is None:
-            program = _structural_fault(name, object_name, destination)
-        out.append((name, program))
+    out = [(name, "strategy", program) for name, program in strategies]
+    for name, program in faults:
+        out.append((name, "fault", program or _structural_fault(name, object_name, destination)))
     return out
 
 

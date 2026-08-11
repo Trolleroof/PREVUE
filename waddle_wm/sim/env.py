@@ -174,17 +174,32 @@ class TabletopEnv:
         if frames and round(self.data.time / self.model.opt.timestep) % self._frame_steps == 0:
             self._capture()
 
-    def _ik(self, target, q_init):
+    def _ik(self, target, q_init, yaw=None):
+        """Damped least squares on the pinch site's position and z-axis.
+
+        `yaw` (radians about vertical, or None) additionally pins the wrist's heading. With
+        `yaw=None` — every caller before the code-as-policy programs — the rotation about the
+        approach axis stays in the null space and the error term is unchanged.
+        """
         scratch = mujoco.MjData(self.model)
         scratch.qpos[:] = self.data.qpos
         scratch.qpos[self._qadr] = q_init
         jacp, jacr = np.zeros((3, self.model.nv)), np.zeros((3, self.model.nv))
+        heading = None if yaw is None else np.array([np.cos(yaw), np.sin(yaw), 0.0])
         for _ in range(220):
             mujoco.mj_kinematics(self.model, scratch)
             mujoco.mj_comPos(self.model, scratch)
             pos = scratch.site_xpos[self._pinch]
-            z_axis = scratch.site_xmat[self._pinch].reshape(3, 3)[:, 2]
-            err = np.r_[np.asarray(target) - pos, np.cross(z_axis, APPROACH_DOWN)]
+            frame = scratch.site_xmat[self._pinch].reshape(3, 3)
+            z_axis = frame[:, 2]
+            rotation = np.cross(z_axis, APPROACH_DOWN)
+            if heading is not None:
+                # The jaws are symmetric, so aim the x-axis at the heading or its opposite,
+                # whichever is nearer: a 180 degree flip is the same grasp.
+                x_axis = frame[:, 0]
+                wanted = heading if x_axis @ heading >= 0 else -heading
+                rotation = 0.5 * (rotation + np.cross(x_axis, wanted))
+            err = np.r_[np.asarray(target) - pos, rotation]
             if np.linalg.norm(err[:3]) < 0.0015 and np.linalg.norm(err[3:]) < 0.03:
                 return scratch.qpos[self._qadr].copy()
             mujoco.mj_jacSite(self.model, scratch, jacp, jacr, self._pinch)
@@ -241,12 +256,14 @@ class TabletopEnv:
             self._waypoint = np.asarray(point, dtype=float)
         return len(self._frames)
 
-    def _end(self, name, start, trace, point=None, value=None):
+    def _end(self, name, start, trace, point=None, value=None, yaw=None):
         entry = {"phase": name, "frames": [start, len(self._frames) - 1]}
         if point is not None:
             entry["target"] = np.asarray(point, dtype=float).tolist()
         if value is not None:
             entry["value"] = value
+        if yaw is not None:
+            entry["yaw"] = float(yaw)
         trace.append(entry)
 
     def _idle(self, until, gripper=GRIPPER_OPEN):
@@ -291,9 +308,9 @@ class TabletopEnv:
             elif phase == "idle":
                 self._settle(self.data.actuator(scene.GRIPPER_ACTUATOR).ctrl[0], 0.35)
             else:
-                q = self._ik(point, q)
+                q = self._ik(point, q, entry.get("yaw"))
                 self._move(q, GRIPPER_OPEN if phase in OPEN_PHASES else GRIPPER_CLOSED)
-            self._end(phase, start, trace, point=point, value=entry.get("value"))
+            self._end(phase, start, trace, point=point, value=entry.get("value"), yaw=entry.get("yaw"))
         if frames_total is not None:
             if len(self._frames) > frames_total:
                 raise RuntimeError(f"execution needed {len(self._frames)} frames, over the {frames_total}-frame grid")
