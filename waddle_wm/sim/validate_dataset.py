@@ -13,7 +13,8 @@ FAILURE_MODES = ("missed", "target_miss")
 def scene_key(record):
     """What makes an episode unique: where the block was, and the plan aimed at it."""
     params = record["skill"]["params"]
-    return (tuple(np.round(record["state_before"]["block_pos"][:2], 6)),
+    return (params.get("object", "red_block"), params.get("destination", "green_pad"),
+            tuple(np.round(record["state_before"]["block_pos"][:2], 6)),
             tuple(np.round(params["target_xy"], 6)), tuple(np.round(params["grasp_offset_xy"], 6)))
 
 
@@ -57,6 +58,17 @@ def check_splits(records, report):
         report(f"  {split}: n={len(in_split)} success={rate:.3f} " +
                " ".join(f"{mode}={modes[mode] / len(in_split):.3f}" for mode in FAILURE_MODES),
                0.2 < rate < 0.8 and all(modes[mode] for mode in FAILURE_MODES))
+
+
+def check_tasks(records, manifest, report):
+    if manifest.get("schema_version", 3) < 4:
+        return
+    expected = {(source, destination) for source in manifest["block_names"]
+                for destination in ("green_pad", *manifest["block_names"]) if source != destination}
+    for split in SPLITS:
+        pairs = {(record["skill"]["params"]["object"], record["skill"]["params"]["destination"])
+                 for record in records if record["split"] == split}
+        report(f"  {split}: task-pair coverage {len(pairs)}/{len(expected)}", pairs == expected)
 
 
 def check_leakage(records, report):
@@ -105,6 +117,7 @@ def main():
     check_schema(records, manifest, report)
     check_spawn(records, manifest, report)
     check_splits(records, report)
+    check_tasks(records, manifest, report)
     check_leakage(records, report)
     if args.render_sample:
         check_rendering(records, args.data, args.render_sample, args.seed, report)

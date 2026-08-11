@@ -69,8 +69,6 @@ That is a clearer demo and research question than “we trained a world model.�
 
 ## What already exists in this repo
 
-The missing project layer is mainly the **LLM planner plus the repair loop**. The rest is in place:
-
 | component | status |
 | --- | --- |
 | MuJoCo UR5e + Robotiq tabletop simulator | done |
@@ -79,8 +77,11 @@ The missing project layer is mainly the **LLM planner plus the repair loop**. Th
 | Frozen V-JEPA embedding pipeline | done |
 | Action-conditioned latent rollout | done |
 | Verifier (`lifted`, `in_target`, failure mode, uncertainty) | done |
+| Perception primitives (`bounding_box`, `detect_in_base`, `approach_until`) | done |
+| Claude Opus 5 planner and repair loop | done |
+| Browser demo with a chat bar | done |
 
-See [`transition_schema.md`](transition_schema.md) for the data contract, [`results.md`](results.md) for measured verifier performance, and [`backbone_decision.md`](backbone_decision.md) for the frozen-backbone choice.
+See [`transition_schema.md`](transition_schema.md) for the data contract, [`results.md`](results.md) for measured verifier performance, [`backbone_decision.md`](backbone_decision.md) for the frozen-backbone choice, and [`llm_agent.md`](llm_agent.md) for the planner, the perception primitives, and the repair loop.
 
 ## Architecture
 
@@ -130,8 +131,17 @@ Success is measured by reduced failed executions and improved plans after repair
 
 ## Next steps
 
-1. **LLM planner** — structured skill trace from camera frames + task instruction.
-2. **Verifier integration** — call `verify_skill(state, skill_params)` before execution.
-3. **Repair loop** — feed imagined failure + uncertainty back to the LLM; iterate until accept or stop.
+Done — see [`llm_agent.md`](llm_agent.md):
+
+1. ~~**LLM planner**~~ — Claude Opus 5 emits a structured skill trace from detections + task instruction.
+2. ~~**Verifier integration**~~ — every pick-and-place plan is scored before execution.
+3. ~~**Repair loop**~~ — imagined failure and uncertainty go back to Claude, one change at a time.
+
+Still open:
+
 4. **Three-way comparison** — LLM only vs plan-only vs full verifier on the same task suite.
 5. **Uncertainty behavior** — request another view or halt when ensemble disagreement is high.
+6. **Grasp-failure detection** — the weak axis. `lifted` accuracy is 0.720 against `in_target`'s
+   0.851, so an offset grasp is often approved. This is what the agent needs next, not more planning.
+7. **Skills above primitives** — Waddle's middle layer: let the agent name and reuse parametrised
+   skills instead of emitting one flat trace per command.

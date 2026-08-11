@@ -28,6 +28,7 @@ def make_model() -> mujoco.MjModel:
     for key in list(arm.keys):
         arm.delete(key)
 
+    arm.visual.global_.offwidth = arm.visual.global_.offheight = 1024  # room for a UI-sized renderer
     arm.option.timestep = 0.001
     arm.option.integrator = mujoco.mjtIntegrator.mjINT_IMPLICITFAST
     world = arm.worldbody

@@ -1,0 +1,368 @@
+{
+  "instruction": "stack yellow on red",
+  "seed": 11,
+  "model": "claude-opus-5",
+  "observation": "- red block: centre x=0.315, y=-0.174, z=0.013 (box [158, 144, 166, 152] px, 3.9 cm across, 1.81 m from the camera)\n- blue block: centre x=0.495, y=-0.178, z=0.013 (box [185, 154, 193, 163] px, 3.4 cm across, 1.71 m from the camera)\n- yellow block: centre x=0.634, y=-0.178, z=0.012 (box [208, 162, 217, 172] px, 3.5 cm across, 1.63 m from the camera)\n- green landing pad (known task frame, not detected) centred at x=0.500, y=0.300, radius 0.105\n- gripper pinch point (proprioception) at x=-0.134, y=0.490, z=0.322",
+  "scene": {
+    "detections": [
+      {
+        "label": "red block",
+        "box": [
+          158,
+          144,
+          166,
+          152
+        ],
+        "pixels": 67,
+        "score": 1.0,
+        "point_base": [
+          0.3146,
+          -0.1739,
+          0.013
+        ],
+        "depth_m": 1.8126,
+        "size_m": 0.039
+      },
+      {
+        "label": "blue block",
+        "box": [
+          185,
+          154,
+          193,
+          163
+        ],
+        "pixels": 71,
+        "score": 1.0,
+        "point_base": [
+          0.4948,
+          -0.178,
+          0.0126
+        ],
+        "depth_m": 1.7103,
+        "size_m": 0.034
+      },
+      {
+        "label": "yellow block",
+        "box": [
+          208,
+          162,
+          217,
+          172
+        ],
+        "pixels": 79,
+        "score": 1.0,
+        "point_base": [
+          0.6342,
+          -0.1776,
+          0.0119
+        ],
+        "depth_m": 1.6338,
+        "size_m": 0.0353
+      }
+    ],
+    "landing_pad": {
+      "centre": [
+        0.5,
+        0.3
+      ],
+      "radius": 0.105
+    },
+    "truth": {
+      "red_block": [
+        0.3206,
+        -0.1801,
+        0.0179
+      ],
+      "blue_block": [
+        0.5,
+        -0.18,
+        0.0179
+      ],
+      "yellow_block": [
+        0.64,
+        -0.18,
+        0.0179
+      ]
+    }
+  },
+  "rounds": [
+    {
+      "index": 0,
+      "kind": "propose",
+      "plan": {
+        "intent": "Pick up the yellow block and place it on top of the red block.",
+        "action": "execute",
+        "note": "Grasped the yellow block at its observed centre, transited at z=0.3, and released just above the red block's top face (red top \u22480.033 plus block half-height) so yellow lands stacked rather than colliding.",
+        "trace": [
+          {
+            "phase": "approach",
+            "target": [
+              0.634,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "descend",
+            "target": [
+              0.634,
+              -0.178,
+              0.015
+            ]
+          },
+          {
+            "phase": "close"
+          },
+          {
+            "phase": "lift",
+            "target": [
+              0.634,
+              -0.178,
+              0.3
+            ]
+          },
+          {
+            "phase": "move",
+            "target": [
+              0.315,
+              -0.174,
+              0.3
+            ]
+          },
+          {
+            "phase": "place",
+            "target": [
+              0.315,
+              -0.174,
+              0.055
+            ]
+          },
+          {
+            "phase": "open"
+          },
+          {
+            "phase": "retreat",
+            "target": [
+              0.315,
+              -0.174,
+              0.3
+            ]
+          }
+        ]
+      },
+      "verified": true,
+      "verdict": {
+        "imagined_success_probability": 0.0,
+        "ensemble_uncertainty": 0.0,
+        "p_block_lifted": 0.0,
+        "p_block_in_landing_zone": 0.0,
+        "imagined_final_block_xy": [
+          0.3387,
+          -0.1136
+        ],
+        "likely_failure": "grasp misses the block",
+        "verifier_suggestion": "re-aim the grasp at the observed block centre",
+        "approved": false
+      },
+      "skipped_reason": null
+    },
+    {
+      "index": 1,
+      "kind": "repair",
+      "plan": {
+        "intent": "Pick up the yellow block and place it on top of the red block.",
+        "action": "execute",
+        "note": "Changed one thing: the grasp waypoint depth, descending to z=0.012 (the yellow block's observed centre height) instead of 0.015, so the pinch point closes on the block centre rather than above it.",
+        "trace": [
+          {
+            "phase": "approach",
+            "target": [
+              0.634,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "descend",
+            "target": [
+              0.634,
+              -0.178,
+              0.012
+            ]
+          },
+          {
+            "phase": "close"
+          },
+          {
+            "phase": "lift",
+            "target": [
+              0.634,
+              -0.178,
+              0.3
+            ]
+          },
+          {
+            "phase": "move",
+            "target": [
+              0.315,
+              -0.174,
+              0.3
+            ]
+          },
+          {
+            "phase": "place",
+            "target": [
+              0.315,
+              -0.174,
+              0.055
+            ]
+          },
+          {
+            "phase": "open"
+          },
+          {
+            "phase": "retreat",
+            "target": [
+              0.315,
+              -0.174,
+              0.3
+            ]
+          }
+        ]
+      },
+      "verified": true,
+      "verdict": {
+        "imagined_success_probability": 0.0,
+        "ensemble_uncertainty": 0.0,
+        "p_block_lifted": 0.0,
+        "p_block_in_landing_zone": 0.0,
+        "imagined_final_block_xy": [
+          0.3387,
+          -0.1136
+        ],
+        "likely_failure": "grasp misses the block",
+        "verifier_suggestion": "re-aim the grasp at the observed block centre",
+        "approved": false
+      },
+      "skipped_reason": null
+    },
+    {
+      "index": 2,
+      "kind": "repair",
+      "plan": {
+        "intent": "Pick up the yellow block and place it on top of the red block.",
+        "action": "execute",
+        "note": "Changed one thing: the grasp depth back to the standard z=0.015 for approach/descend/lift at the yellow block's observed centre x=0.634, y=-0.178, since the 0.012 variant did not improve the imagined grasp. Everything else is unchanged.",
+        "trace": [
+          {
+            "phase": "approach",
+            "target": [
+              0.634,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "descend",
+            "target": [
+              0.634,
+              -0.178,
+              0.015
+            ]
+          },
+          {
+            "phase": "close"
+          },
+          {
+            "phase": "lift",
+            "target": [
+              0.634,
+              -0.178,
+              0.3
+            ]
+          },
+          {
+            "phase": "move",
+            "target": [
+              0.315,
+              -0.174,
+              0.3
+            ]
+          },
+          {
+            "phase": "place",
+            "target": [
+              0.315,
+              -0.174,
+              0.055
+            ]
+          },
+          {
+            "phase": "open"
+          },
+          {
+            "phase": "retreat",
+            "target": [
+              0.315,
+              -0.174,
+              0.3
+            ]
+          }
+        ]
+      },
+      "verified": true,
+      "verdict": {
+        "imagined_success_probability": 0.0,
+        "ensemble_uncertainty": 0.0,
+        "p_block_lifted": 0.0,
+        "p_block_in_landing_zone": 0.0,
+        "imagined_final_block_xy": [
+          0.3387,
+          -0.1136
+        ],
+        "likely_failure": "grasp misses the block",
+        "verifier_suggestion": "re-aim the grasp at the observed block centre",
+        "approved": false
+      },
+      "skipped_reason": null
+    }
+  ],
+  "decision": "rejected",
+  "reason": "still rejected after 2 repairs (p=0.000, grasp misses the block)",
+  "execution": null,
+  "video": null,
+  "planner_calls": [
+    {
+      "model": "claude-opus-5",
+      "cost_usd": 0.015661,
+      "duration_ms": 5769,
+      "session_id": "e312e9e3-1dd4-4d3a-b8ac-9be996491d18"
+    },
+    {
+      "model": "claude-opus-5",
+      "cost_usd": 0.0386745,
+      "duration_ms": 6723,
+      "session_id": "b899c5e5-9721-425c-9434-091d6f3349a5"
+    },
+    {
+      "model": "claude-opus-5",
+      "cost_usd": 0.037804500000000005,
+      "duration_ms": 4401,
+      "session_id": "031ab3f7-30b8-441f-bfb1-dbd4958dff44"
+    },
+    {
+      "model": "claude-opus-5",
+      "cost_usd": 0.043899499999999994,
+      "duration_ms": 4622,
+      "session_id": "496079ce-de3b-4e28-aa29-9c6d907a48e9"
+    },
+    {
+      "model": "claude-opus-5",
+      "cost_usd": 0.0444395,
+      "duration_ms": 5244,
+      "session_id": "7f9bb83c-9409-4716-b814-440396c779ec"
+    }
+  ],
+  "seconds": 20.68,
+  "cost_usd": 0.1805
+}

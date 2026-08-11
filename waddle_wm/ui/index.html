@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Waddle skill agent — talk to the arm</title>
+<style>
+  :root {
+    --bg: #080c14; --panel: #101724; --line: #1e2a3d; --ink: #e6edf7; --dim: #8ea3bf;
+    --accent: #4da3ff; --good: #2fd07f; --bad: #ff6b6b; --warn: #ffc857; --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; height: 100vh; display: flex; background: var(--bg); color: var(--ink);
+         font: 15px/1.5 ui-sans-serif, -apple-system, "Segoe UI", sans-serif; }
+  .stage { flex: 1 1 55%; display: flex; flex-direction: column; padding: 22px; gap: 14px; min-width: 380px; }
+  .side { flex: 1 1 45%; max-width: 620px; display: flex; flex-direction: column;
+          border-left: 1px solid var(--line); background: var(--panel); }
+  h1 { font-size: 17px; margin: 0; letter-spacing: .01em; }
+  h1 small { color: var(--dim); font-weight: 400; margin-left: 8px; font-size: 13px; }
+  .viewport { flex: 1; display: grid; place-items: center; background: #05080f;
+              border: 1px solid var(--line); border-radius: 14px; overflow: hidden; position: relative; }
+  .viewport video { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .empty { color: var(--dim); font-size: 14px; }
+  .badge { position: absolute; top: 12px; left: 12px; padding: 4px 10px; border-radius: 999px;
+           background: #0009; border: 1px solid var(--line); font: 12px var(--mono); color: var(--dim);
+           backdrop-filter: blur(6px); }
+  .controls { display: flex; gap: 8px; align-items: center; font: 12px var(--mono); color: var(--dim); }
+  button { background: #16203180; color: var(--ink); border: 1px solid var(--line); border-radius: 9px;
+           padding: 7px 13px; font-size: 13px; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .log { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: #0c121d; }
+  .msg.you { background: #16273f; border-color: #24405f; align-self: flex-end; max-width: 85%; }
+  .msg .who { font: 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-bottom: 6px; }
+  .msg.verdict { border-left: 3px solid var(--accent); }
+  .msg.verdict.ok { border-left-color: var(--good); }
+  .msg.verdict.no { border-left-color: var(--bad); }
+  .msg.warn { border-left: 3px solid var(--warn); }
+  .msg.err { border-left: 3px solid var(--bad); }
+  .trace { font: 12px/1.7 var(--mono); color: var(--dim); margin-top: 6px; white-space: pre-wrap; }
+  .foot { font: 11px var(--mono); color: var(--dim); padding: 0 2px 6px; }
+  .bar { height: 4px; border-radius: 3px; background: #1b2637; margin-top: 9px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--good); }
+  .bar i.no { background: var(--bad); }
+  form { display: flex; gap: 8px; padding: 16px; border-top: 1px solid var(--line); background: #0b111b; }
+  input { flex: 1; background: #0a0f18; border: 1px solid var(--line); border-radius: 10px;
+          padding: 12px 14px; color: var(--ink); font-size: 14px; }
+  input:focus { outline: none; border-color: var(--accent); }
+  .hint { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 14px; }
+  .hint button { font-size: 12px; color: var(--dim); padding: 5px 10px; }
+  .spin { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--accent);
+          animation: pulse 1s ease-in-out infinite; margin-right: 7px; vertical-align: middle; }
+  @keyframes pulse { 0%, 100% { opacity: .25 } 50% { opacity: 1 } }
+</style>
+</head>
+<body>
+  <main class="stage">
+    <h1>Waddle skill agent <small>Claude Opus 5 plans · the world model imagines · MuJoCo executes</small></h1>
+    <div class="viewport" id="viewport"></div>
+    <div class="controls">
+      <button id="reset">New scene</button>
+      <button id="replay" disabled>Replay episode</button>
+      <span id="seed"></span>
+    </div>
+  </main>
+
+  <aside class="side">
+    <div class="log" id="log"></div>
+    <div class="hint" id="hint"></div>
+    <form id="form">
+      <input id="input" autocomplete="off" placeholder="Tell the arm what to do…" />
+      <button id="send">Send</button>
+    </form>
+  </aside>
+
+<script>
+const $ = id => document.getElementById(id);
+const log = $("log"), viewport = $("viewport");
+let busy = false, lastVideo = null, running = null;
+
+const EXAMPLES = [
+  "pick up the red block and put it on the green pad",
+  "balance the red block on the -x rim of the green pad, overhanging a little",
+  "move the gripper over the blue block and hover there",
+  "put the red block 25 cm to the -x side of the green pad",
+];
+
+function add(kind, who, html) {
+  const el = document.createElement("div");
+  el.className = "msg " + kind;
+  el.innerHTML = `<div class="who">${who}</div>${html}`;
+  log.appendChild(el);
+  log.scrollTop = log.scrollHeight;
+  return el;
+}
+
+const round = (v, n = 3) => Number(v).toFixed(n);
+const point = p => `[${p.map(v => round(v)).join(", ")}]`;
+
+/** Eight canonical phases say the same thing twice; the grasp and the release are the plan. */
+function traceText(trace) {
+  const at = phase => (trace.find(e => e.phase === phase) || {}).target;
+  if (at("descend") && at("place")) return `grasp  ${point(at("descend"))}\nplace  ${point(at("place"))}`;
+  return trace.map(e => e.target ? `${e.phase.padEnd(9)} ${point(e.target)}` : e.phase).join("\n");
+}
+
+function showEmpty(message = "Prompt it to do something.") {
+  viewport.innerHTML = `<div class="empty">${message}</div>`;
+}
+
+function showVideo(src) {
+  viewport.innerHTML = "";
+  const video = document.createElement("video");
+  Object.assign(video, { src, autoplay: true, loop: true, muted: true, playsInline: true, controls: true });
+  viewport.append(video, Object.assign(document.createElement("span"),
+                                       { className: "badge", textContent: "pre-recorded episode · 10 fps" }));
+  lastVideo = src; $("replay").disabled = false;
+}
+
+const HANDLERS = {
+  observed(d) {
+    add("info", "Camera · observed", '<div class="trace">' + d.observation.replaceAll("\n", "<br>") + "</div>");
+  },
+  plan(d) {
+    if (d.action === "abstain") return;      // the abstained card carries the same note
+    add("", d.kind === "propose" ? "Claude · plan" : "Claude · repair " + d.round,
+        `<div>${d.note}</div><div class="trace">${traceText(d.trace)}</div>`);
+  },
+  step(d) {
+    add("", d.repair ? `Opus · repair ${d.repair} for step ${d.index}/${d.total}` : `Opus · step ${d.index}/${d.total}`,
+        `<div>Move the ${d.object} onto the ${d.destination}.</div><div class="trace">${traceText(d.trace)}</div>`);
+  },
+  verdict(d) {
+    const p = d.imagined_success_probability;
+    const headline = d.verifier === "rules"
+      ? (d.approved ? "Passed deterministic geometry and reachability checks" : `Rejected — ${d.likely_failure}`)
+      : d.approved
+      ? `Approved — p(success) ${round(p)} ± ${round(d.ensemble_uncertainty)}`
+      : `Rejected — p(success) ${round(p)} ± ${round(d.ensemble_uncertainty)} — ${d.likely_failure}`;
+    const detail = d.approved ? "" :
+      `<div class="trace">p(lifted) ${round(d.p_block_lifted)}   p(in zone) ${round(d.p_block_in_landing_zone)}` +
+      `   imagined block xy ${point(d.imagined_final_block_xy)}</div>`;
+    const verifier = d.verifier === "rules" ? "Simple plan checks" : "World model";
+    add("verdict " + (d.approved ? "ok" : "no"), verifier, `<div>${headline}</div>
+      <div class="bar"><i class="${d.approved ? "" : "no"}" style="width:${(p * 100).toFixed(0)}%"></i></div>${detail}`);
+  },
+  unverified: d => add("warn", "Verifier · skipped", `<div>${d.reason}</div>`),
+  executing() {
+    running = add("", "MuJoCo", `<div><span class="spin"></span>executing…</div>`);
+  },
+  executed(d) {
+    const free = d.success === undefined;
+    const line = free ? `${d.outcome} Gripper ended at ${point(d.final_gripper_xyz)}.`
+                      : d.success ? `Success — ${d.object} landed ${round(d.target_distance)} m from ${d.destination}`
+                                  : `Failed: ${d.failure_mode} — ${d.object} at ${point(d.final_block_xy)}`;
+    (running || add("", "MuJoCo", "")).outerHTML =
+      `<div class="msg ${free ? "" : "verdict " + (d.success ? "ok" : "no")}">
+         <div class="who">MuJoCo · what really happened</div><div>${line}</div></div>`;
+    running = null;
+  },
+  abstained: d => add("warn", "Claude · abstained", `<div>${d.reason}</div>`),
+  rejected: d => add("err", "Not executed", `<div>${d.reason}</div>`),
+  error: d => add("err", "Error", `<div>${d.reason}</div>`),
+  done(d) {
+    if (d.video) showVideo(d.video);
+    else showEmpty(NOT_RUN[d.decision] || "Nothing ran.");
+    if (d.can_run_anyway) offerRunAnyway();
+    const foot = document.createElement("div");
+    foot.className = "foot";
+    foot.textContent = [d.model, d.verifier && (d.verifier + " verifier"), d.decision,
+                        d.rounds && (d.rounds.length + " planner/verifier round(s)"),
+                        d.seconds && d.seconds + " s", d.cost_usd != null && "$" + d.cost_usd,
+                        d.log].filter(Boolean).join("  ·  ");
+    log.appendChild(foot);
+    log.scrollTop = log.scrollHeight;
+  },
+};
+
+const NOT_RUN = {
+  rejected: "Not executed — the world model rejected the plan.",
+  abstained: "Not executed — Claude abstained.",
+  error: "Nothing ran — the run errored.",
+};
+
+/** A refused plan is the interesting case: run it and see whether the prediction held. */
+function offerRunAnyway() {
+  const card = add("warn", "Nothing was executed",
+    `<div>Run the refused plan anyway to see whether the predicted failure is real.</div>`);
+  const button = document.createElement("button");
+  button.textContent = "Run it anyway";
+  button.style.marginTop = "10px";
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    button.textContent = "running…";
+    const result = await (await fetch("/api/run-anyway", { method: "POST",
+      headers: { "Content-Type": "application/json" }, body: "{}" })).json();
+    button.remove();
+    if (result.error) return add("err", "Error", `<div>${result.error}</div>`);
+    const e = result.execution, failed = e.success === false;
+    add("verdict " + (failed ? "no" : "ok"), "MuJoCo · ran it anyway",
+      `<div>${failed ? `Failed: ${e.failure_mode} — block ended at ${point(e.final_block_xy)}, `
+                       + `${round(e.target_distance)} m from the pad centre. The verifier was right.`
+                     : `It succeeded — ${round(e.target_distance)} m from the pad centre. `
+                       + `The verifier was wrong to refuse it.`}</div>`);
+    if (result.video) showVideo(result.video);
+  });
+  card.appendChild(button);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function send(instruction) {
+  if (busy || !instruction) return;
+  busy = true; $("send").disabled = $("reset").disabled = true;
+  add("you", "You", `<div>${instruction}</div>`);
+  const waiting = add("", "Claude", `<div><span class="spin"></span>thinking…</div>`);
+
+  const response = await fetch("/api/command", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ instruction }),
+  });
+  const reader = response.body.getReader(), decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let cut;
+    while ((cut = buffer.indexOf("\n\n")) >= 0) {
+      const line = buffer.slice(0, cut).replace(/^data: /, "");
+      buffer = buffer.slice(cut + 2);
+      if (!line) continue;
+      const payload = JSON.parse(line);
+      if (payload.event === "plan") waiting.remove();
+      (HANDLERS[payload.event] || (() => {}))(payload);
+    }
+  }
+  waiting.remove();
+  busy = false; $("send").disabled = $("reset").disabled = false;
+  $("input").focus();
+}
+
+function submit(event) {
+  event.preventDefault();
+  const value = $("input").value.trim();
+  $("input").value = "";
+  send(value);
+}
+
+$("form").addEventListener("submit", submit);
+$("input").addEventListener("keydown", event => { if (event.key === "Enter") submit(event); });
+
+$("reset").addEventListener("click", async () => {
+  const snapshot = await (await fetch("/api/reset", { method: "POST", headers: { "Content-Type": "application/json" },
+                                                     body: "{}" })).json();
+  lastVideo = null; $("replay").disabled = true;
+  showEmpty("New scene. Prompt it to do something.");
+  $("seed").textContent = `seed ${snapshot.seed}`;
+});
+
+$("replay").addEventListener("click", () => lastVideo && showVideo(lastVideo));
+
+EXAMPLES.forEach(text => {
+  const button = document.createElement("button");
+  button.textContent = text;
+  button.addEventListener("click", () => send(text));
+  $("hint").appendChild(button);
+});
+
+showEmpty();
+fetch("/api/scene").then(r => r.json()).then(s => { $("seed").textContent = `seed ${s.seed}`; });
+</script>
+</body>
+</html>

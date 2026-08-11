@@ -8,7 +8,20 @@ observation window (frames)  +  action chunk (skill trace slice)
 ```
 
 Everything below is fixed so that the same record shape serves training, rollout,
-and pre-execution verification. Schema version **3**.
+and pre-execution verification. Schema version **3** is the red-only corpus;
+version **4** extends the same transition contract to all blocks and stacking.
+
+## Schema 4 multi-block extension
+
+Schema 4 keeps the 48-frame grid and 13-d action chunks unchanged. Each record adds
+`skill.params.object` and `skill.params.destination`, where the source is red, blue,
+or yellow and the destination is the green pad or either other block. The per-frame
+`all_block_pos` track has shape `(48, 3, 3)` in fixed red/blue/yellow order.
+
+The grounded readout predicts all block XYZ positions plus the gripper XYZ. Success is
+then computed from the selected future block and destination geometry. No color-specific
+success head is used. Long instructions are verified one atomic transition at a time,
+with a new observation window after every executed step.
 
 ## 1. Fixed time grid
 

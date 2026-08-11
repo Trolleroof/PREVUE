@@ -17,7 +17,8 @@ GRIPPER_OPEN, GRIPPER_CLOSED = 0.0, 255.0
 TARGET_RADIUS = 0.105
 LIFT_THRESHOLD = 0.09
 FRAMES_TOTAL, PRELUDE_FRAMES, WINDOW_FRAMES = 48, 8, 8
-TRACK_KEYS = ("phase", "waypoint", "gripper", "pinch_pos", "block_pos", "max_block_z", "target_distance")
+TRACK_KEYS = ("phase", "waypoint", "gripper", "pinch_pos", "block_pos", "all_block_pos",
+              "max_block_z", "target_distance")
 
 
 def pick_place_trace(block_xy, target_xy, grasp_offset_xy=(0.0, 0.0)) -> list[dict]:
@@ -74,40 +75,82 @@ class TabletopEnv:
         self._pinch = self.model.site("2f85/pinch").id
         self._frames, self._frame_times = [], []
         self._max_lift = 0.0
+        self.on_frame = None        # optional hook, called as each frame is captured (live view)
         self.reset()
 
-    def reset(self, block_xy=None, target_xy=None):
+    def reset(self, block_xy=None, target_xy=None, blocks=None):
         scene.reset(self.model, self.data)
         if block_xy is not None:
             self.data.joint("red_block_free").qpos[:2] = block_xy
+        if blocks is not None:
+            for name, position in blocks.items():
+                self.data.joint(f"{name}_free").qpos[:3] = position
         if target_xy is not None:
             self.model.site_pos[self.model.site("target").id, :2] = target_xy
         mujoco.mj_forward(self.model, self.data)
+        self._tracked_block, self._destination = "red_block", "green_pad"
         self._frames, self._frame_times = [], []
         self._tracks = {key: [] for key in TRACK_KEYS}
         self._phase, self._waypoint = PHASE_ID["idle"], self.data.site("2f85/pinch").xpos.copy()
         self._max_lift = float(self.data.joint("red_block_free").qpos[2])
         return self.state()
 
+    def track_task(self, block: str, destination: str):
+        """Select the object and destination whose outcome this execution reports."""
+        if block not in scene.BLOCK_NAMES:
+            raise ValueError(f"unknown block {block!r}")
+        if destination != "green_pad" and destination not in scene.BLOCK_NAMES:
+            raise ValueError(f"unknown destination {destination!r}")
+        if block == destination:
+            raise ValueError("a block cannot be placed onto itself")
+        self._tracked_block, self._destination = block, destination
+        self._max_lift = float(self.data.joint(f"{block}_free").qpos[2])
+
+    def clear_recording(self):
+        """Start a fresh observation/execution clip without resetting the physical scene."""
+        self._frames, self._frame_times = [], []
+        self._tracks = {key: [] for key in TRACK_KEYS}
+
     def home_waypoint(self):
         """Commanded pinch position while the arm is idle at its home pose."""
         return self.data.site("2f85/pinch").xpos.tolist()
 
     def state(self):
-        block = self.data.joint("red_block_free").qpos
+        block = self.data.joint(f"{self._tracked_block}_free").qpos
         grip = self.data.site("2f85/pinch").xpos
-        target = self.model.site_pos[self.model.site("target").id]
+        target = (self.model.site_pos[self.model.site("target").id] if self._destination == "green_pad"
+                  else self.data.joint(f"{self._destination}_free").qpos[:3])
         return {
+            "tracked_block": self._tracked_block,
+            "destination": self._destination,
             "block_pos": block[:3].tolist(),
             "block_quat": block[3:7].tolist(),
             "gripper_pos": grip.tolist(),
             "target_pos": target[:2].tolist(),
+            "target_z": float(target[2]),
             "target_distance": float(np.linalg.norm(block[:2] - target[:2])),
             "max_block_z": self._max_lift,
         }
 
+    def block_positions(self):
+        """Every block on the table, so a planner can be asked about more than the red one."""
+        return {name: self.data.joint(f"{name}_free").qpos[:3].tolist() for name in scene.BLOCK_NAMES}
+
     def sample_scene(self):
         return self.rng.uniform(self.block_spawn_low, self.block_spawn_high)
+
+    def sample_blocks(self):
+        """Sample three separated tabletop positions for mixed-object training."""
+        positions = {}
+        for name in scene.BLOCK_NAMES:
+            for _ in range(100):
+                xy = self.rng.uniform((0.30, -0.28), (0.68, -0.08))
+                if all(np.linalg.norm(xy - np.asarray(other)[:2]) >= 0.075 for other in positions.values()):
+                    positions[name] = [*xy, scene.BLOCK_HALF]
+                    break
+            else:
+                raise RuntimeError("could not sample separated block positions")
+        return positions
 
     def _capture(self):
         self.renderer.update_scene(self.data, camera=self.camera)
@@ -119,11 +162,15 @@ class TabletopEnv:
         self._tracks["gripper"].append(float(self.data.actuator(scene.GRIPPER_ACTUATOR).ctrl[0]) / GRIPPER_CLOSED)
         for key in ("pinch_pos", "block_pos", "max_block_z", "target_distance"):
             self._tracks[key].append(state["gripper_pos"] if key == "pinch_pos" else state[key])
+        self._tracks["all_block_pos"].append([self.data.joint(f"{name}_free").qpos[:3].tolist()
+                                              for name in scene.BLOCK_NAMES])
+        if self.on_frame is not None:
+            self.on_frame()
 
     def _step(self, gripper, frames=True):
         self.data.actuator(scene.GRIPPER_ACTUATOR).ctrl[0] = gripper
         mujoco.mj_step(self.model, self.data)
-        self._max_lift = max(self._max_lift, float(self.data.joint("red_block_free").qpos[2]))
+        self._max_lift = max(self._max_lift, float(self.data.joint(f"{self._tracked_block}_free").qpos[2]))
         if frames and round(self.data.time / self.model.opt.timestep) % self._frame_steps == 0:
             self._capture()
 
@@ -149,15 +196,40 @@ class TabletopEnv:
                     scratch.qpos[adr] = np.clip(scratch.qpos[adr], *self.model.joint(joint).range)
         raise RuntimeError(f"IK failed for {target}: {np.linalg.norm(err[:3]):.4f}m")
 
-    def _move(self, target_q, gripper):
+    def _move(self, target_q, gripper, stop=None):
         start = np.array([self.data.actuator(j.removesuffix("_joint")).ctrl[0] for j in scene.ARM_JOINTS])
         for q in np.linspace(start, target_q, max(12, int(np.max(abs(target_q - start)) / 0.025))):
             for joint, value in zip(scene.ARM_JOINTS, q):
                 self.data.actuator(joint.removesuffix("_joint")).ctrl[0] = value
             for _ in range(4):
                 self._step(gripper)
+                if stop is not None and stop(self):
+                    return True
         for _ in range(int(0.30 / self.model.opt.timestep)):
             self._step(gripper)
+            if stop is not None and stop(self):     # the arm lags its command, so keep watching while it settles
+                return True
+        return False
+
+    def approach_until(self, waypoints, gripper=GRIPPER_OPEN, stop=None, phase="approach"):
+        """Waypoints + a stop criterion -> a trajectory, stopping early when `stop(env)` holds.
+
+        The pick-and-place path does not use this: its phase durations are what
+        `manifest.json -> phase_frames` records, and a contact-triggered early stop would
+        desynchronise the compiled plan the verifier scores from the episode that runs.
+        It is here for skills that servo to a condition rather than to a pose.
+        """
+        q = np.array([self.data.joint(j).qpos[0] for j in scene.ARM_JOINTS])
+        for point in np.atleast_2d(np.asarray(waypoints, dtype=float)):
+            self._begin(phase, point)
+            q = self._ik(point, q)
+            if self._move(q, gripper, stop):
+                return True
+        return False
+
+    def pinch_below(self, height):
+        """A stop criterion: the gripper's pinch point has descended past `height`."""
+        return lambda env: float(env.data.site("2f85/pinch").xpos[2]) <= height
 
     def _settle(self, gripper, seconds=0.55):
         for _ in range(int(seconds / self.model.opt.timestep)):
@@ -187,10 +259,26 @@ class TabletopEnv:
         if skill not in SKILLS:
             raise ValueError(f"unknown skill {skill!r}; expected {SKILLS}")
         params = dict(params or {})
+        self.track_task("red_block", "green_pad")
         self._idle(prelude_frames)
         before = self.state()
         plan = pick_place_trace(before["block_pos"], params.get("target_xy", before["target_pos"]),
                                 params.get("grasp_offset_xy", (0.0, 0.0)))
+        return self._execute(plan, before, skill, params, frames_total)
+
+    def run_trace(self, trace, frames_total=None, prelude_frames=PRELUDE_FRAMES, skill="trace", params=None,
+                  block="red_block", destination="green_pad"):
+        """Execute an arbitrary waypoint program, the same one `compile_plan` would compile.
+
+        `frames_total=None` lets a free-form trace run as long as it needs; passing
+        `FRAMES_TOTAL` keeps the episode on the dataset's frame grid so the verifier's
+        compiled rollout and the executed episode describe the same 48 frames.
+        """
+        self.track_task(block, destination)
+        self._idle(prelude_frames)
+        return self._execute(list(trace), self.state(), skill, dict(params or {}), frames_total)
+
+    def _execute(self, plan, before, skill, params, frames_total):
         q = np.array([self.data.joint(j).qpos[0] for j in scene.ARM_JOINTS])
         trace = []
         for entry in plan:
@@ -200,15 +288,26 @@ class TabletopEnv:
                 self._settle(GRIPPER_CLOSED)
             elif phase == "open":
                 self._settle(GRIPPER_OPEN, 0.35)
+            elif phase == "idle":
+                self._settle(self.data.actuator(scene.GRIPPER_ACTUATOR).ctrl[0], 0.35)
             else:
                 q = self._ik(point, q)
                 self._move(q, GRIPPER_OPEN if phase in OPEN_PHASES else GRIPPER_CLOSED)
             self._end(phase, start, trace, point=point, value=entry.get("value"))
-        if len(self._frames) > frames_total:
-            raise RuntimeError(f"execution needed {len(self._frames)} frames, over the {frames_total}-frame grid")
-        self._idle(frames_total)
+        if frames_total is not None:
+            if len(self._frames) > frames_total:
+                raise RuntimeError(f"execution needed {len(self._frames)} frames, over the {frames_total}-frame grid")
+            self._idle(frames_total)
         after = self.state()
-        success = self._max_lift > LIFT_THRESHOLD and after["target_distance"] <= TARGET_RADIUS
+        radius = TARGET_RADIUS if self._destination == "green_pad" else scene.BLOCK_HALF * 1.5
+        stacked = (self._destination == "green_pad" or
+                   after["block_pos"][2] >= after["target_z"] + scene.BLOCK_HALF * 1.5)
+        success = self._max_lift > LIFT_THRESHOLD and after["target_distance"] <= radius and stacked
         failure = None if success else ("missed" if self._max_lift <= LIFT_THRESHOLD else "target_miss")
         return Episode(skill, params, trace, before, after, success, failure, np.stack(self._frames),
                        list(self._frame_times), {key: list(value) for key, value in self._tracks.items()})
+
+    def observation_frames(self, count=WINDOW_FRAMES):
+        """Render `count` frames of the untouched scene: the verifier's observation window."""
+        self._idle(count)
+        return np.stack(self._frames[:count])
