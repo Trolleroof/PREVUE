@@ -551,6 +551,9 @@ def bootstrap_ci(values: list[float], resamples: int = 2000, seed: int = 0,
 
 def aggregate(artifact: dict, prefix: int | None = None) -> dict:
     """Per-selector means and paired differences, refusing anything that is not comparable."""
+    problems = check_run(artifact)
+    if problems:
+        raise NotComparable(f"invalid benchmark artifact: {problems[0]}")
     metadata = artifact["metadata"]
     scenes = [scene for scene in artifact["scenes"]
               if prefix is None or scene["prefix"] == prefix]

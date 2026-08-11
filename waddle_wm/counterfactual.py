@@ -166,7 +166,9 @@ def preflight(scene_obj: Scene, pool: dict, probes: int, timeout: float) -> dict
     observation_id = scene_obj.observe().observation_id
 
     programs = []
-    for candidate in pool["candidates"][:probes]:
+    for candidate in pool["candidates"]:
+        if len(programs) >= probes:
+            break
         program = prog.validate_program(candidate["program"])
         if program.aborts is None:          # a declining candidate executes nothing to compare
             programs.append((candidate["candidate_id"], program))
@@ -191,7 +193,7 @@ def preflight(scene_obj: Scene, pool: dict, probes: int, timeout: float) -> dict
             "restores_to_same_bytes": restored, "observation_reproduced": reproduced,
             "order_probes": len(programs), "order_tolerance_mm": ORDER_TOLERANCE_MM,
             "order_mismatches": mismatches,
-            "ok": restored and reproduced and not mismatches}
+            "ok": restored and reproduced and bool(programs) and not mismatches}
 
 
 # --------------------------------------------------------------------------- selectors
@@ -395,6 +397,8 @@ def check_execution(artifact: dict, views: dict | None = None) -> list[str]:
     for scenario_id, checks in (artifact.get("preflight") or {}).items():
         if not checks.get("ok"):
             problems.append(f"{scenario_id}: preflight did not pass; outcomes are not comparable")
+        if int(checks.get("order_probes") or 0) < 1:
+            problems.append(f"{scenario_id}: preflight did not execute an order probe")
 
     # The fairness claims are about the complete execution set, not about the prefix slices
     # #24 reports from: one restored snapshot, one record per candidate, and an execution
@@ -468,6 +472,18 @@ def _keys_in(node) -> list[str]:
     return []
 
 
+def pool_coverage(artifact: dict, pools: list[dict]) -> dict[str, bool]:
+    """Whether the complete unperturbed pool, not merely its widest prefix, held a success."""
+    coverage = {}
+    for pool in pools:
+        cells = (artifact.get("execution") or {}).get(scenario_id_of(pool), [])
+        unperturbed = next((cell for cell in cells if cell.get("physics_seed") == 0), None)
+        if unperturbed is not None:
+            coverage[pool["pool_id"]] = any(outcome.get("success")
+                                             for outcome in unperturbed["outcomes"].values())
+    return coverage
+
+
 # --------------------------------------------------------------------------- cli
 
 
@@ -525,6 +541,8 @@ def main():
     if git_dirty() and not args.allow_dirty:
         raise SystemExit("refusing to execute from a dirty tracked worktree; commit the locked "
                          "code or pass --allow-dirty for an explicitly exploratory run")
+    if args.preflight_probes < 1:
+        raise SystemExit("--preflight-probes must be at least 1")
 
     seeds = parse_seeds(args.seeds) if args.seeds else None
     selections = json.loads(args.selections.read_text()) if args.selections else None
@@ -545,20 +563,14 @@ def main():
     path.write_text(json.dumps(artifact, indent=2, default=float) + "\n")
     path.with_name(f"{path.stem}-views.json").write_text(json.dumps(views, indent=2, default=float) + "\n")
 
-    # Generation coverage belongs to the pool, so it goes back where #17 reserved room for it.
-    # Physics seed 0 on the widest prefix is the canonical scene; the perturbations are a
-    # robustness slice, not a restatement of what Claude proposed.
-    coverage = {}
-    for scene_record in artifact["scenes"]:
-        if scene_record["physics_seed"] != 0:
-            continue
-        pool_id, prefix = scene_record["pool_id"], scene_record["prefix"]
-        if prefix >= coverage.get(pool_id, (0, None))[0]:
-            coverage[pool_id] = (prefix, scene_record["pool_has_success"])
-    for pool_path, pool in found:
-        if pool["pool_id"] in coverage:
-            pool["pool_has_success"] = coverage[pool["pool_id"]][1]
-            pool_path.write_text(json.dumps(pool, indent=2, default=float))
+    # Generation coverage belongs to the complete pool, so it goes back where #17 reserved
+    # room for it. Physics seed 0 is canonical; perturbations are a robustness slice.
+    if not problems:
+        coverage = pool_coverage(artifact, pools)
+        for pool_path, pool in found:
+            if pool["pool_id"] in coverage:
+                pool["pool_has_success"] = coverage[pool["pool_id"]]
+                pool_path.write_text(json.dumps(pool, indent=2, default=float))
 
     for scenario_id, cells in artifact["execution"].items():
         head = cells[0]
