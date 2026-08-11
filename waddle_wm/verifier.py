@@ -128,7 +128,8 @@ class Verifier:
                                          dtype=torch.float32, device=self.device).unsqueeze(0)
                 source = names.index(object_name)
                 source_xyz = raw_state[0, source * 3:source * 3 + 3]
-                destination_xyz = (torch.tensor(scene.TARGET_POS, device=self.device) if destination == "green_pad" else
+                destination_xyz = (torch.tensor(scene_positions.get("green_pad", scene.TARGET_POS),
+                                                dtype=torch.float32, device=self.device) if destination == "green_pad" else
                                    raw_state[0, names.index(destination) * 3:names.index(destination) * 3 + 3])
                 grasp = torch.tensor(next(e["target"] for e in trace if e["phase"] == "descend"), device=self.device)
                 place = torch.tensor(next(e["target"] for e in trace if e["phase"] == "place"), device=self.device)
