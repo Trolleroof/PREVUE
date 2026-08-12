@@ -152,7 +152,10 @@ results from the locked run.
 
 ## Selector integration
 
-The #23 counterfactual sweep now fills the outcome records and `aggregate` reports them.
-Issue #18 still owns the three real selector implementations and their measured scores,
-uncertainty, cost, and end-to-end latency; precomputed rankings are only execution-pipeline
-smoke inputs and are not locked selector evidence.
+The #23 counterfactual sweep fills the outcome records and `aggregate` reports them. The three
+real selectors — Claude self-rank, the estimated-state heuristic, and the visual world model —
+live in [`waddle_wm/selectors.py`](../waddle_wm/selectors.py) and are run over these artifacts
+by [`waddle_wm/benchmark_selectors.py`](../waddle_wm/benchmark_selectors.py); see
+[`selector_benchmark.md`](selector_benchmark.md) for the information boundary, the read-only
+ranking contract, and the slice reporting. The precomputed `first` and `random` rankings stay
+in the artifact as reference floors and are not selector evidence.
