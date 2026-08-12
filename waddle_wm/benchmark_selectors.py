@@ -1,9 +1,9 @@
-"""#18: run all three selectors over one locked pool set and report what the choice was worth.
+"""Run the matched learned selectors over one locked pool set and report what vision was worth.
 
 One command. It reads the frozen pools from #17 and the counterfactual outcomes from #23,
-runs Claude self-rank, the estimated-state heuristic, and the visual world model over the
-*same* nested prefixes, writes an artifact `benchmark_record.check_run` validates, and reports
-paired results by pool size and by failure slice.
+runs the visual world model and its matched no-vision ablation over the *same* nested prefixes,
+writes an artifact `benchmark_record.check_run` validates, and reports paired results by pool
+size and by failure slice. Claude self-rank remains an optional non-causal reference.
 
     uv run python -m waddle_wm.benchmark_selectors \
         --counterfactual data/counterfactual/test-natural.json --pools data/pools \
@@ -23,7 +23,7 @@ What the report says, and what it refuses to say:
   reported separately, because a selector that only catches malformed programs has not shown
   that vision helps;
 * the causal verdict compares the visual arm with the same learned arm after zeroing only its
-  visual context. The hand-coded estimated-state heuristic remains a secondary reference.
+  visual context.
 """
 from __future__ import annotations
 
@@ -109,7 +109,6 @@ def build_selectors(args) -> list[sel.Selector]:
     if not args.no_claude:
         arms.append(sel.ClaudeSelfRank(model=args.model, timeout=args.timeout,
                                        cache=args.cache / "claude_self_rank"))
-    arms.append(sel.load_heuristic(args.weights))
     if not args.no_visual:
         arms.extend([
             sel.MatchedNoVision(args.checkpoint, args.encoder,
@@ -377,7 +376,6 @@ def main():
     ap.add_argument("--out", type=Path, default=Path("results/programs"))
     ap.add_argument("--checkpoint", type=Path, default=Path("models/multiblock_world_model.pt"))
     ap.add_argument("--encoder", type=Path, default=Path("models/vjepa2-vitl-fpc64-256"))
-    ap.add_argument("--weights", type=Path, help="heuristic weights fitted on train/calibration")
     ap.add_argument("--model", default=sel.MODEL, help="model behind the Claude self-rank arm")
     ap.add_argument("--timeout", type=float, default=180.0)
     ap.add_argument("--cache", type=Path, default=Path("data/selector_cache"),

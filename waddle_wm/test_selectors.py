@@ -333,7 +333,7 @@ class Constant(sel.Selector):
 
 
 def check_benchmark_end_to_end():
-    """Three arms over two slices: the artifact validates and the report is paired by scene."""
+    """Matched arms over two slices: the artifact validates and the report is paired by scene."""
     # On the plan-visible scene the planted faults fail; on the scene-dependent one the grasp
     # geometry is fine but the object is rotated, so only the arm that reads the frame is right.
     plan_visible = lambda name: name not in prog.FAULTS
@@ -344,8 +344,7 @@ def check_benchmark_end_to_end():
     artifact, views, pools = scored_artifact(
         {name: plan_visible if name == "plan" else scene_dependent for name in scenarios}, scenarios)
 
-    arms = [sel.EstimatedStateHeuristic(),
-            Constant("matched_no_vision", sel.MatchedNoVision.information_sources,
+    arms = [Constant("matched_no_vision", sel.MatchedNoVision.information_sources,
                      lambda name: 0.2),
             Constant("visual_world_model", sel.VisualWorldModel.information_sources,
                      lambda name: 0.9 if scene_dependent(name) else 0.3, needs_frames=True),
@@ -366,8 +365,7 @@ def check_benchmark_end_to_end():
     problems = br.check_run(scored)
     assert not problems, problems
     names = sorted(scored["metadata"]["selectors"])
-    assert names == ["claude_self_rank", "estimated_state", "matched_no_vision",
-                     "visual_world_model"], names
+    assert names == ["claude_self_rank", "matched_no_vision", "visual_world_model"], names
 
     report = bs.report(scored, pools, [arm.name for arm in arms])
     prefixes = report["overall"]["prefixes"]
@@ -395,8 +393,7 @@ def check_no_unsupported_claim():
     same = lambda name: name not in prog.FAULTS
     artifact, views, pools = scored_artifact(
         {"scene": same}, {"scene": ("block_orientation", "visible_omitted_by_coordinates")})
-    arms = [sel.EstimatedStateHeuristic(),
-            Constant("matched_no_vision", sel.MatchedNoVision.information_sources,
+    arms = [Constant("matched_no_vision", sel.MatchedNoVision.information_sources,
                      lambda name: 0.9 if name == "correct" else 0.1),
             Constant("visual_world_model", sel.VisualWorldModel.information_sources,
                      lambda name: 0.1 if name == "correct" else 0.9, needs_frames=True)]
