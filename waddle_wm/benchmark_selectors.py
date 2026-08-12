@@ -285,11 +285,16 @@ def plot(report_data: dict, path: Path) -> None:
     prefixes = report_data["overall"]["prefixes"]
     sizes = sorted(int(key) for key in prefixes)
     figure, axes = plt.subplots(figsize=(7.2, 4.6))
-    for name in report_data["all_selectors"]:
+    # Selectors that agree on every prefix draw the same line, so the markers have to differ:
+    # an arm hidden under another arm's curve would read as an arm that was never run.
+    markers, widths = ("o", "s", "^", "D", "v", "P"), (3.4, 2.6, 1.8, 1.2)
+    for position, name in enumerate(report_data["all_selectors"]):
         values = [prefixes[str(size)]["selectors"][name]["selected_success"] for size in sizes]
         compared = name in report_data["selectors"]
-        axes.plot(sizes, values, marker="o" if compared else ".",
-                  linestyle="-" if compared else ":", alpha=1.0 if compared else 0.6,
+        axes.plot(sizes, values, marker=markers[position % len(markers)],
+                  markersize=9 - 1.4 * position, fillstyle="none" if position % 2 else "full",
+                  linewidth=widths[position % len(widths)],
+                  linestyle="-" if compared else ":", alpha=1.0 if compared else 0.7,
                   label=name if compared else f"{name} (reference)")
     oracle = [prefixes[str(size)]["pool_has_success"] for size in sizes]
     axes.plot(sizes, oracle, marker="*", linestyle="--", color="black",
