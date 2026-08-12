@@ -333,8 +333,11 @@ def check_pool_contract():
         def reachable(trace):
             return None
 
-    stress, rejected = pools.stress_pool(OfflineScene(), "red block", "green pad", 64)
-    assert not rejected and len(stress) == len({candidate.dedup_key for candidate in stress}) == 64
+    stress64, _ = pools.stress_pool(OfflineScene(), "red block", "green pad", 64)
+    stress, rejected = pools.stress_pool(OfflineScene(), "red block", "green pad", 128)
+    assert not rejected and len(stress) == len({candidate.dedup_key for candidate in stress}) == 128
+    assert [candidate.candidate_id for candidate in stress[:64]] == \
+           [candidate.candidate_id for candidate in stress64]
 
     calls = []
     original = pools.one_sample
