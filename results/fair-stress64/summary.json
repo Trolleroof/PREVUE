@@ -1,0 +1,42 @@
+{
+  "experiment": "unique-candidate matched visual scaling stress test",
+  "evaluated_split": "test",
+  "candidate_pool": {
+    "pools": 20,
+    "unique_candidates_per_pool": 64,
+    "executed_candidates": 1280,
+    "excluded_scenes": 0,
+    "prefixes": [1, 4, 16, 32, 64],
+    "balanced_prefix_coverage": true,
+    "grid": "grasp x offset by wrist yaw, shuffled independently by locked scene seed"
+  },
+  "causal_comparison": "visual_world_model minus matched_no_vision; same checkpoint and candidate inputs, visual latent is the only ablation",
+  "selected_success_overall": {
+    "1": {"matched_no_vision": 0.7, "visual_world_model": 0.7},
+    "4": {"matched_no_vision": 0.6, "visual_world_model": 0.6},
+    "16": {"matched_no_vision": 0.25, "visual_world_model": 0.25},
+    "32": {"matched_no_vision": 0.3, "visual_world_model": 0.3},
+    "64": {"matched_no_vision": 0.2, "visual_world_model": 0.4}
+  },
+  "selected_success_intended_slice": {
+    "1": {"matched_no_vision": 0.8, "visual_world_model": 0.8},
+    "4": {"matched_no_vision": 0.7, "visual_world_model": 0.7},
+    "16": {"matched_no_vision": 0.3, "visual_world_model": 0.3},
+    "32": {"matched_no_vision": 0.3, "visual_world_model": 0.3},
+    "64": {"matched_no_vision": 0.2, "visual_world_model": 0.3}
+  },
+  "intended_slice_visual_minus_matched": {
+    "all_prefixes": {"paired_scenes": 50, "mean_difference": 0.02, "ci95": [0.0, 0.06]},
+    "n64": {"paired_scenes": 10, "mean_difference": 0.1, "ci95": [0.0, 0.3]}
+  },
+  "chosen_candidate_agreement_visual_vs_matched": {
+    "1": "20/20",
+    "4": "19/20",
+    "16": "16/20",
+    "32": "16/20",
+    "64": "12/20"
+  },
+  "n64_noncausal_references": {"first": 0.7, "random": 0.6},
+  "verdict": "Larger unique pools make the visual and matched arms diverge, but the predeclared visual-value interval still includes zero. The visual arm also remains below first and random at N=64, so this run does not support a useful visual ranking claim.",
+  "limitation": "This is a geometric stress grid over grasp offset and yaw, not a natural-program diversity benchmark."
+}
