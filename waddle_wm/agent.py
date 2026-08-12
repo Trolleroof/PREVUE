@@ -247,28 +247,10 @@ class SkillAgent:
             verdict = verdict_for_claude(result)
             run.rounds.append(Round(index, kind, plan.summary(), verified=True, verdict=verdict))
             emit("verdict", {"round": index, "verifier": self.verifier_mode, **verdict})
-            if result.approve:
-                run.decision, run.reason = "executed", f"verifier approved at p={result.success_probability:.3f}"
-                break
-            if index == self.repairs:
-                run.decision = "rejected"
-                run.reason = (f"still rejected after {self.repairs} repairs "
-                              f"(p={result.success_probability:.3f}, {result.likely_failure})")
-                emit("rejected", {"reason": run.reason})
-                break
-            try:
-                plan = self.planner.repair(instruction, observation, plan, verdict)
-                step = self.ground_step(plan.steps[0]) if plan.steps else None
-            except (PlanError, RuntimeError) as error:
-                run.decision, run.reason = "error", str(error)
-                emit("error", {"reason": run.reason})
-                break
-
-        if run.decision == "executed":
-            emit("executing", {"object": step.object, "destination": step.destination, "trace": step.summary()["trace"]})
-            run.execution, frames = self.execute(step)
-            run.execution["frames"] = len(frames)
-            emit("executed", run.execution)
+            # Verifier predictions are advisory; simulator execution is the decision.
+            break
+        if step is not None:
+            run.execution, frames = self.execute_with_feedback(run, instruction, step, emit)
             run.frames = frames
         if run.final_plan is None:
             run.final_plan = plan
@@ -280,54 +262,12 @@ class SkillAgent:
         """Execute a compound instruction one observed, scored, and logged step at a time."""
         executions, clips = [], []
         for index, proposed in enumerate(plan.steps):
-            for attempt in range(self.repairs + 1):
-                step = self.ground_step(proposed)
-                emit("step", {"index": index + 1, "total": len(plan.steps), "repair": attempt,
-                              **step.summary()})
-                result, skip = self.verify_step(step, latent)
-                round_index = index * (self.repairs + 1) + attempt
-                if skip is not None:
-                    run.rounds.append(Round(round_index, "step", step.summary(), verified=False,
-                                            skipped_reason=skip))
-                    emit("unverified", {"round": round_index, "reason": skip})
-                    break
-                verdict = verdict_for_claude(result)
-                run.rounds.append(Round(round_index, "step", step.summary(), verified=True, verdict=verdict))
-                emit("verdict", {"round": round_index, "verifier": self.verifier_mode, **verdict})
-                if result.approve:
-                    break
-                if attempt == self.repairs:
-                    run.decision = "rejected"
-                    run.reason = (f"step {index + 1} still rejected after {self.repairs} repairs "
-                                  f"at p={result.success_probability:.3f}: {result.likely_failure}")
-                    run.final_plan = Plan(plan.intent, "execute", [step], plan.note)
-                    emit("rejected", {"reason": run.reason})
-                    break
-                detections = self.perceive()
-                observation = describe_observation(detections, landing_pad(self.env.model),
-                                                   self.env.state()["gripper_pos"])
-                try:
-                    repaired = self.planner.repair(
-                        f"Step {index + 1} of the compound task: move the {step.object} onto the {step.destination}",
-                        observation, Plan(plan.intent, "execute", [step], plan.note), verdict)
-                    if len(repaired.steps) != 1 or repaired.steps[0].object != step.object or repaired.steps[0].destination != step.destination:
-                        raise PlanError("a compound-step repair must keep the same object and destination")
-                    proposed = repaired.steps[0]
-                except (PlanError, RuntimeError) as error:
-                    run.decision, run.reason = "error", str(error)
-                    emit("error", {"reason": run.reason})
-                    break
-
-            if run.decision in ("rejected", "error"):
-                break
-
-            emit("executing", {"step": index + 1, "object": step.object,
-                                "destination": step.destination, "trace": step.summary()["trace"]})
-            execution, frames = self.execute(step)
+            step = self.ground_step(proposed)
+            execution, frames = self.execute_with_feedback(
+                run, f"Step {index + 1} of the compound task: move the {step.object} onto the {step.destination}", step, emit)
             executions.append(execution); clips.append(frames)
-            emit("executed", execution)
             if execution.get("success") is False:
-                run.decision, run.reason = "rejected", f"step {index + 1} failed in MuJoCo: {execution['failure_mode']}"
+                run.decision, run.reason = "rejected", f"step {index + 1} failed after feedback budget: {execution['failure_mode']}"
                 break
             if index + 1 < len(plan.steps):
                 _, latent = self.observe_current()
@@ -341,6 +281,51 @@ class SkillAgent:
         run.planner_calls = list(self.planner.calls)
         run.seconds = round(time.time() - started, 2)
         return run
+
+    def execute_with_feedback(self, run, instruction, step, emit):
+        """Execute every proposal, then repair from the actual failed scene."""
+        clips, attempts = [], []
+        for attempt in range(self.repairs + 1):
+            step = self.ground_step(step)
+            emit("executing", {"repair": attempt, **step.summary()})
+            execution, frames = self.execute(step)
+            clips.append(frames)
+            execution["repair"] = attempt
+            attempts.append(dict(execution))
+            emit("executed", execution)
+            if execution.get("success") is not False:
+                execution["attempts"] = attempts
+                execution["failed_executions"] = sum(e.get("success") is False for e in attempts)
+                execution["first_try_success"] = attempt == 0
+                run.decision, run.reason = "executed", "completed with execution feedback"
+                return execution, np.concatenate(clips)
+            if attempt == self.repairs:
+                execution["attempts"] = attempts
+                execution["failed_executions"] = sum(e.get("success") is False for e in attempts)
+                execution["first_try_success"] = False
+                return execution, np.concatenate(clips)
+            self.observe_current()
+            detections = self.perceive()
+            observation = describe_observation(detections, landing_pad(self.env.model), self.env.state()["gripper_pos"])
+            verdict = {"actual_failure": execution.get("failure_mode"),
+                       "current_detections": [d.summary() for d in detections],
+                       "final_block_xy": execution.get("final_block_xy")}
+            emit("repair", {"attempt": attempt + 1, **verdict})
+            try:
+                repaired = self.planner.repair(
+                    instruction, observation,
+                    Plan(instruction, "execute", [step], "repair after actual MuJoCo failure"), verdict)
+                if len(repaired.steps) != 1 or repaired.steps[0].object != step.object or repaired.steps[0].destination != step.destination:
+                    raise PlanError("a repair must keep the same object and destination")
+                step = repaired.steps[0]
+                run.rounds.append(Round(attempt + 1, "repair", step.summary(), verified=False,
+                                        skipped_reason="repair from actual MuJoCo failure"))
+            except (PlanError, RuntimeError) as error:
+                execution["repair_error"] = str(error)
+                execution["attempts"] = attempts
+                execution["failed_executions"] = sum(e.get("success") is False for e in attempts)
+                execution["first_try_success"] = False
+                return execution, np.concatenate(clips)
 
     def replay(self, plan: Plan, block_xy=None):
         """Run a plan on the same scene with no verifier veto — how a rejection really ends."""
