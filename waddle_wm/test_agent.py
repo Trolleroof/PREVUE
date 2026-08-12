@@ -68,13 +68,22 @@ def check_contract():
 
 
 def check_live(episodes: int, checkpoint: Path, seed: int):
-    """Score randomly-aimed plans on freshly rendered scenes, then actually run them."""
+    """Score randomly-aimed plans on freshly rendered scenes, then actually run them.
+
+    The multi-block checkpoint needs the scene's coordinates as well as the window, and it
+    gets them the way the agent does — from the camera, not from MuJoCo. That is the
+    operating point worth measuring: perception noise in those coordinates is exactly what
+    the normalisation guard in `verifier.standardise` exists to survive.
+    """
+    from waddle_wm.perception import QUERIES, SceneCamera
     from waddle_wm.sim.env import TabletopEnv, pick_place_trace
     from waddle_wm.verifier import Verifier
 
     verifier = Verifier(checkpoint)
     manifest = verifier.manifest
+    multiblock = verifier.model_type == "multiblock_state"
     env = TabletopEnv(seed=seed, block_spawn_low=manifest["block_spawn_low"], block_spawn_high=manifest["block_spawn_high"])
+    camera = SceneCamera(env.model, env.data) if multiblock else None
     rng = np.random.default_rng(seed)
     rows, agree = [], 0
     for index in range(episodes):
@@ -85,7 +94,15 @@ def check_live(episodes: int, checkpoint: Path, seed: int):
 
         env.reset(block)
         latent = verifier.encode_live(env.observation_frames(manifest["window_frames"]))
-        result = verifier.verify(latent, pick_place_trace(block, target, offset))
+        # float32 on the way in: a trace built with numpy carries float64, which MPS refuses.
+        trace = [{**entry, **({"target": [np.float32(v) for v in entry["target"]]} if "target" in entry else {})}
+                 for entry in pick_place_trace(block, target, offset)]
+        if multiblock:
+            positions = {d.label.replace(" ", "_"): d.point_base for d in camera.detect_all(QUERIES)}
+            positions["green_pad"] = [0.5, 0.3, 0.0]
+            result = verifier.verify(latent, trace, "red_block", "green_pad", positions)
+        else:
+            result = verifier.verify(latent, trace)
         env.reset(block)
         episode = env.run_skill("pick_place", {"target_xy": target.tolist(), "grasp_offset_xy": offset})
 
@@ -101,6 +118,8 @@ def check_live(episodes: int, checkpoint: Path, seed: int):
           f"(of {sum(1 for _, success, _ in rows if not success)} real failures)")
     print(f"false rejects: {sum(1 for approve, success, _ in rows if success and not approve)} "
           f"(of {sum(1 for _, success, _ in rows if success)} real successes)")
+    if camera is not None:
+        camera.close()
 
 
 def check_perception(scenes: int, seed: int):
