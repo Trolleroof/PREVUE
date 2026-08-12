@@ -16,13 +16,32 @@ import math
 from copy import deepcopy
 from types import SimpleNamespace
 
-from waddle_wm import program as prog
+import numpy as np
+
+from waddle_wm import plan_encoding, program as prog
 from waddle_wm.program import ProgramError, SceneObservation
 
 SCENE = SceneObservation(
     {"red block": [0.3812, -0.1804, 0.0180], "blue block": [0.5031, -0.1612, 0.0180],
      "yellow block": [0.4507, 0.0503, 0.0180], "green pad": [0.5000, 0.3000, 0.0],
      "gripper": [0.4, 0.0, 0.3]}, pad_radius=0.105, seed=0)
+
+
+def check_plan_encoding():
+    trace = [{"phase": "approach", "yaw": 0.1},
+             {"phase": "descend", "yaw": 0.2},
+             {"phase": "descend", "yaw": 0.7},
+             {"phase": "close"},
+             {"phase": "descend", "yaw": 1.0}]
+    assert plan_encoding.trace_yaws(trace) == (0.7, 0.1)
+
+    plan = np.zeros((4, len(plan_encoding.fields(2))))
+    plan[:, 7:9] = [[0, 1], [1, 0], [0, -1], [-1, 0]]
+    grasp_only = plan_encoding.yaw_informative(plan, np.ones(4, dtype=bool), 2)
+    assert plan_encoding.orientation_blind(grasp_only), grasp_only
+    plan[:, 10:12] = plan[:, 7:9]
+    both = plan_encoding.yaw_informative(plan, np.ones(4, dtype=bool), 2)
+    assert not plan_encoding.orientation_blind(both), both
 
 
 def check_schema():
@@ -423,6 +442,7 @@ def main():
     ap.add_argument("--model", default="claude-haiku-4-5-20251001")
     args = ap.parse_args()
 
+    check_plan_encoding()
     check_schema()
     check_grounding()
     check_runtime_policy()

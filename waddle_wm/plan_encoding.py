@@ -83,14 +83,18 @@ def plan_vector(grasp_xyz, place_xyz, source_xyz, destination_xyz,
 
 
 def trace_yaws(trace, grasp_phase: str = "descend", approach_phase: str = "approach"):
-    """(grasp yaw, approach yaw) read off a skill trace, in radians or None where free."""
-    def heading(phase):
-        for entry in trace:
-            if entry.get("phase") == phase:
-                yaw = entry.get("yaw")
-                return None if yaw is None else float(yaw)
-        return None
-    return heading(grasp_phase), heading(approach_phase)
+    """(grasp yaw, approach yaw) from the last matching waypoints before the close."""
+    grasp = approach = None
+    for entry in trace:
+        phase = entry.get("phase")
+        yaw = entry.get("yaw")
+        if phase == grasp_phase:
+            grasp = None if yaw is None else float(yaw)
+        elif phase == approach_phase:
+            approach = None if yaw is None else float(yaw)
+        if phase == "close":
+            break
+    return grasp, approach
 
 
 # --------------------------------------------------------------------------- what a checkpoint says
@@ -124,8 +128,12 @@ def yaw_informative(plan: np.ndarray, train_mask, version: int = PLAN_ENCODING_V
     dims = [index for index, name in enumerate(names) if name in YAW_FIELDS]
     values = np.asarray(plan, dtype=np.float64)[np.asarray(train_mask, dtype=bool)]
     stds = [float(values[:, index].std()) for index in dims] if len(values) else [0.0] * len(dims)
+    by_name = {names[index]: std for index, std in zip(dims, stds)}
+    groups = {heading: any(by_name.get(f"{heading}_yaw_{term}", 0.0) > DEGENERATE_STD
+                           for term in ("sin2", "cos2"))
+              for heading in ("grasp", "approach")}
     return {"version": version, "fields": list(names), "yaw_dims": dims, "yaw_std": stds,
-            "yaw_informative": bool(dims) and any(std > DEGENERATE_STD for std in stds)}
+            "yaw_informative": bool(dims) and all(groups.values())}
 
 
 def orientation_blind(encoding: dict) -> bool:
@@ -137,7 +145,7 @@ def blindness_reason(encoding: dict) -> str:
     if int(encoding.get("version", 1)) < 2:
         return (f"its plan encoding is version {encoding.get('version', 1)} "
                 f"({len(encoding.get('fields') or fields(1))} fields, no wrist heading)")
-    return ("its plan encoding is version 2 but every yaw dimension was constant while it was "
+    return ("its plan encoding is version 2 but at least one heading had no angular variation while it was "
             f"fitted (std {['%.2g' % s for s in encoding.get('yaw_std') or []]}), so the "
             f"normalisation collapses them")
 

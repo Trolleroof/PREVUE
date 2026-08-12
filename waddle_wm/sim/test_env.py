@@ -3,10 +3,11 @@
     uv run python -m waddle_wm.sim.test_env
 """
 import math
+import numpy as np
 
 from waddle_wm.actions import PHASE_ID
 from waddle_wm.sim.env import FRAMES_TOTAL, PRELUDE_FRAMES, TRACK_KEYS, TabletopEnv, pick_place_trace
-from waddle_wm.sim.generate_dataset import YAW_PHASES, orient_source
+from waddle_wm.sim.generate_dataset import ORIENTED_SIZE, YAW_PHASES, orient_source
 
 
 def check_grid(episode):
@@ -45,7 +46,17 @@ def main():
     env.reset(env.sample_scene())
     assert not env.approach_until([[0.4, -0.2, 0.24]]), "no criterion should mean no early stop"
 
+    env = TabletopEnv(seed=5, block_sizes={"red_block": ORIENTED_SIZE})
     env.reset(block_xy=(0.4, -0.18)); orient_source(env, "red_block", 35.0)
+    geom, body = env.model.geom("red_block_geom"), env.model.body("red_block")
+    size = np.asarray(ORIENTED_SIZE)
+    expected_inertia = env.model.body_mass[body.id] / 3 * np.array([
+        size[1] ** 2 + size[2] ** 2,
+        size[0] ** 2 + size[2] ** 2,
+        size[0] ** 2 + size[1] ** 2,
+    ])
+    assert np.isclose(env.model.geom_rbound[geom.id], np.linalg.norm(size))
+    assert np.allclose(env.model.body_inertia[body.id], expected_inertia)
     oriented_trace = pick_place_trace(env.state()["block_pos"], env.state()["target_pos"])
     for entry in oriented_trace:
         if entry["phase"] in YAW_PHASES:

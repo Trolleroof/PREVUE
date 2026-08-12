@@ -225,7 +225,10 @@ def check_self_rank_scoring():
     labelled = arm._labels(context, prefix)
     reply = {"ranking": [label for label, _ in labelled][:3],
              "scores": {labelled[0][0]: 0.9, labelled[1][0]: 0.2}}
-    arm._ask = lambda prompt, key: {"raw": json.dumps(reply), "error": None, "call": {}}
+    def ask(prompt, key):
+        arm.calls.append({"cost_usd": 0.25})
+        return {"raw": json.dumps(reply), "error": None, "call": arm.calls[-1]}
+    arm._ask = ask
 
     block = sel.rank(arm, context, prefix)
     rows = {row["candidate_id"]: row for row in block["scores"]}
@@ -233,6 +236,9 @@ def check_self_rank_scoring():
     unranked = rows[labelled[3][1]["candidate_id"]]
     assert unranked["score"] == 0.0 and unranked["probability"] is None, unranked
     assert block["chosen"]["candidate_id"] == labelled[0][1]["candidate_id"], block["chosen"]
+    assert block["cost_usd"] == 0.25, block["cost_usd"]
+    again = sel.rank(arm, context, prefix)
+    assert again["cost_usd"] == 0.25 and arm.cost_usd == 0.5, (again["cost_usd"], arm.cost_usd)
     print("self-rank: an unmentioned candidate scores the floor rather than being dropped")
 
 

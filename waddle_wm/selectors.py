@@ -158,6 +158,7 @@ def rank(selector: Selector, context: ScenarioContext, prefix: list[str]) -> dic
 
     guarded = ScenarioContext(deepcopy(context.view), context.frames, context.latent)
     before = fingerprint(guarded.view)
+    cost_before = selector.cost_usd
     observation_ready_at = time.time()
     prepared_at = observation_ready_at
     selector.prepare(guarded)
@@ -183,7 +184,7 @@ def rank(selector: Selector, context: ScenarioContext, prefix: list[str]) -> dic
                     {"prepare": prepared_at - observation_ready_at, "score": chosen_at - prepared_at})
     return SelectorRun(selector.name, selector.config_hash, list(selector.information_sources),
                        rows, selector_choice(rows, list(prefix)), timing.as_json(),
-                       selector.cost_usd).as_json()
+                       selector.cost_usd - cost_before).as_json()
 
 
 # --------------------------------------------------------------------------- shared geometry
