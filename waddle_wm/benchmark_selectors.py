@@ -37,7 +37,7 @@ from waddle_wm import selectors as sel
 from waddle_wm.benchmark_record import PRIMARY_OUTCOMES, NotComparable, aggregate, bootstrap_ci
 from waddle_wm.counterfactual import check_execution, scenario_id_of, selector_view
 from waddle_wm.perception_scenes import SLICES
-from waddle_wm.pools import DEFAULT_ROOT as POOL_ROOT, Scene, git_dirty
+from waddle_wm.pools import DEFAULT_ROOT as POOL_ROOT, PREFIXES, Scene, git_dirty
 
 # The slice the visual arm exists to win: state the camera can see and a centre coordinate
 # cannot carry. `latent_physics` is declared by #25 as not inferable from one initial frame,
@@ -186,6 +186,36 @@ def slice_of(pool: dict) -> tuple[str, str]:
     return suite.get("outcome_slice", "unsliced"), suite.get("observability", "unsliced")
 
 
+def prefix_coverage(artifact: dict, pools: dict) -> dict:
+    """Which pools each prefix actually holds, and which fell short of it.
+
+    A pool that ran out of accepted candidates before the requested size simply has no
+    scene at the wider prefixes, so the `N = 32` and `N = 64` rows can quietly be averages
+    over fewer scenes than the narrow ones. On a natural Claude pool that is the normal
+    case, not an error — generation is sampled, not scripted — but a curve drawn over a
+    shrinking population is not a curve about pool size. Every shortfall is named here
+    with the count that caused it, and `balanced` says whether the comparison across
+    prefixes was made on one fixed set of scenes.
+    """
+    candidates = {pool_id: len(pool["candidates"]) for pool_id, pool in pools.items()}
+    ranked = sorted({scene["pool_id"] for scene in artifact["scenes"]})
+    present = {size: set() for size in PREFIXES}
+    for scene in artifact["scenes"]:
+        present.setdefault(scene["prefix"], set()).add(scene["pool_id"])
+
+    coverage = {}
+    for size in sorted(present):
+        short = [{"pool_id": pool_id,
+                  "scenario_id": scenario_id_of(pools[pool_id]),
+                  "candidates": candidates.get(pool_id),
+                  "reason": f"pool holds {candidates.get(pool_id)} candidates, fewer than {size}"}
+                 for pool_id in ranked if pool_id not in present[size]]
+        coverage[str(size)] = {"pools": len(present[size]), "short_of_prefix": short}
+    return {"ranked_pools": len(ranked), "requested_prefixes": list(PREFIXES),
+            "by_prefix": coverage,
+            "balanced": all(pool_ids == set(ranked) for pool_ids in present.values())}
+
+
 def sub_artifact(artifact: dict, keep) -> dict | None:
     scenes = [scene for scene in artifact["scenes"] if keep(scene)]
     if not scenes:
@@ -273,6 +303,7 @@ def report(artifact: dict, pools: dict, arms: list[str]) -> dict:
             "all_selectors": sorted(artifact["metadata"]["selectors"]),
             "primary_outcomes": list(PRIMARY_OUTCOMES),
             "overall": overall, "by_slice": slices, "by_observability": groups,
+            "prefix_coverage": prefix_coverage(artifact, pools),
             "verdict": verdict, "excluded": artifact.get("excluded", [])}
 
 
