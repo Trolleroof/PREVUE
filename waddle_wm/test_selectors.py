@@ -242,6 +242,28 @@ def check_self_rank_scoring():
     print("self-rank: an unmentioned candidate scores the floor rather than being dropped")
 
 
+def check_paired_ranker_contract():
+    import torch
+    from waddle_wm.train_paired_candidate_ranker import fit_split, paired_indices
+
+    labels = torch.tensor([1.0, 0.0, 1.0, 0.0, 0.0])
+    positive, negative = paired_indices(labels, ["a", "a", "a", "b", "b"])
+    assert list(zip(positive.tolist(), negative.tolist())) == [(0, 1), (2, 1)]
+    try:
+        paired_indices(torch.ones(2), ["a", "a"])
+    except ValueError as error:
+        assert "no within-scene" in str(error)
+    else:
+        raise AssertionError("an unpaired fitting set should be refused")
+    assert fit_split({"metadata": {"dataset": {"split": "calibration"}}}) == "calibration"
+    try:
+        fit_split({"metadata": {"dataset": {"split": "test"}}})
+    except ValueError as error:
+        assert "refusing to fit" in str(error)
+    else:
+        raise AssertionError("the paired ranker must never fit on the locked test split")
+
+
 # --------------------------------------------------------------------------- the benchmark
 
 
@@ -472,6 +494,7 @@ def main():
     check_fit_refuses_test()
     check_self_rank_parsing()
     check_self_rank_scoring()
+    check_paired_ranker_contract()
     check_benchmark_end_to_end()
     check_no_unsupported_claim()
     if args.live_visual:
