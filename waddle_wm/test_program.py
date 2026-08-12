@@ -234,7 +234,9 @@ def check_runtime_policy():
     assert len(attempts) == 2 and observations, (attempts, observations)
     target_miss = lambda segments: SimpleNamespace(success=False, failure_mode="target_miss")
     assert len(prog.execute(recovering, SCENE, observe, target_miss)) == 1
-    assert prog.execute(prog.diagnostic_programs()[6][2], SCENE, observe, run_attempt) == []
+    aborting = next(program for name, _, program in prog.diagnostic_programs()
+                    if name == "abort_on_uncertainty")
+    assert prog.execute(aborting, SCENE, observe, run_attempt) == []
     print("runtime policy passed: redetection rebinds live geometry, retry is bounded, abort does not run")
 
 

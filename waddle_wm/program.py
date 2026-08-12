@@ -51,8 +51,9 @@ MAX_OPS = 16
 MAX_REASON = 200
 # The diagnostic suite names both halves, so a failure slice is interpretable: these are the
 # strategies a scene might call for, and these are the bugs a verifier ought to catch.
-STRATEGIES = ("correct", "redetect_regrasp", "orientation_aware_grasp", "alternate_approach",
-              "offset_grasp", "controlled_release", "abort_on_uncertainty")
+STRATEGIES = ("correct", "redetect_regrasp", "orientation_aware_grasp",
+              "orientation_grasp_neg45", "orientation_grasp_pos45", "alternate_approach",
+              "obstacle_aware_route", "offset_grasp", "controlled_release", "abort_on_uncertainty")
 FAULTS = ("stale_coordinates", "bad_grasp", "missing_lift", "early_release", "high_release", "wrong_target")
 
 
@@ -494,7 +495,7 @@ def canonical_program(object_name: str = "red block", destination: str = "green 
 
 def diagnostic_programs(object_name: str = "red block", destination: str = "green pad",
                         stale_shift_mm=(45.0, -30.0)) -> list[tuple[str, str, Program]]:
-    """The diagnostic suite: seven named strategies and six named faults, as (name, kind, program).
+    """The diagnostic suite: named strategies and faults, as (name, kind, program).
 
     Scripted, not sampled, so the same named behaviours appear in every scene and a failure
     slice is interpretable — a verifier that cannot tell `bad_grasp` from `offset_grasp` has
@@ -511,6 +512,12 @@ def diagnostic_programs(object_name: str = "red block", destination: str = "gree
     stale against, so the grasp is aimed at a fixed displacement from the detected centre,
     standing in for coordinates bound before the object last moved.
     """
+    route = canonical_program(object_name, destination).as_json()
+    route["ops"].insert(6, {"op": "move_above", "ref": "src", "offset_mm": [-60.0, 0.0],
+                             "height_mm": 300.0, "direction": "top", "standoff_mm": 0.0})
+    route["ops"] = [op for op in route["ops"] if op["op"] != "retreat"]
+    route["strategy"] = "pick_place_obstacle_aware_route"
+    route["note"] = "routes left of the direct carry path before approaching the destination"
     strategies = [
         ("correct", canonical_program(object_name, destination, note="canonical pick and place")),
         ("redetect_regrasp",
@@ -526,10 +533,19 @@ def diagnostic_programs(object_name: str = "red block", destination: str = "gree
          canonical_program(object_name, destination, grasp_yaw_deg=0.0,
                            strategy="pick_place_oriented_grasp",
                            note="pins the wrist across the object's faces instead of leaving it to the solver")),
+        ("orientation_grasp_neg45",
+         canonical_program(object_name, destination, grasp_yaw_deg=-45.0,
+                           strategy="pick_place_oriented_grasp_neg45",
+                           note="pins the wrist at -45 degrees for a rotated rectangular object")),
+        ("orientation_grasp_pos45",
+         canonical_program(object_name, destination, grasp_yaw_deg=45.0,
+                           strategy="pick_place_oriented_grasp_pos45",
+                           note="pins the wrist at +45 degrees for a rotated rectangular object")),
         ("alternate_approach",
          canonical_program(object_name, destination, approach="-x", standoff_mm=50.0,
                            strategy="pick_place_lateral_approach",
                            note="hovers to one side and descends across, rather than straight down")),
+        ("obstacle_aware_route", validate_program(route)),
         ("offset_grasp",
          canonical_program(object_name, destination, grasp_offset_mm=(15.0, 0.0),
                            strategy="pick_place_offset_grasp",

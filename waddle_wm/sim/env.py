@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections import deque
 from dataclasses import dataclass, field
 
 import mujoco
@@ -76,6 +77,8 @@ class TabletopEnv:
         self._pinch = self.model.site("2f85/pinch").id
         self._frames, self._frame_times = [], []
         self._max_lift = 0.0
+        self.control_delay_steps = 0
+        self._control_queue = deque()
         self.on_frame = None        # optional hook, called as each frame is captured (live view)
         self.reset()
 
@@ -94,6 +97,7 @@ class TabletopEnv:
         self._tracks = {key: [] for key in TRACK_KEYS}
         self._phase, self._waypoint = PHASE_ID["idle"], self.data.site("2f85/pinch").xpos.copy()
         self._max_lift = float(self.data.joint("red_block_free").qpos[2])
+        self._reset_control_queue()
         return self.state()
 
     def snapshot(self) -> dict:
@@ -123,6 +127,7 @@ class TabletopEnv:
         mujoco.mj_forward(self.model, self.data)
         self._tracked_block, self._destination = snapshot["tracked_block"], snapshot["destination"]
         self._max_lift = float(snapshot["max_lift"])
+        self._reset_control_queue()
         self._frames, self._frame_times = [], []
         self._tracks = {key: [] for key in TRACK_KEYS}
         self._phase, self._waypoint = PHASE_ID["idle"], self.data.site("2f85/pinch").xpos.copy()
@@ -214,10 +219,23 @@ class TabletopEnv:
 
     def _step(self, gripper, frames=True):
         self.data.actuator(scene.GRIPPER_ACTUATOR).ctrl[0] = gripper
+        requested = self.data.ctrl.copy()
+        if self.control_delay_steps:
+            self._control_queue.append(requested)
+            self.data.ctrl[:] = self._control_queue.popleft()
         mujoco.mj_step(self.model, self.data)
+        if self.control_delay_steps:
+            self.data.ctrl[:] = requested
         self._max_lift = max(self._max_lift, float(self.data.joint(f"{self._tracked_block}_free").qpos[2]))
         if frames and round(self.data.time / self.model.opt.timestep) % self._frame_steps == 0:
             self._capture()
+
+    def set_control_delay(self, steps: int):
+        self.control_delay_steps = max(0, int(steps))
+        self._reset_control_queue()
+
+    def _reset_control_queue(self):
+        self._control_queue = deque(self.data.ctrl.copy() for _ in range(self.control_delay_steps))
 
     def _ik(self, target, q_init, yaw=None):
         """Damped least squares on the pinch site's position and z-axis.

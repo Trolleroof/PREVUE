@@ -2,7 +2,9 @@
 .hf-cache/
 models/
 __pycache__/
-data/
+data/*
+!data/perception_scenes/
+!data/perception_scenes/**
 MUJOCO_LOG.TXT
 results/agent/*.mp4
 !results/agent/evidence_reel.mp4

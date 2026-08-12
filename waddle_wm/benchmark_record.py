@@ -77,7 +77,11 @@ EXCLUDED_FROM_SELECTOR = ("claude_generation_seconds", "mujoco_execution_seconds
 # `failure_mode` is the executed outcome and is reserved for the counterfactual record.
 LEAKED_FIELDS = ("hidden_truth", "state_before", "state_after", "block_pos", "target_pos",
                  "qpos", "qvel", "max_block_z", "target_distance", "counterfactual", "oracle",
-                 "oracle_gap", "actual_success", "failure_mode", "pool_has_success")
+                 "oracle_gap", "actual_success", "failure_mode", "pool_has_success",
+                 "scene_parameters", "perturbation_seed", "red_block_friction",
+                 "red_block_mass_kg", "gripper_force_limit_n", "contact_solref",
+                 "control_delay_steps", "perception_error_mm",
+                 "outcome_slice", "observability")
 
 # What a selector is allowed to have seen. `hidden_oracle` and `mujoco_state` are listed so a
 # run that declares them fails loudly rather than being quietly comparable to an honest one.

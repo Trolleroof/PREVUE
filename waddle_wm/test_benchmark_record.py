@@ -227,6 +227,10 @@ def leaked_mujoco_field(run):
     run["scenes"][1]["selectors"]["world-model"]["scores"][0]["target_distance"] = 0.02
 
 
+def leaked_scene_physics(run):
+    run["scenes"][1]["selectors"]["world-model"]["scores"][0]["red_block_mass_kg"] = 0.065
+
+
 def leaked_oracle(run):
     run["scenes"][1]["selectors"]["world-model"]["oracle_gap"] = 0
 
@@ -318,6 +322,7 @@ NEGATIVE_FIXTURES = (
     ("the protocol is not this code's", mismatched_protocol, "protocol version 99"),
     ("success was redefined after the run", changed_definitions, "definitions were changed"),
     ("simulator state inside a selector", leaked_mujoco_field, "ground-truth fields inside"),
+    ("scene physics inside a selector", leaked_scene_physics, "ground-truth fields inside"),
     ("the answer key inside a selector", leaked_oracle, "ground-truth fields inside"),
     ("a selector declares it saw the oracle", forbidden_source, "never selector inputs"),
     ("no information boundary", missing_information_boundary, "no information boundary"),

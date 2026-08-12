@@ -51,6 +51,15 @@ def make_model() -> mujoco.MjModel:
     world.add_site(name="target", pos=list(TARGET_POS),
                    type=mujoco.mjtGeom.mjGEOM_CYLINDER, size=[0.105, 0.002, 0],
                    rgba=[0.08, 0.8, 0.25, 0.75])
+    # Scene-suite props live below the table unless a locked scene enables them. Keeping
+    # them in the one model lets every candidate restore the same MuJoCo state.
+    obstacle = world.add_body(name="scene_obstacle_body", pos=[0, 0, -1], mocap=True)
+    obstacle.add_geom(name="scene_obstacle", type=mujoco.mjtGeom.mjGEOM_BOX,
+                      size=[0.018, 0.025, 0.125], rgba=[0.7, 0.72, 0.76, 1],
+                      contype=1, conaffinity=1)
+    world.add_geom(name="scene_occluder", type=mujoco.mjtGeom.mjGEOM_BOX,
+                   pos=[0, 0, -1], size=[0.020, 0.020, 0.05], rgba=[0.12, 0.12, 0.12, 1],
+                   contype=0, conaffinity=0)
     for name, (x, y) in zip(BLOCK_NAMES, BLOCK_SPAWN):
         body = world.add_body(name=name, pos=[x, y, BLOCK_HALF])
         body.add_freejoint(name=f"{name}_free")

@@ -166,12 +166,17 @@ def git_dirty() -> bool:
 class Scene:
     """One seeded tabletop, its rendered observation, and the reachability check for it."""
 
-    def __init__(self, seed: int):
+    def __init__(self, seed: int, scene_spec: dict | None = None):
         self.seed = seed
         self.env = TabletopEnv(seed=seed)
         self.blocks = {name: [round(float(v), 5) for v in point]
                        for name, point in self.env.sample_blocks().items()}
         self.env.reset(blocks=self.blocks)
+        if scene_spec is not None:
+            from waddle_wm.perception_scenes import apply_scene_spec
+            apply_scene_spec(self.env, scene_spec)
+            self.blocks = {name: [round(float(v), 5) for v in point]
+                           for name, point in self.env.block_positions().items()}
         self.camera = SceneCamera(self.env.model, self.env.data)
         self.observation = self.observe()
         self.text = self.observation.text
@@ -380,7 +385,8 @@ def generator_hash(settings: dict) -> str:
 
 def build_pool(scene_obj: Scene, kind: str, instruction: str, object_name: str, destination: str,
                size: int, model: str, split: str, workers: int, oversample: float,
-               timeout: float, previous: dict | None = None) -> dict:
+               timeout: float, previous: dict | None = None, scene_record: dict | None = None,
+               manifest_lock: str | None = None) -> dict:
     settings = generator_settings(kind, model, size, instruction, workers, oversample, timeout)
     started = time.time()
     if kind == "natural":
@@ -391,7 +397,8 @@ def build_pool(scene_obj: Scene, kind: str, instruction: str, object_name: str, 
                                           old_candidates, old_rejected)
     else:
         accepted, rejected = diagnostic_pool(scene_obj, object_name, destination)
-    pool_id = (f"{kind}-{object_name.replace(' ', '_')}-to-{destination.replace(' ', '_')}"
+    pool_id = (f"{scene_record['program_pool_id']}-{kind}" if scene_record else
+               f"{kind}-{object_name.replace(' ', '_')}-to-{destination.replace(' ', '_')}"
                f"-seed{scene_obj.seed:04d}-{generator_hash(settings)}")
 
     unique = {}
@@ -433,6 +440,21 @@ def build_pool(scene_obj: Scene, kind: str, instruction: str, object_name: str, 
                     "reject_reasons": {stage: sum(1 for r in rejected if r.stage.startswith(stage))
                                        for stage in ("generation", "schema", "grounding", "reachability")}},
     }
+    if scene_record:
+        pool["scene"]["suite"] = {
+            "scenario_id": scene_record["scenario_id"],
+            "manifest_lock_sha256": manifest_lock,
+            "program_template_id": scene_record["program_template_id"],
+            "perturbation_group": scene_record["perturbation_group"],
+            "outcome_slice": scene_record["outcome_slice"],
+            "observability": scene_record["observability"],
+            "rendered_observation": scene_record["rendered_observation"],
+            "perception_error_mm": scene_record["perception_error_mm"],
+            "scene_spec": {key: scene_record[key] for key in (
+                "scenario_id", "split", "scene_seed", "perturbation_seed", "pair_id", "variant",
+                "program_pool_id", "program_template_id", "perturbation_group", "outcome_slice",
+                "observability", "expected_effect", "scene_parameters")},
+        }
     return pool
 
 
@@ -546,6 +568,8 @@ def main():
     ap.add_argument("--regenerate", action="store_true", help="ignore the cache and sample again")
     ap.add_argument("--allow-dirty", action="store_true", help="allow exploratory generation from tracked edits")
     ap.add_argument("--validate", type=Path, help="check cached pools under this directory and exit")
+    ap.add_argument("--scene-manifest", type=Path,
+                    help="locked perception-scene manifest from issue #25")
     args = ap.parse_args()
 
     if args.validate is not None:
@@ -554,7 +578,19 @@ def main():
         raise SystemExit("refusing to generate pools from a dirty tracked worktree; commit the locked code "
                          "or pass --allow-dirty for an explicitly exploratory pool")
 
-    seeds = parse_seeds(args.seeds) if args.seeds else list(SPLITS[args.split])[:args.scenes]
+    scene_records, manifest_lock = {}, None
+    if args.scene_manifest:
+        from waddle_wm.perception_scenes import check_manifest
+        manifest = json.loads(args.scene_manifest.read_text())
+        problems = check_manifest(manifest, args.scene_manifest.parent)
+        if problems:
+            raise SystemExit("invalid scene manifest: " + "; ".join(problems[:4]))
+        if manifest["split"] != args.split:
+            raise SystemExit(f"manifest split {manifest['split']!r} does not match --split {args.split!r}")
+        scene_records = {row["scene_seed"]: row for row in manifest["scenarios"]}
+        manifest_lock = manifest["lock_sha256"]
+    seeds = (sorted(scene_records) if scene_records else
+             (parse_seeds(args.seeds) if args.seeds else list(SPLITS[args.split])[:args.scenes]))
     kinds = ("natural", "diagnostic") if args.kind == "both" else (args.kind,)
     instruction = args.instruction.format(object=args.object, destination=args.destination)
     index_path = args.root / "index.json"
@@ -565,7 +601,9 @@ def main():
         for kind in kinds:
             previous = None
             directory = args.root / kind / f"{args.object.replace(' ', '_')}_to_{args.destination.replace(' ', '_')}"
-            path = directory / f"{args.split}-seed{seed:04d}.json"
+            record = scene_records.get(seed)
+            filename = f"{record['scenario_id']}.json" if record else f"{args.split}-seed{seed:04d}.json"
+            path = directory / filename
             if path.exists() and not args.regenerate:
                 cached = json.loads(path.read_text())
                 wanted = generator_hash(generator_settings(kind, args.model, args.pool_size, instruction,
@@ -581,10 +619,10 @@ def main():
                     print(f"cached  {path}  ({cached['summary']['accepted']} candidates)")
                     continue
             if scene_obj is None:
-                scene_obj = Scene(seed)
+                scene_obj = Scene(seed, record)
             pool = build_pool(scene_obj, kind, instruction, args.object, args.destination,
                               args.pool_size, args.model, args.split, args.workers,
-                              args.oversample, args.timeout, previous)
+                              args.oversample, args.timeout, previous, record, manifest_lock)
             problems = check_pool(pool)
             directory.mkdir(parents=True, exist_ok=True)
             path.write_text(json.dumps(pool, indent=2, default=float))
