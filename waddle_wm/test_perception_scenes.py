@@ -6,6 +6,8 @@ from copy import deepcopy
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+import numpy as np
+
 from waddle_wm import perception_scenes as scenes
 from waddle_wm import program as prog
 from waddle_wm.pools import Scene, build_pool
@@ -40,6 +42,17 @@ def main() -> None:
                                    "red block", "green pad", diagnostic_size, "scripted", "test", 1, 1.0, 1.0)
         occluded_scene.close()
         assert len(occluded_pool["candidates"]) == diagnostic_size, occluded_pool["rejected"]
+        oriented = next(row for row in manifests[-1]["scenarios"]
+                        if row["outcome_slice"] == "block_orientation"
+                        and row["variant"] == "challenge")
+        oriented_scene = Scene(oriented["scene_seed"], oriented)
+        red_geom = oriented_scene.env.model.geom("red_block_geom")
+        red_body = oriented_scene.env.model.body("red_block")
+        assert np.allclose(oriented_scene.env.model.geom_size[red_geom.id],
+                           oriented["scene_parameters"]["red_block_size"])
+        assert np.isclose(oriented_scene.env.model.body_mass[red_body.id],
+                          oriented["scene_parameters"]["red_block_mass_kg"])
+        oriented_scene.close()
         broken = deepcopy(manifests[-1])
         broken["scenarios"][1]["scene_seed"] = broken["scenarios"][0]["scene_seed"]
         assert "duplicate scene_seed" in scenes.check_manifest(broken)

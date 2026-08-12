@@ -168,7 +168,12 @@ class Scene:
 
     def __init__(self, seed: int, scene_spec: dict | None = None):
         self.seed = seed
-        self.env = TabletopEnv(seed=seed)
+        params = scene_spec["scene_parameters"] if scene_spec else None
+        self.env = TabletopEnv(
+            seed=seed,
+            block_sizes={"red_block": params["red_block_size"]} if params else None,
+            block_masses={"red_block": params["red_block_mass_kg"]} if params else None,
+        )
         self.blocks = {name: [round(float(v), 5) for v in point]
                        for name, point in self.env.sample_blocks().items()}
         self.env.reset(blocks=self.blocks)

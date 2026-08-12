@@ -64,8 +64,8 @@ class TabletopEnv:
 
     def __init__(self, camera="demo", width=256, height=256, fps=10, seed=None,
                  block_spawn_low=(0.34, -0.22), block_spawn_high=(0.42, -0.14),
-                 block_sizes=None):
-        self.model = scene.make_model(block_sizes)
+                 block_sizes=None, block_masses=None):
+        self.model = scene.make_model(block_sizes, block_masses)
         self.data = mujoco.MjData(self.model)
         self.renderer = mujoco.Renderer(self.model, height, width)
         self.camera, self.fps = camera, fps

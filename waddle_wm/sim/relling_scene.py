@@ -18,8 +18,10 @@ ARM_JOINTS = (
 GRIPPER_ACTUATOR = "2f85/fingers_actuator"
 
 
-def make_model(block_sizes: dict[str, tuple[float, float, float]] | None = None) -> mujoco.MjModel:
+def make_model(block_sizes: dict[str, tuple[float, float, float]] | None = None,
+               block_masses: dict[str, float] | None = None) -> mujoco.MjModel:
     block_sizes = block_sizes or {}
+    block_masses = block_masses or {}
     arm = mujoco.MjSpec.from_file(str(MENAGERIE / "ur5e.xml"))
     gripper = mujoco.MjSpec.from_file(str(MENAGERIE / "2f85.xml"))
     arm.option.impratio = gripper.option.impratio
@@ -65,7 +67,8 @@ def make_model(block_sizes: dict[str, tuple[float, float, float]] | None = None)
         body = world.add_body(name=name, pos=[x, y, BLOCK_HALF])
         body.add_freejoint(name=f"{name}_free")
         body.add_geom(name=f"{name}_geom", type=mujoco.mjtGeom.mjGEOM_BOX,
-                      size=block_sizes.get(name, [BLOCK_HALF] * 3), mass=0.025,
+                      size=block_sizes.get(name, [BLOCK_HALF] * 3),
+                      mass=block_masses.get(name, 0.025),
                       rgba={"red_block": [0.9, 0.05, 0.05, 1],
                             "blue_block": [0.04, 0.25, 0.9, 1],
                             "yellow_block": [0.95, 0.72, 0.03, 1]}[name],
