@@ -2,6 +2,11 @@
 
 Current camera state + frozen V-JEPA context + compiled skill trace -> future XYZ
 for every block plus grasp and task-success probabilities.
+
+The plan half of that input is `waddle_wm.plan_encoding`, and the checkpoint records which
+version it was fitted with plus whether the corpus ever commanded a wrist heading. A corpus
+that never did produces a checkpoint the readers refuse as orientation-blind, and the trainer
+says so at the end of the run rather than leaving it to be discovered by a flat ranking.
 """
 from __future__ import annotations
 
@@ -13,7 +18,7 @@ import numpy as np
 import torch
 from torch import nn
 
-from waddle_wm import windows
+from waddle_wm import plan_encoding, windows
 from waddle_wm.sim import relling_scene as scene
 from waddle_wm.train_latent_dynamics import plan_only_baseline, rules_baseline
 
@@ -50,6 +55,9 @@ def main():
     ap.add_argument("--members", type=int, default=5)
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--outcome-weight", type=float, default=1.0)
+    ap.add_argument("--plan-encoding", type=int, default=plan_encoding.PLAN_ENCODING_VERSION,
+                    choices=sorted(plan_encoding.PLAN_FIELDS),
+                    help="plan vector version; 1 is the orientation-blind encoding kept for replay")
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
     torch.manual_seed(args.seed)
@@ -70,10 +78,16 @@ def main():
         destination = data["destinations"][episode]
         destination_xyz = (torch.tensor(scene.TARGET_POS) if destination == "green_pad" else
                            initial[episode, block_names.index(destination) * 3:block_names.index(destination) * 3 + 3])
-        grasp = torch.tensor(next(entry["target"] for entry in record["skill"]["trace"] if entry["phase"] == "descend"))
-        place = torch.tensor(next(entry["target"] for entry in record["skill"]["trace"] if entry["phase"] == "place"))
-        plan_rows.append(torch.cat([grasp - source_xyz, place - destination_xyz]))
+        trace = record["skill"]["trace"]
+        grasp = next(entry["target"] for entry in trace if entry["phase"] == "descend")
+        place = next(entry["target"] for entry in trace if entry["phase"] == "place")
+        grasp_yaw, approach_yaw = plan_encoding.trace_yaws(trace)
+        plan_rows.append(torch.from_numpy(plan_encoding.plan_vector(
+            grasp, place, source_xyz.numpy(), destination_xyz.numpy(),
+            grasp_yaw, approach_yaw, args.plan_encoding)))
     plan = torch.stack(plan_rows).float()
+    encoding = plan_encoding.yaw_informative(plan.numpy(), data["splits"] == "train",
+                                             args.plan_encoding)
     success = torch.from_numpy(data["success"])
     grasped = torch.tensor([max(record["tracks"]["max_block_z"]) > 0.09 for record in records], dtype=torch.float32)
     labels = torch.stack([grasped, success], dim=-1)
@@ -175,6 +189,7 @@ def main():
                "rules_baseline": rules_baseline(records), "best_epoch": best[1], "best_val_loss": best[0],
                "outcome_weight": args.outcome_weight,
                "decision_threshold": decision_threshold,
+               "plan_encoding": encoding,
                "test": evaluate(split["test"], decision_threshold),
                "test_without_vjepa_context": evaluate(split["test"], decision_threshold, False)}
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -182,8 +197,15 @@ def main():
                 "context_dim": context.shape[1], "plan_dim": plan.shape[1], "member_count": len(members),
                 "manifest": manifest, "normalization": {"context_mean": context_mean, "context_std": context_std,
                     "plan_mean": plan_mean, "plan_std": plan_std, "state_mean": state_mean, "state_std": state_std},
+                "plan_encoding": encoding,
                 "decision_threshold": decision_threshold, "metrics": metrics}, args.out)
     print(json.dumps(metrics, indent=2))
+    if plan_encoding.orientation_blind(plan_encoding.declared({"plan_encoding": encoding})):
+        print(f"\nWARNING: this checkpoint is orientation-blind — "
+              f"{plan_encoding.blindness_reason(encoding)}. The visual selector and the verifier "
+              f"will refuse it for orientation-dependent ranking unless they are asked to accept "
+              f"the limitation explicitly. Train on a corpus that commands a grasp yaw "
+              f"(`generate_dataset --oriented`) to get a yaw-aware checkpoint.", flush=True)
 
 
 if __name__ == "__main__":

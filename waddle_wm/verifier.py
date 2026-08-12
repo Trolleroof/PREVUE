@@ -19,6 +19,7 @@ import numpy as np
 import torch
 from torch import nn
 
+from waddle_wm import plan_encoding
 from waddle_wm.actions import ACTION_DIM, chunks, compile_plan
 from waddle_wm.embed_windows import clip_frames
 from waddle_wm.sim import relling_scene as scene
@@ -27,11 +28,18 @@ from waddle_wm.train_multiblock_world_model import StateWorldModel, task_feature
 from waddle_wm.train_latent_dynamics import STATE_DIM, Dynamics, ObjectReadout, Readout, rollout, success_probability
 
 
-def require_action_compatibility(trace) -> None:
-    """Refuse controller choices that the legacy checkpoint cannot distinguish."""
-    if any(entry.get("yaw") is not None for entry in trace):
+def require_action_compatibility(trace, encoding: dict | None = None) -> None:
+    """Refuse controller choices the loaded checkpoint's encoding cannot distinguish.
+
+    `encoding` is the checkpoint's declared plan encoding; the default is the orientation-blind
+    one, which is what the latent-dynamics action encoding is and what every checkpoint written
+    before #35 has. A trace that pins no heading is fine under any encoding.
+    """
+    encoding = encoding or plan_encoding.declared({})
+    if any(entry.get("yaw") is not None for entry in trace) and plan_encoding.orientation_blind(encoding):
         raise ValueError("this checkpoint's action encoding has no grasp yaw; train a yaw-aware "
-                         "#18 scorer instead of ranking distinct orientations as identical")
+                         "#18 scorer instead of ranking distinct orientations as identical "
+                         f"({plan_encoding.blindness_reason(encoding)})")
 
 
 def through_codec(frames, fps: int = 10) -> list[np.ndarray]:
@@ -116,6 +124,11 @@ class Verifier:
         # is a checkpoint whose next retrain wants a std floor.
         self.degenerate = degenerate_dimensions(self.norm)
         self._encoder = None
+        # The latent-dynamics path compiles a trace through `actions.encode`, which has no yaw
+        # column at all, so it is orientation-blind by construction whatever the file says.
+        self.plan_encoding = (plan_encoding.declared(saved) if self.model_type == "multiblock_state"
+                              else plan_encoding.declared({}))
+        self.orientation_blind = plan_encoding.orientation_blind(self.plan_encoding)
         if self.model_type == "multiblock_state":
             self.members = nn.ModuleList([StateWorldModel(saved["context_dim"], saved["plan_dim"])
                                           for _ in range(saved["member_count"])])
@@ -160,7 +173,7 @@ class Verifier:
 
     def plan_chunks(self, trace) -> torch.Tensor:
         """Skill trace -> (steps, 1, window_frames, ACTION_DIM), normalised."""
-        require_action_compatibility(trace)
+        require_action_compatibility(trace, self.plan_encoding)
         actions = compile_plan(trace, self.manifest["phase_frames"], self.manifest["home_waypoint"],
                                self.manifest["frames_total"], self.manifest["prelude_frames"])
         plan = torch.from_numpy(chunks(actions, self.manifest["window_frames"])[1:]).to(self.device)
@@ -168,7 +181,7 @@ class Verifier:
 
     def verify(self, latent: torch.Tensor, trace, object_name="red_block", destination="green_pad",
                scene_positions=None) -> VerificationResult:
-        require_action_compatibility(trace)
+        require_action_compatibility(trace, self.plan_encoding)
         with torch.inference_mode():
             if self.model_type == "multiblock_state":
                 if scene_positions is None:
@@ -181,13 +194,15 @@ class Verifier:
                 destination_xyz = (torch.tensor(scene_positions.get("green_pad", scene.TARGET_POS),
                                                 dtype=torch.float32, device=self.device) if destination == "green_pad" else
                                    raw_state[0, names.index(destination) * 3:names.index(destination) * 3 + 3])
-                # dtype pinned: a trace whose waypoints came out of numpy carries float64,
-                # which MPS refuses outright.
-                grasp = torch.tensor(next(e["target"] for e in trace if e["phase"] == "descend"),
-                                     dtype=torch.float32, device=self.device)
-                place = torch.tensor(next(e["target"] for e in trace if e["phase"] == "place"),
-                                     dtype=torch.float32, device=self.device)
-                plan = torch.cat([grasp - source_xyz, place - destination_xyz]).unsqueeze(0)
+                grasp = next(e["target"] for e in trace if e["phase"] == "descend")
+                place = next(e["target"] for e in trace if e["phase"] == "place")
+                grasp_yaw, approach_yaw = plan_encoding.trace_yaws(trace)
+                # dtype pinned by `plan_vector`: a trace whose waypoints came out of numpy
+                # carries float64, which MPS refuses outright.
+                plan = torch.from_numpy(plan_encoding.plan_vector(
+                    grasp, place, source_xyz.detach().cpu().numpy(),
+                    destination_xyz.detach().cpu().numpy(), grasp_yaw, approach_yaw,
+                    self.plan_encoding["version"])).to(self.device).unsqueeze(0)
                 plan = standardise(plan, self.norm["plan_mean"], self.norm["plan_std"])
                 state = standardise(raw_state, self.norm["state_mean"], self.norm["state_std"])
                 task = task_features([object_name], [destination], names, self.device)

@@ -110,7 +110,8 @@ def build_selectors(args) -> list[sel.Selector]:
                                        cache=args.cache / "claude_self_rank"))
     arms.append(sel.load_heuristic(args.weights))
     if not args.no_visual:
-        arms.append(sel.VisualWorldModel(args.checkpoint, args.encoder))
+        arms.append(sel.VisualWorldModel(args.checkpoint, args.encoder,
+                                         allow_orientation_blind=args.allow_orientation_blind))
     return arms
 
 
@@ -379,6 +380,9 @@ def main():
                     help="camera frames handed to the visual arm; must match its checkpoint")
     ap.add_argument("--no-claude", action="store_true", help="skip the self-rank arm (no CLI calls)")
     ap.add_argument("--no-visual", action="store_true", help="skip the visual arm (no checkpoint)")
+    ap.add_argument("--allow-orientation-blind", action="store_true",
+                    help="run a checkpoint whose plan encoding cannot separate grasp yaws; the "
+                         "limitation is recorded in the arm's config and travels with the result")
     ap.add_argument("--allow-dirty", action="store_true",
                     help="rank from tracked edits; the artifact will fail validation, by design")
     args = ap.parse_args()

@@ -40,6 +40,7 @@ from pathlib import Path
 
 import numpy as np
 
+from waddle_wm import plan_encoding
 from waddle_wm.benchmark_record import SelectorRun, Timing, selector_choice, settings_hash
 from waddle_wm.planner import MODEL, ClaudePlanner
 
@@ -541,9 +542,13 @@ class VisualWorldModel(Selector):
     offsets, and the task, in — predicted terminal state and a success probability out, over
     an ensemble whose spread is the reported uncertainty.
 
-    Its plan encoding carries no wrist heading, so two candidates that differ only in
-    `yaw_deg` are indistinguishable to it. That is recorded as `orientation_blind` in its
-    config and reported rather than hidden: it is a property of the checkpoint under test.
+    The plan half of that input is `waddle_wm.plan_encoding`, versioned: v2 carries the grasp
+    and approach wrist headings, so two candidates differing only in `yaw_deg` reach the
+    network as different vectors. A checkpoint that predates the version, or one whose yaw
+    dimensions were constant while it was fitted, cannot make that distinction — it is
+    refused here by name rather than quietly ranking distinct orientations as identical.
+    `allow_orientation_blind=True` runs one anyway, and the arm then records
+    `orientation_blind` in its config so the limitation travels with the result.
     """
 
     name = "visual_world_model"
@@ -562,7 +567,7 @@ class VisualWorldModel(Selector):
     FEATURE_CLAMP = 5.0
 
     def __init__(self, checkpoint: Path, encoder: Path = Path("models/vjepa2-vitl-fpc64-256"),
-                 device=None):
+                 device=None, allow_orientation_blind: bool = False):
         import torch
         from torch import nn
 
@@ -572,6 +577,13 @@ class VisualWorldModel(Selector):
         if saved.get("model_type") != "multiblock_state":
             raise SelectorError(f"{checkpoint} is a {saved.get('model_type')!r} checkpoint; the visual "
                                 f"selector needs a multiblock_state world model")
+        self.plan_encoding = plan_encoding.declared(saved)
+        if len(self.plan_encoding["fields"]) != int(saved["plan_dim"]):
+            raise SelectorError(f"{checkpoint} declares a {len(self.plan_encoding['fields'])}-field plan "
+                                f"encoding but was fitted with plan_dim={saved['plan_dim']}")
+        self.orientation_blind = plan_encoding.orientation_blind(self.plan_encoding)
+        plan_encoding.require_orientation_aware(f"{checkpoint}", self.plan_encoding,
+                                                allow_orientation_blind, error=SelectorError)
         self.torch = torch
         self.checkpoint, self.encoder_path = Path(checkpoint), Path(encoder)
         self.device = device or torch.device("mps" if torch.backends.mps.is_available() else "cpu")
@@ -595,7 +607,8 @@ class VisualWorldModel(Selector):
                 "checkpoint_sha1": _file_sha1(self.checkpoint),
                 "encoder": str(self.encoder_path), "members": len(self.members),
                 "window_frames": self.manifest["window_frames"], "fps": self.manifest["fps"],
-                "accept_threshold": self.threshold, "orientation_blind": True,
+                "accept_threshold": self.threshold,
+                "plan_encoding": self.plan_encoding, "orientation_blind": self.orientation_blind,
                 "degenerate_std": self.DEGENERATE_STD, "feature_clamp": self.FEATURE_CLAMP,
                 "degenerate_plan_dims": self._degenerate("plan_std"),
                 "degenerate_state_dims": self._degenerate("state_std"),
@@ -655,22 +668,35 @@ class VisualWorldModel(Selector):
             values.extend(row["point_base"][:3] if row else [0.5, 0.0, BLOCK_HALF_MM / 1000.0])
         return self.torch.tensor(values, dtype=self.torch.float32, device=self.device).unsqueeze(0)
 
-    def _plan(self, candidate: dict, estimates: dict, task: dict, state):
-        """The candidate's grasp and place, as offsets from the estimated coordinates it aims at."""
+    def plan_row(self, candidate: dict, estimates: dict, task: dict, state) -> np.ndarray | None:
+        """The candidate's action in the checkpoint's plan encoding, or None if it has no trace.
+
+        Grasp and release as offsets from the estimated coordinates they aim at, plus — from
+        encoding v2 on — the wrist heading the program pinned for the descent and for the
+        approach before it. The headings come off the candidate's own grounded trace, so two
+        candidates that differ only in `yaw_deg` differ here too.
+        """
         points = waypoints(candidate)
         if points["grasp"] is None or points["place"] is None:
             return None
         source = self.block_names.index(task["object"].replace(" ", "_"))
-        source_xyz = state[0, source * 3:source * 3 + 3]
+        source_xyz = state[0, source * 3:source * 3 + 3].detach().cpu().numpy()
         if task["destination"] == "green pad":
-            destination_xyz = self.torch.tensor(estimates["green pad"]["point_base"],
-                                                dtype=self.torch.float32, device=self.device)
+            destination_xyz = np.asarray(estimates["green pad"]["point_base"], dtype=float)
         else:
             index = self.block_names.index(task["destination"].replace(" ", "_"))
-            destination_xyz = state[0, index * 3:index * 3 + 3]
-        grasp = self.torch.tensor(points["grasp"]["target"], dtype=self.torch.float32, device=self.device)
-        place = self.torch.tensor(points["place"]["target"], dtype=self.torch.float32, device=self.device)
-        return self.torch.cat([grasp - source_xyz, place - destination_xyz]).unsqueeze(0)
+            destination_xyz = state[0, index * 3:index * 3 + 3].detach().cpu().numpy()
+        approach = points["approach"] or {}
+        return plan_encoding.plan_vector(points["grasp"]["target"], points["place"]["target"],
+                                         source_xyz, destination_xyz,
+                                         points["grasp"].get("yaw"), approach.get("yaw"),
+                                         self.plan_encoding["version"])
+
+    def _plan(self, candidate: dict, estimates: dict, task: dict, state):
+        row = self.plan_row(candidate, estimates, task, state)
+        if row is None:
+            return None
+        return self.torch.from_numpy(row).to(self.device).unsqueeze(0)
 
     def score(self, context: ScenarioContext, prefix: list[str]) -> list[dict]:
         from waddle_wm.train_multiblock_world_model import task_features
