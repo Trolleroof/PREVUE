@@ -727,6 +727,23 @@ class VisualWorldModel(Selector):
         return _ranked(rows)
 
 
+class MatchedNoVision(VisualWorldModel):
+    """The visual arm with its only visual input zeroed; every other input is identical."""
+
+    name = "matched_no_vision"
+    information_sources = ("observation_text", "heuristic_image_estimate")
+    needs_frames = False
+
+    def prepare(self, context: ScenarioContext) -> None:
+        self._latent = self.torch.zeros(
+            (1, self.norm["context_mean"].numel()), dtype=self.torch.float32, device=self.device)
+
+    def config(self) -> dict:
+        return {**super().config(), "visual_context": "zeroed",
+                "reads": ["detected centres", "task-frame landing pad",
+                          "candidate programs and grounded traces"]}
+
+
 def _file_sha1(path: Path) -> str:
     digest = hashlib.sha1()
     with Path(path).open("rb") as handle:

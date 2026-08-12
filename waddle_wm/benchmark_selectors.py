@@ -22,8 +22,8 @@ What the report says, and what it refuses to say:
   (grasp alignment, occlusion, obstruction, slip, state changes after an earlier action) are
   reported separately, because a selector that only catches malformed programs has not shown
   that vision helps;
-* the verdict states plainly whether the visual arm beat the estimated-state heuristic on its
-  intended slice, and no claim of visual value is made when it did not.
+* the causal verdict compares the visual arm with the same learned arm after zeroing only its
+  visual context. The hand-coded estimated-state heuristic remains a secondary reference.
 """
 from __future__ import annotations
 
@@ -44,6 +44,7 @@ from waddle_wm.pools import DEFAULT_ROOT as POOL_ROOT, PREFIXES, Scene, git_dirt
 # and `plan_visible_control` is decidable from the program text alone — both are reported,
 # neither is the claim.
 INTENDED_SLICE = "visible_omitted_by_coordinates"
+CAUSAL_BASELINE = "matched_no_vision"
 SLICE_GROUPS = {"plan_visible": ("plan_visible_control",),
                 "scene_dependent": ("visible_omitted_by_coordinates", "latent_physics")}
 
@@ -110,8 +111,12 @@ def build_selectors(args) -> list[sel.Selector]:
                                        cache=args.cache / "claude_self_rank"))
     arms.append(sel.load_heuristic(args.weights))
     if not args.no_visual:
-        arms.append(sel.VisualWorldModel(args.checkpoint, args.encoder,
-                                         allow_orientation_blind=args.allow_orientation_blind))
+        arms.extend([
+            sel.MatchedNoVision(args.checkpoint, args.encoder,
+                                allow_orientation_blind=args.allow_orientation_blind),
+            sel.VisualWorldModel(args.checkpoint, args.encoder,
+                                 allow_orientation_blind=args.allow_orientation_blind),
+        ])
     return arms
 
 
@@ -269,18 +274,19 @@ def report(artifact: dict, pools: dict, arms: list[str]) -> dict:
 
     intended = sub_artifact(artifact, lambda scene: by_pool[scene["pool_id"]][1] == INTENDED_SLICE)
     verdict = {"intended_slice": INTENDED_SLICE,
-               "question": "does raw visual context improve selection over the estimated-state "
-                           "heuristic on the scene-dependent slice?"}
+               "baseline": CAUSAL_BASELINE,
+               "question": "does raw visual context improve selection over the otherwise "
+                           "identical no-vision model on the scene-dependent slice?"}
     if intended is None:
         verdict.update({"answer": "not measured",
                         "statement": f"this run contains no {INTENDED_SLICE} scenes, so it says "
                                      f"nothing about whether visual information helps."})
-    elif not {"visual_world_model", "estimated_state"} <= set(arms):
+    elif not {"visual_world_model", CAUSAL_BASELINE} <= set(arms):
         verdict.update({"answer": "not measured",
-                        "statement": "both the visual world model and the estimated-state "
-                                     "heuristic must run for the comparison to exist."})
+                        "statement": "both the visual world model and its matched no-vision "
+                                     "ablation must run for the comparison to exist."})
     else:
-        differences = {metric: paired_difference(intended, "visual_world_model", "estimated_state", metric)
+        differences = {metric: paired_difference(intended, "visual_world_model", CAUSAL_BASELINE, metric)
                        for metric in PRIMARY_OUTCOMES}
         success = differences["selected_success"]
         interval = success["ci95"]
@@ -292,8 +298,8 @@ def report(artifact: dict, pools: dict, arms: list[str]) -> dict:
             "paired_differences": differences,
             "statement": (
                 f"on the {INTENDED_SLICE} slice the visual world model selected a successful "
-                f"program {success['mean_difference']:+.3f} more often than the estimated-state "
-                f"heuristic (95% CI {interval}), over {success['paired_scenes']} paired scenes. "
+                f"program {success['mean_difference']:+.3f} more often than the matched no-vision "
+                f"model (95% CI {interval}), over {success['paired_scenes']} paired scenes. "
                 + ("The interval excludes zero, so visual information improved selection on the "
                    "slice it was meant to improve."
                    if beats else

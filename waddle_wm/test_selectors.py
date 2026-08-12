@@ -17,6 +17,8 @@ import argparse
 import json
 from copy import deepcopy
 
+import torch
+
 from waddle_wm import benchmark_record as br
 from waddle_wm import benchmark_selectors as bs
 from waddle_wm import counterfactual as cf
@@ -243,7 +245,6 @@ def check_self_rank_scoring():
 
 
 def check_paired_ranker_contract():
-    import torch
     from waddle_wm.train_paired_candidate_ranker import fit_split, paired_indices
 
     labels = torch.tensor([1.0, 0.0, 1.0, 0.0, 0.0])
@@ -262,6 +263,17 @@ def check_paired_ranker_contract():
         assert "refusing to fit" in str(error)
     else:
         raise AssertionError("the paired ranker must never fit on the locked test split")
+
+
+def check_matched_no_vision_contract():
+    arm = sel.MatchedNoVision.__new__(sel.MatchedNoVision)
+    arm.torch, arm.device = torch, torch.device("cpu")
+    arm.norm = {"context_mean": torch.ones(4)}
+    context = sel.ScenarioContext(view())
+    arm.prepare(context)
+    assert torch.equal(arm._latent, torch.zeros(1, 4))
+    assert context.latent is None and not arm.needs_frames
+    assert sel.MatchedNoVision.plan_row is sel.VisualWorldModel.plan_row
 
 
 # --------------------------------------------------------------------------- the benchmark
@@ -333,6 +345,8 @@ def check_benchmark_end_to_end():
         {name: plan_visible if name == "plan" else scene_dependent for name in scenarios}, scenarios)
 
     arms = [sel.EstimatedStateHeuristic(),
+            Constant("matched_no_vision", sel.MatchedNoVision.information_sources,
+                     lambda name: 0.2),
             Constant("visual_world_model", sel.VisualWorldModel.information_sources,
                      lambda name: 0.9 if scene_dependent(name) else 0.3, needs_frames=True),
             Constant("claude_self_rank", sel.ClaudeSelfRank.information_sources,
@@ -352,7 +366,8 @@ def check_benchmark_end_to_end():
     problems = br.check_run(scored)
     assert not problems, problems
     names = sorted(scored["metadata"]["selectors"])
-    assert names == ["claude_self_rank", "estimated_state", "visual_world_model"], names
+    assert names == ["claude_self_rank", "estimated_state", "matched_no_vision",
+                     "visual_world_model"], names
 
     report = bs.report(scored, pools, [arm.name for arm in arms])
     prefixes = report["overall"]["prefixes"]
@@ -364,7 +379,7 @@ def check_benchmark_end_to_end():
                 assert metric in row, metric
 
     intended = report["by_slice"]["block_orientation"]
-    heuristic = intended["prefixes"]["16"]["selectors"]["estimated_state"]["selected_success"]
+    heuristic = intended["prefixes"]["16"]["selectors"]["matched_no_vision"]["selected_success"]
     visual = intended["prefixes"]["16"]["selectors"]["visual_world_model"]["selected_success"]
     assert visual > heuristic, (visual, heuristic)
     assert report["verdict"]["answer"] == "yes", report["verdict"]
@@ -381,6 +396,8 @@ def check_no_unsupported_claim():
     artifact, views, pools = scored_artifact(
         {"scene": same}, {"scene": ("block_orientation", "visible_omitted_by_coordinates")})
     arms = [sel.EstimatedStateHeuristic(),
+            Constant("matched_no_vision", sel.MatchedNoVision.information_sources,
+                     lambda name: 0.9 if name == "correct" else 0.1),
             Constant("visual_world_model", sel.VisualWorldModel.information_sources,
                      lambda name: 0.1 if name == "correct" else 0.9, needs_frames=True)]
     original = bs.observation_window
@@ -495,6 +512,7 @@ def main():
     check_self_rank_parsing()
     check_self_rank_scoring()
     check_paired_ranker_contract()
+    check_matched_no_vision_contract()
     check_benchmark_end_to_end()
     check_no_unsupported_claim()
     if args.live_visual:
