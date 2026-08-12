@@ -5,17 +5,14 @@
   "control": "same checkpoint, plan encoder, observation text, image-derived estimates, and scoring path as visual_world_model; visual latent zeroed",
   "selected_success": {
     "1": {
-      "estimated_state": 0.9,
       "matched_no_vision": 0.9,
       "visual_world_model": 0.9
     },
     "4": {
-      "estimated_state": 1.0,
       "matched_no_vision": 0.9,
       "visual_world_model": 0.9
     },
     "16": {
-      "estimated_state": 1.0,
       "matched_no_vision": 0.85,
       "visual_world_model": 0.85
     }
@@ -47,6 +44,5 @@
       0.0
     ]
   },
-  "secondary_reference": "estimated_state reaches 1.0 selected success at N=16 but is not the causal baseline because its hand-coded retry and redetection bonuses use a different candidate representation.",
   "verdict": "The locked test shows no measured selection benefit from raw visual context over the matched no-vision model."
 }

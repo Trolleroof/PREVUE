@@ -507,7 +507,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--pools", type=Path, default=POOL_ROOT, help="cached pools from #17")
     ap.add_argument("--split", choices=tuple(SPLITS), default="test")
-    ap.add_argument("--kind", choices=("natural", "diagnostic"), default="natural",
+    ap.add_argument("--kind", choices=("natural", "diagnostic", "stress"), default="natural",
                     help="one artifact per kind: the two have different generators")
     ap.add_argument("--seeds", help="explicit scene seeds, e.g. 0,1,2 or 100-107")
     ap.add_argument("--physics-seeds", type=int, default=1,

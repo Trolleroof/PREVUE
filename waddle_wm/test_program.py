@@ -292,6 +292,8 @@ def check_pool_contract():
     negatives = [
         ("duplicate candidate id", lambda p: p["candidates"][1].update(candidate_id=p["candidates"][0]["candidate_id"]),
          "duplicate candidate_id"),
+        ("duplicate program", lambda p: p["candidates"][1].update(
+            dedup_key=p["candidates"][0]["dedup_key"]), "duplicate program"),
         ("non-nested prefix", lambda p: p["prefixes"].__setitem__("4", list(reversed(p["prefixes"]["4"]))),
          "not nested"),
         ("short prefix", lambda p: p["prefixes"].__setitem__("4", p["prefixes"]["4"][:2]), "holds 2 candidates"),
@@ -324,18 +326,23 @@ def check_pool_contract():
         assert any(fragment in problem for problem in problems), (name, problems)
 
     class OfflineScene:
+        seed = 0
         observation = SCENE
 
         @staticmethod
         def reachable(trace):
             return None
 
+    stress, rejected = pools.stress_pool(OfflineScene(), "red block", "green pad", 64)
+    assert not rejected and len(stress) == len({candidate.dedup_key for candidate in stress}) == 64
+
     calls = []
     original = pools.one_sample
 
     def sample(index, instruction, observation, model, timeout):
         calls.append(index)
-        return {"index": index, "error": None, "raw": json.dumps(prog.canonical_program().as_json()),
+        program = prog.canonical_program(target_offset_mm=(index * 2.0, 0.0))
+        return {"index": index, "error": None, "raw": json.dumps(program.as_json()),
                 "generation": {"model": model, "cost_usd": 0.01}}
 
     pools.one_sample = sample
