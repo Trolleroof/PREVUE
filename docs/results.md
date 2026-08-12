@@ -285,3 +285,116 @@ identify and repair bad plans before execution, turning 0/8 unverified failures 
 access scores 7/8 on those same scenes, so *verifying* the plan is worth it while
 *imagining it visually* is still not shown to be. On this corpus the verifier's
 competence remains confined to the part the plan already determines.
+
+## 8. Selector comparison: Claude self-rank vs coordinates vs vision (#18)
+
+The three-way comparison [§7](#7-honest-summary) called open is now built and has
+been run once, end to end, on the locked held-out scenes.
+[`selector_benchmark.md`](selector_benchmark.md) is the design; this section is the
+measured run.
+
+```bash
+uv run python -m waddle_wm.pools --scene-manifest data/perception_scenes/test.json --split test --kind diagnostic
+```
+
+```bash
+uv run python -m waddle_wm.counterfactual --split test --kind diagnostic
+```
+
+```bash
+uv run python -m waddle_wm.benchmark_selectors --counterfactual data/counterfactual/test-diagnostic.json --pools data/pools --out results/programs
+```
+
+Artifact [`results/programs/test-diagnostic-selectors.json`](../results/programs/test-diagnostic-selectors.json),
+report [`…-report.json`](../results/programs/test-diagnostic-selectors-report.json),
+plot [`…-selectors.png`](../results/programs/test-diagnostic-selectors.png). Git SHA
+`7f280ac`, clean worktree, 20 test scenes x 3 prefixes = 60 paired cells, 0 excluded.
+`check_run` and `check_execution` pass.
+
+### Read this first: which pool was ranked
+
+This run ranks the **diagnostic** pools — the scripted strategy-and-fault suite, not
+Claude's own samples. Natural pools cost 20 x 64 generation calls and have not been
+built yet, and #17 requires the two kinds be reported separately anyway. Two
+consequences, both of which cap what this run can show:
+
+- the scripted suite puts the canonical program at sample 0, so the `first` reference
+  is unusually strong here — it is "take the correct program", not "take Claude's first
+  idea";
+- 16 candidates means prefixes 1/4/16 only, and two scenes per failure slice, so a
+  slice-level number is 0, 0.5 or 1.
+
+### Selected-program success against pool size
+
+| N | `pool_has_success` | claude_self_rank | estimated_state | visual_world_model | first | random |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 0.80 | 0.80 | 0.80 | 0.80 | 0.80 | 0.80 |
+| 4 | 1.00 | 0.80 | **0.85** | 0.80 | 0.80 | 0.90 |
+| 16 | 1.00 | 0.80 | **0.85** | 0.80 | 0.80 | 0.60 |
+
+Every pool held a success from N=4 on, so the gap to 1.00 is entirely selection.
+At N=16 the oracle gap is 6.0 / 7.2 / 6.0 positions (self-rank / coordinates / vision)
+out of 16, and the missed-available-success rate is 0.20 / 0.15 / 0.20.
+
+| N=16, per selector | Brier | mean uncertainty | false accepts | false rejects | latency | cost |
+| --- | --- | --- | --- | --- | --- | --- |
+| claude_self_rank | 0.174 | — | 1.4 | 2.35 | 7.26 s | $2.48 total |
+| estimated_state | 0.220 | — | 3.0 | 0.85 | <1 ms | $0 |
+| visual_world_model | 0.247 | 0.174 | 2.0 | 3.85 | 55 ms (+1.0 s to encode the window once per scene) | $0 |
+
+### By failure slice, N=16
+
+| slice | observability | self-rank | coordinates | vision | first | random |
+| --- | --- | --- | --- | --- | --- | --- |
+| malformed_sequence | plan_visible_control | 1.00 | 1.00 | 1.00 | 1.00 | 0.50 |
+| obvious_target_miss | plan_visible_control | 1.00 | 1.00 | 1.00 | 1.00 | 0.00 |
+| unreachable_waypoint | plan_visible_control | 1.00 | 1.00 | 1.00 | 1.00 | 0.50 |
+| occlusion | visible_omitted_by_coordinates | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| prior_action_state_change | visible_omitted_by_coordinates | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| path_obstruction | visible_omitted_by_coordinates | 0.50 | **1.00** | 0.50 | 0.50 | 0.50 |
+| grasp_misalignment | visible_omitted_by_coordinates | 0.50 | 0.50 | 0.50 | 0.50 | 0.00 |
+| block_orientation | visible_omitted_by_coordinates | **0.00** | **0.00** | **0.00** | 0.00 | 0.50 |
+| slip_drop | latent_physics | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| release_dynamics | latent_physics | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+
+### The verdict, in the report's own words
+
+> On the `visible_omitted_by_coordinates` slice the visual world model selected a
+> successful program **−0.067** more often than the estimated-state heuristic (95% CI
+> **[−0.167, 0.000]**), over 30 paired scenes. The interval does not exclude zero, so
+> this run does not support a claim that visual information improves selection.
+
+**No claim of visual value is made.** The visual arm did not beat the coordinate
+heuristic on the slice it exists for; on the plan-visible slice all three deployable
+arms are already perfect, which is what that slice is for.
+
+`block_orientation` is the sharp case. The pool *does* contain a program that works —
+the ±45° oriented grasps — and every deployable selector misses it on both scenes,
+while the coin flip finds it once. The rotated block's heading is visible in the frame
+and absent from a centre coordinate, so it is exactly the decision the visual arm was
+supposed to own; the checkpoint's plan encoding carries no wrist heading
+(`orientation_blind` in its recorded config), so two candidates differing only in
+`yaw_deg` are the same input to it. That is a concrete, named reason to build a
+yaw-aware scorer, not a reason to re-run this one.
+
+### Two things this run fixed on the way
+
+- **The world model was returning `p = 0` for every candidate.** Its plan feature
+  "grasp height above the block" was constant while it was fitted (the training traces
+  read block z from the simulator), so that dimension's standard deviation collapsed to
+  the `1e-6` clamp floor. At inference the coordinates come from the camera, and a
+  millimetre of perception noise divided by `1e-6` is a five-thousand-sigma input: the
+  ensemble saturated. Holding dimensions that were constant during fitting at their
+  training constant restores discrimination (canonical program 0.90, planted faults
+  below it). The same guard now protects `waddle_wm/verifier.py` and `agent.py`.
+- **The heuristic's weights were checked, not assumed.** `selectors --fit` refit the
+  same logistic form on the calibration split's executed outcomes; predeclared and
+  fitted weights select identically there (0.867 both), so the locked run uses the
+  predeclared geometry rule and nothing was tuned on test.
+
+### What this does not answer
+
+Natural Claude pools, prefixes at 32 and 64, and paired physics seeds are all still
+unrun. Until the natural pools exist, the headline question — does *any* of this beat
+Claude picking its own first sample, on Claude's own candidates — has been measured
+only against a scripted suite whose sample 0 is the correct program by construction.

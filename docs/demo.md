@@ -161,7 +161,7 @@ the block height comes from the depth buffer instead of the simulator, and that 
 disagreement divided by 1e-6 arrived at the ensemble as **~3500 sigma**. One saturated input pinned
 every verdict.
 
-`Verifier.constant_features` now feeds a feature that never varied in training the value training
+`verifier.standardise` now feeds a feature that never varied in training the value training
 actually saw, instead of an exploded one. `test_demo.check_constant_feature_guard` holds the fixture
 and asserts the checkpoint still has such a feature.
 

@@ -16,7 +16,7 @@ import torch
 
 from waddle_wm.demo import ARMS, SCENARIOS, RecordedPlanner, recorded_plans, report
 from waddle_wm.planner import PICK_PLACE_SHAPE, Plan
-from waddle_wm.verifier import Verifier
+from waddle_wm.verifier import DEGENERATE_STD, standardise
 
 
 def check_scenarios():
@@ -93,15 +93,11 @@ def check_constant_feature_guard(checkpoint: Path | None):
     verdict came back p(success) = 0.000, "grasp misses the block", with the imagined block position
     tens of metres off the table — for good plans as readily as bad ones.
     """
-    class Stub(Verifier):
-        def __init__(self, norm):
-            self.norm = norm
-
     norm = {"plan_mean": torch.tensor([0.0, 0.0, -0.0029]),
             "plan_std": torch.tensor([0.0141, 0.0145, 1e-6])}
     live = torch.tensor([[0.001, -0.002, 0.0035]])
     naive = (live - norm["plan_mean"]) / norm["plan_std"]
-    guarded = Stub(norm).constant_features(live, "plan")
+    guarded = standardise(live, norm["plan_mean"], norm["plan_std"])
     assert naive[0, 2].abs() > 1e3, "the fixture no longer reproduces the blow-up"
     assert guarded[0, 2] == 0.0, "a constant training feature must contribute what training saw"
     assert torch.allclose(guarded[0, :2], naive[0, :2]), "healthy features must be untouched"
@@ -110,7 +106,7 @@ def check_constant_feature_guard(checkpoint: Path | None):
     if checkpoint is None:
         return
     saved = torch.load(checkpoint, map_location="cpu", weights_only=False)
-    degenerate = (saved["normalization"]["plan_std"] <= Verifier.DEGENERATE_STD).nonzero().flatten()
+    degenerate = (saved["normalization"]["plan_std"] <= DEGENERATE_STD).nonzero().flatten()
     assert len(degenerate), (f"{checkpoint} has no degenerate plan feature; if the corpus now varies "
                              "grasp height the guard is harmless, but this check should be revisited")
     print(f"guard: {checkpoint} has constant plan features at {degenerate.tolist()}, all pinned")

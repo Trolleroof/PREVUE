@@ -214,15 +214,15 @@ The held-out 135-episode result is:
 | learned world model, validation-calibrated | 0.674 | 0.076 | 0.679 |
 
 The learned model is real and uses visual context: removing V-JEPA drops held-out
-accuracy from 0.674 to 0.585. It is nevertheless too conservative and weaker than the
-rules verifier. Use `--verifier rules` when reliable execution matters; use
-`--verifier world-model` to inspect the learned prediction/repair loop.
+accuracy from 0.674 to 0.585. That table is measured inside the trainer, on the dataset's
+exact simulator states. The live path — the one the agent actually runs — feeds it
+*camera* coordinates instead, and until the normalisation guard below it was broken there.
 
 Those are **offline** numbers, and until [#19](demo.md#5-the-bug-this-demo-found) the live path did
 not match them: a training feature that never varied (`grasp_z - block_z`, constant because every
 recorded block height was read out of MuJoCo) was normalised by `clamp_min`'s 1e-6 floor, so the live
 depth-buffer estimate of that height arrived as ~3500 sigma and pinned every verdict at
-p(success) = 0.000. `Verifier.constant_features` fixes it. Anything measured with
+p(success) = 0.000. `verifier.standardise` fixes it. Anything measured with
 `--verifier world-model` before that fix reflects the bug, not the model.
 
 Train the current checkpoint with:
@@ -231,6 +231,47 @@ Train the current checkpoint with:
 uv run python -m waddle_wm.train_multiblock_world_model \
   --data data/ur5e_wm_multiblock --out models/multiblock_world_model.pt
 ```
+
+### The normalisation guard: why every live plan used to score 0.000
+
+The world model takes the candidate's grasp and place as offsets from the block's
+coordinates. One of those six numbers — the grasp height above the block — was **constant**
+while the model was fitted, because every recorded trace descends to a fixed height above a
+block centre read straight out of MuJoCo. Its standard deviation therefore landed on the
+trainer's clamp floor, `1e-6`.
+
+At inference the coordinates come from the camera, and the camera's z carries a few
+millimetres of error. Dividing that by `1e-6` hands the network a five-thousand-sigma input,
+and the ensemble saturates: `p(success) = 0.000` for *every* plan, good or bad. In a run log
+that is indistinguishable from a confident rejection, which is exactly how it went unnoticed.
+
+`verifier.standardise` now holds dimensions that were constant during fitting at their
+training constant and clamps the rest to the range the fit covered. Both apply to every plan
+equally. Paired A/B on 30 freshly rendered scenes — same window, same camera coordinates,
+each plan scored twice and executed once
+([`results/verifier_normalisation_guard.json`](../results/verifier_normalisation_guard.json)):
+
+| live, 30 scenes, camera coordinates | agreement with physics | false accepts | false rejects | distinct scores |
+| --- | ---: | ---: | ---: | ---: |
+| guarded | **28/30 = 0.933** | 1 of 14 real failures | 1 of 16 real successes | 30 |
+| unguarded (the old path) | 14/30 = 0.467 | 0 | **16 of 16** | 1 (all exactly 0.000) |
+
+```bash
+uv run python -m waddle_wm.test_verifier --multiblock 3
+uv run python -m waddle_wm.test_agent --live 30 --checkpoint models/multiblock_world_model.pt
+```
+
+**What this invalidates.** Anything scored through `Verifier.verify` with
+`models/multiblock_world_model.pt` before this fix: the `--verifier world-model` runs saved
+in `results/agent/` on 2026-08-10 (their verdicts are `1.000` or `0.000` and nothing between
+— the tell), and any `benchmark_candidate_rank` run in `world-model` mode. The dataset table
+above and every `latent_dynamics` number are unaffected: those checkpoints have no degenerate
+dimension, and the latent path is deliberately left unclamped.
+
+The guarded live number is *not* comparable to the 0.933 in the rules table — different
+evaluation set, 30 fresh scenes versus 135 held-out episodes. What can be said is that the
+learned verifier is no longer rejecting every plan it is shown, and that a re-run of the
+nine-pair held-out comparison is the honest next measurement.
 
 ## Previous red-to-pad live baseline
 
@@ -263,6 +304,11 @@ three):
 | "move the gripper over the blue block and hover just above it, do not grab anything" | not verifiable, executed and said so | pinch ends at (0.499, −0.157, 0.241); the blue block was detected at (0.495, −0.178) |
 | "put the red block on the green pad, but let go early — release it around x=0.33, y=0.30" | rejected at p=0.000, and Claude declined both repairs — "changed nothing: the verifier's only failure is exactly what the operator asked for" | **nothing executed** |
 
+Read the graded verdicts in that table (0.855, 0.343, 0.988) as genuine: a saturated
+verifier cannot produce them. The runs in `results/agent/` whose rounds are all `0.000` or
+`1.000` are the ones scored through the pre-guard multi-block path, and their verdicts say
+nothing about the plan — see the normalisation guard above.
+
 The repair branch fires less often than the design implies, because Opus 5's first
 plan for a plain pick-and-place is usually already right. Where it fires, it fires on
 placement, and the second plan is better. The last row is the more interesting
@@ -274,8 +320,11 @@ pretending to resolve the conflict.
 
 - Execution, MuJoCo scoring, rules, and the schema-4 learned checkpoint support red, blue,
   and yellow blocks, pad placement, block stacking, and up to four sequential steps.
-- The learned verifier covers all nine task pairs but is conservative; it rejects many
-  physically successful plans. The rules verifier is the reliable mode today.
+- The learned verifier covers all nine task pairs. On the dataset's exact states it is
+  conservative (0.679 false rejects in the table above); on freshly rendered scenes it now
+  agrees with physics 28/30 since the normalisation guard. Those two numbers are different
+  evaluations, and the held-out nine-pair comparison has not been re-run since the fix — so
+  "which verifier is better" is currently unsettled rather than settled for the rules mode.
 - Grasp-failure detection is the weak axis (see above); do not read an approval as a
   guarantee that the fingers will hold.
 - Off-distribution place targets pull the imagined final position back toward the

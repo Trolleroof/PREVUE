@@ -53,6 +53,42 @@ def through_codec(frames, fps: int = 10) -> list[np.ndarray]:
         return clip_frames(path, len(frames))
 
 
+# A feature whose training standard deviation collapsed to the trainer's clamp floor was
+# *constant* while the model was fitted, so its normalisation carries no information — only a
+# division by ~0. `multiblock_world_model.pt` has one: the grasp height above the block, which
+# every recorded episode set identically because the trace descended to a fixed height above a
+# block centre read straight out of MuJoCo. At inference the caller supplies camera estimates,
+# and a millimetre of perception noise divided by 1e-6 arrives as a five-thousand-sigma input.
+# The ensemble then saturates to p(success) = 0 for *every* plan — not a judgement, an
+# overflow, and one that looks exactly like a confident rejection in a run log.
+#
+# So: dimensions that were constant during fitting are held at their training constant, and the
+# rest are clamped to the range the fit actually covered. Both are applied to every plan
+# equally, so no plan is advantaged by the guard.
+DEGENERATE_STD = 1e-5
+FEATURE_CLAMP = 5.0
+
+
+def standardise(values: torch.Tensor, mean: torch.Tensor, std: torch.Tensor,
+                clamp: float | None = FEATURE_CLAMP) -> torch.Tensor:
+    """Normalise against a checkpoint's statistics without dividing by a degenerate std."""
+    scaled = torch.where(std <= DEGENERATE_STD, torch.zeros_like(values), (values - mean) / std)
+    return scaled if clamp is None else scaled.clamp(-clamp, clamp)
+
+
+def degenerate_dimensions(normalization: dict) -> dict[str, list[int]]:
+    """Which normalised dimensions carried no variance during training, per statistic."""
+    found = {}
+    for key, value in normalization.items():
+        if not key.endswith("_std"):
+            continue
+        dimensions = [index for index, item in enumerate(value.flatten().tolist())
+                      if item <= DEGENERATE_STD]
+        if dimensions:
+            found[key] = dimensions
+    return found
+
+
 @dataclass
 class VerificationResult:
     approve: bool
@@ -68,11 +104,6 @@ class VerificationResult:
 class Verifier:
     """`verify(observation_window, skill_trace) -> VerificationResult`."""
 
-    # A training feature whose spread hit `clamp_min`'s floor was constant, so its stored std is a
-    # placeholder rather than a scale. Dividing a live value by it turns millimetres into thousands
-    # of sigma; see `constant_features`.
-    DEGENERATE_STD = 1e-5
-
     def __init__(self, checkpoint: Path, model: Path = Path("models/vjepa2-vitl-fpc64-256"), threshold: float | None = None, device=None):
         saved = torch.load(checkpoint, map_location="cpu", weights_only=False)
         self.device = device or torch.device("mps" if torch.backends.mps.is_available() else "cpu")
@@ -81,6 +112,9 @@ class Verifier:
         self.model_path = model
         self.model_type = saved.get("model_type", "latent_dynamics")
         self.norm = {key: value.to(self.device) for key, value in saved["normalization"].items()}
+        # Reported rather than silently worked around: a checkpoint with a degenerate statistic
+        # is a checkpoint whose next retrain wants a std floor.
+        self.degenerate = degenerate_dimensions(self.norm)
         self._encoder = None
         if self.model_type == "multiblock_state":
             self.members = nn.ModuleList([StateWorldModel(saved["context_dim"], saved["plan_dim"])
@@ -96,22 +130,6 @@ class Verifier:
                         if self.object_conditioned else Readout(saved["latent_dim"], self.state_dim, self.binary_dim))
         self.readout.load_state_dict(saved["readout"]); self.readout.to(self.device).eval()
 
-    def constant_features(self, raw: torch.Tensor, field: str) -> torch.Tensor:
-        """`(raw - mean) / std`, with features that never varied in training pinned to what it saw.
-
-        `train_multiblock_world_model` normalises with `std.clamp_min(1e-6)`, so a feature that was
-        constant across the corpus stores an epsilon where a scale should be. One feature is:
-        `grasp_z - block_z` is the same number in all 900 episodes, because every recorded trace
-        descends to `GRASP_Z` and every recorded block height is read out of MuJoCo. Live, the block
-        height comes from the depth buffer instead, and that few-millimetre disagreement divided by
-        1e-6 reaches the ensemble as ~3.5e3 sigma — enough on its own to saturate every member and
-        pin the verdict at p(success) = 0.000 with an imagined block position tens of metres off the
-        table. A constant feature carried no information for the model to use, so the value that
-        matches training is the constant one, not the exploded one.
-        """
-        mean, std = self.norm[f"{field}_mean"], self.norm[f"{field}_std"]
-        return torch.where(std > self.DEGENERATE_STD, (raw - mean) / std, torch.zeros_like(raw))
-
     def encode(self, frames) -> torch.Tensor:
         """One observation window of raw RGB frames -> one normalised latent."""
         window = self.manifest["window_frames"]
@@ -126,7 +144,9 @@ class Verifier:
             pixels = processor(list(frames), return_tensors="pt")["pixel_values_videos"].to(self.device)
             latent = encoder(pixel_values_videos=pixels).last_hidden_state.mean(dim=1).float()
         if self.model_type == "multiblock_state":
-            return (latent - self.norm["context_mean"]) / self.norm["context_std"]
+            return standardise(latent, self.norm["context_mean"], self.norm["context_std"])
+        # The latent-dynamics path is left unclamped: its statistics have no degenerate
+        # dimension, and every number already reported from it was measured this way.
         return (latent - self.norm["latent_mean"]) / self.norm["latent_std"]
 
     def encode_live(self, frames) -> torch.Tensor:
@@ -161,11 +181,15 @@ class Verifier:
                 destination_xyz = (torch.tensor(scene_positions.get("green_pad", scene.TARGET_POS),
                                                 dtype=torch.float32, device=self.device) if destination == "green_pad" else
                                    raw_state[0, names.index(destination) * 3:names.index(destination) * 3 + 3])
-                grasp = torch.tensor(next(e["target"] for e in trace if e["phase"] == "descend"), device=self.device)
-                place = torch.tensor(next(e["target"] for e in trace if e["phase"] == "place"), device=self.device)
+                # dtype pinned: a trace whose waypoints came out of numpy carries float64,
+                # which MPS refuses outright.
+                grasp = torch.tensor(next(e["target"] for e in trace if e["phase"] == "descend"),
+                                     dtype=torch.float32, device=self.device)
+                place = torch.tensor(next(e["target"] for e in trace if e["phase"] == "place"),
+                                     dtype=torch.float32, device=self.device)
                 plan = torch.cat([grasp - source_xyz, place - destination_xyz]).unsqueeze(0)
-                plan = self.constant_features(plan, "plan")
-                state = self.constant_features(raw_state, "state")
+                plan = standardise(plan, self.norm["plan_mean"], self.norm["plan_std"])
+                state = standardise(raw_state, self.norm["state_mean"], self.norm["state_std"])
                 task = task_features([object_name], [destination], names, self.device)
                 outputs = [member(latent, state, plan, task) for member in self.members]
                 predicted = torch.stack([output[0] for output in outputs])
@@ -194,7 +218,7 @@ class Verifier:
                 lifted_score = torch.sigmoid((moved - 0.025) / 0.01)
                 if destination == "green_pad":
                     target = torch.tensor(next(e["target"][:2] for e in trace if e["phase"] == "place"),
-                                          device=self.device)
+                                          dtype=torch.float32, device=self.device)
                     distance = (block_xyz[..., :2] - target).norm(dim=-1)
                     target_score = torch.sigmoid((TARGET_RADIUS - distance) / 0.02)
                 else:
