@@ -225,7 +225,7 @@ def report(artifact: dict, pools: dict, arms: list[str]) -> dict:
             continue
         try:
             slices[name] = {"observability": next(row[1] for row in by_pool.values() if row[0] == name),
-                            "expected_effect": SLICES.get(name, "unsliced"),
+                            "declared_observability": SLICES.get(name, "unsliced"),
                             **aggregate(part)}
         except NotComparable as failure:
             slices[name] = {"error": str(failure)}
