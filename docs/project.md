@@ -83,8 +83,9 @@ That is a clearer demo and research question than “we trained a world model.�
 | Bounded code-as-policy program schema and cached Claude candidate pools | done |
 | Benchmark artifact schema, oracle ordering, and integrity validator | done |
 | Counterfactual execution of every candidate from one identical state | done |
+| End-to-end demo: one flawed plan, three verifiers, one command | done |
 
-See [`transition_schema.md`](transition_schema.md) for the data contract, [`results.md`](results.md) for measured verifier performance, [`backbone_decision.md`](backbone_decision.md) for the frozen-backbone choice, [`llm_agent.md`](llm_agent.md) for the planner, the perception primitives, and the repair loop, [`program_schema.md`](program_schema.md) for the candidate format the program-ranking benchmark uses, [`benchmark_protocol.md`](benchmark_protocol.md) for what a locked run records, how the oracle orders candidates, and what the validator refuses, and [`counterfactual_execution.md`](counterfactual_execution.md) for how the outcome records that answer key is built from are produced — every candidate executed from one identical simulator snapshot.
+See [`transition_schema.md`](transition_schema.md) for the data contract, [`results.md`](results.md) for measured verifier performance, [`backbone_decision.md`](backbone_decision.md) for the frozen-backbone choice, [`llm_agent.md`](llm_agent.md) for the planner, the perception primitives, and the repair loop, [`program_schema.md`](program_schema.md) for the candidate format the program-ranking benchmark uses, [`benchmark_protocol.md`](benchmark_protocol.md) for what a locked run records, how the oracle orders candidates, and what the validator refuses, [`counterfactual_execution.md`](counterfactual_execution.md) for how the outcome records that answer key is built from are produced — every candidate executed from one identical simulator snapshot, and [`demo.md`](demo.md) for the reproducible end-to-end demo and the honest reading of what it does and does not establish.
 
 ## Architecture
 
@@ -140,10 +141,17 @@ Done — see [`llm_agent.md`](llm_agent.md):
 2. ~~**Verifier integration**~~ — every pick-and-place plan is scored before execution.
 3. ~~**Repair loop**~~ — imagined failure and uncertainty go back to Claude, one change at a time.
 
+Done — see [`demo.md`](demo.md):
+
+4. ~~**Three-way comparison**~~ — no verifier vs rules vs visual world model, identical scenes and
+   identical flawed opening plan, one command. Verification converts 0/8 into 6/8 and 7/8; the
+   *visual* half of the claim is still unsupported, because the geometry rule wins.
+
 Still open:
 
-4. **Three-way comparison** — LLM only vs plan-only vs full verifier on the same task suite.
 5. **Uncertainty behavior** — request another view or halt when ensemble disagreement is high.
+   Partly there: the loop halts after two failed repairs, and [`demo.md`](demo.md) §2 shows what
+   that costs — one scene where the learned verifier refuses a plan that would have worked.
 6. **Grasp-failure detection** — the weak axis. `lifted` accuracy is 0.720 against `in_target`'s
    0.851, so an offset grasp is often approved. This is what the agent needs next, not more planning.
 7. **Skills above primitives** — Waddle's middle layer: let the agent name and reuse parametrised

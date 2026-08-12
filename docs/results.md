@@ -276,12 +276,15 @@ weighted.
 
 The pivot is built and runs: the record shape, the action-conditioned predictor,
 the rollout, the uncertainty, and the verifier interface all work end-to-end from
-pixels, and the latent prediction itself is clearly real (0.797 vs −0.016). What
-is not yet demonstrated is the claim in [`project.md`](project.md) — that an LLM
-agent using this verifier can identify and repair bad plans before execution, and
-that imagining a skill catches failures a planner could not compute from its own
-plan alone. On this corpus the verifier's competence is confined to the part the
-plan already determines; the repair loop and three-way comparison are still open.
+pixels, and the latent prediction itself is clearly real (0.797 vs −0.016).
+
+Half the claim in [`project.md`](project.md) is now demonstrated and half is not.
+[`demo.md`](demo.md) closes the loop end to end: an LLM agent using this verifier does
+identify and repair bad plans before execution, turning 0/8 unverified failures into
+6/8 successes on identical scenes. But a deterministic geometry rule with no image
+access scores 7/8 on those same scenes, so *verifying* the plan is worth it while
+*imagining it visually* is still not shown to be. On this corpus the verifier's
+competence remains confined to the part the plan already determines.
 
 ## 8. Selector comparison: Claude self-rank vs coordinates vs vision (#18)
 
@@ -383,7 +386,7 @@ yaw-aware scorer, not a reason to re-run this one.
   millimetre of perception noise divided by `1e-6` is a five-thousand-sigma input: the
   ensemble saturated. Holding dimensions that were constant during fitting at their
   training constant restores discrimination (canonical program 0.90, planted faults
-  below it). `waddle_wm/verifier.py` and `agent.py` still take the unguarded path.
+  below it). The same guard now protects `waddle_wm/verifier.py` and `agent.py`.
 - **The heuristic's weights were checked, not assumed.** `selectors --fit` refit the
   same logistic form on the calibration split's executed outcomes; predeclared and
   fitted weights select identically there (0.867 both), so the locked run uses the

@@ -193,7 +193,13 @@ class SkillAgent:
         return self.verifier.verify(latent, step.trace, step.object.replace(" ", "_"),
                                     step.destination.replace(" ", "_"), positions), None
 
-    def run(self, instruction: str, seed: int = 0, block_xy=None, target_xy=None, on_event=None) -> AgentRun:
+    def run(self, instruction: str, seed: int = 0, block_xy=None, target_xy=None, on_event=None,
+            opening_plan: Plan | None = None) -> AgentRun:
+        """`opening_plan` skips the proposal call and starts the loop from a plan given to it.
+
+        The demo uses it to hand every verifier arm the *same* flawed opening plan, so the arms
+        differ only in what they do about it. Repairs still come from Claude.
+        """
         started = time.time()
         emit = on_event or (lambda *_: None)
         _, latent = self.observe(block_xy, target_xy)
@@ -210,7 +216,7 @@ class SkillAgent:
                           "detections": [detection.summary() for detection in detections]})
 
         try:
-            plan = self.planner.propose(instruction, observation)
+            plan = opening_plan if opening_plan is not None else self.planner.propose(instruction, observation)
         except (PlanError, RuntimeError) as error:
             run.decision, run.reason = "error", str(error)
             run.planner_calls, run.seconds = self.planner.calls[-4:], time.time() - started
@@ -223,7 +229,7 @@ class SkillAgent:
         step = self.ground_step(plan.steps[0]) if plan.steps else None
 
         for index in range(self.repairs + 1):
-            kind = "propose" if index == 0 else "repair"
+            kind = ("given" if opening_plan is not None else "propose") if index == 0 else "repair"
             emit("plan", {"round": index, "kind": kind, **plan.summary()})
             if not plan.executable:
                 run.rounds.append(Round(index, kind, plan.summary(), verified=False,

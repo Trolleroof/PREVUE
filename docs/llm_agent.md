@@ -48,6 +48,13 @@ uv run python -m waddle_wm.agent --instruction "put the red block on the green p
 uv run python -m waddle_wm.test_agent --live 30
 ```
 
+The packaged demo runs this same loop against all three verifier modes on one flawed plan and
+reports what physics then did — see [`demo.md`](demo.md):
+
+```bash
+uv run python -m waddle_wm.demo
+```
+
 The browser and CLI expose the three comparison modes directly:
 
 ```bash
@@ -210,6 +217,13 @@ The learned model is real and uses visual context: removing V-JEPA drops held-ou
 accuracy from 0.674 to 0.585. That table is measured inside the trainer, on the dataset's
 exact simulator states. The live path — the one the agent actually runs — feeds it
 *camera* coordinates instead, and until the normalisation guard below it was broken there.
+
+Those are **offline** numbers, and until [#19](demo.md#5-the-bug-this-demo-found) the live path did
+not match them: a training feature that never varied (`grasp_z - block_z`, constant because every
+recorded block height was read out of MuJoCo) was normalised by `clamp_min`'s 1e-6 floor, so the live
+depth-buffer estimate of that height arrived as ~3500 sigma and pinned every verdict at
+p(success) = 0.000. `verifier.standardise` fixes it. Anything measured with
+`--verifier world-model` before that fix reflects the bug, not the model.
 
 Train the current checkpoint with:
 
