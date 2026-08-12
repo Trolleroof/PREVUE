@@ -1,0 +1,537 @@
+{
+  "scenario": "place_miss",
+  "arm": "rules",
+  "instruction": "pick up the red block and put it on the green pad",
+  "flaw": "release point 22 cm short of the pad in -y",
+  "tests": "the strong axis: the failure is computable from the plan alone.",
+  "block_xy": [
+    0.42,
+    -0.2
+  ],
+  "scene": {
+    "detections": [
+      {
+        "label": "red block",
+        "box": [
+          171,
+          151,
+          179,
+          159
+        ],
+        "pixels": 70,
+        "score": 1.0,
+        "point_base": [
+          0.415,
+          -0.1945,
+          0.0133
+        ],
+        "depth_m": 1.7434,
+        "size_m": 0.0373
+      },
+      {
+        "label": "blue block",
+        "box": [
+          185,
+          154,
+          193,
+          163
+        ],
+        "pixels": 71,
+        "score": 1.0,
+        "point_base": [
+          0.4948,
+          -0.178,
+          0.0126
+        ],
+        "depth_m": 1.7103,
+        "size_m": 0.034
+      },
+      {
+        "label": "yellow block",
+        "box": [
+          208,
+          162,
+          217,
+          172
+        ],
+        "pixels": 79,
+        "score": 1.0,
+        "point_base": [
+          0.6342,
+          -0.1776,
+          0.0119
+        ],
+        "depth_m": 1.6338,
+        "size_m": 0.0353
+      }
+    ],
+    "landing_pad": {
+      "centre": [
+        0.5,
+        0.3
+      ],
+      "radius": 0.105
+    },
+    "truth": {
+      "red_block": [
+        0.42,
+        -0.2,
+        0.0179
+      ],
+      "blue_block": [
+        0.5,
+        -0.18,
+        0.0179
+      ],
+      "yellow_block": [
+        0.64,
+        -0.18,
+        0.0179
+      ]
+    }
+  },
+  "opening_plan": {
+    "intent": "pick up the red block and put it on the green pad",
+    "action": "execute",
+    "note": "release point 22 cm short of the pad in -y",
+    "steps": [
+      {
+        "object": "red block",
+        "destination": "green pad",
+        "trace": [
+          {
+            "phase": "approach",
+            "target": [
+              0.415,
+              -0.1946,
+              0.24
+            ]
+          },
+          {
+            "phase": "descend",
+            "target": [
+              0.415,
+              -0.1946,
+              0.015
+            ]
+          },
+          {
+            "phase": "close"
+          },
+          {
+            "phase": "lift",
+            "target": [
+              0.415,
+              -0.1946,
+              0.24
+            ]
+          },
+          {
+            "phase": "move",
+            "target": [
+              0.5,
+              0.08,
+              0.3
+            ]
+          },
+          {
+            "phase": "place",
+            "target": [
+              0.5,
+              0.08,
+              0.015
+            ]
+          },
+          {
+            "phase": "open"
+          },
+          {
+            "phase": "retreat",
+            "target": [
+              0.5,
+              0.08,
+              0.24
+            ]
+          }
+        ]
+      }
+    ],
+    "trace": [
+      {
+        "phase": "approach",
+        "target": [
+          0.415,
+          -0.1946,
+          0.24
+        ]
+      },
+      {
+        "phase": "descend",
+        "target": [
+          0.415,
+          -0.1946,
+          0.015
+        ]
+      },
+      {
+        "phase": "close",
+        "value": 255.0
+      },
+      {
+        "phase": "lift",
+        "target": [
+          0.415,
+          -0.1946,
+          0.24
+        ]
+      },
+      {
+        "phase": "move",
+        "target": [
+          0.5,
+          0.08,
+          0.3
+        ]
+      },
+      {
+        "phase": "place",
+        "target": [
+          0.5,
+          0.08,
+          0.015
+        ]
+      },
+      {
+        "phase": "open",
+        "value": 0.0
+      },
+      {
+        "phase": "retreat",
+        "target": [
+          0.5,
+          0.08,
+          0.24
+        ]
+      }
+    ]
+  },
+  "rounds": [
+    {
+      "round": 0,
+      "kind": "given",
+      "grasp_xy": [
+        0.415,
+        -0.1946
+      ],
+      "place_xy": [
+        0.5,
+        0.08
+      ],
+      "note": "release point 22 cm short of the pad in -y",
+      "verdict": {
+        "imagined_success_probability": 0.0,
+        "ensemble_uncertainty": 0.0,
+        "p_block_lifted": 1.0,
+        "p_block_in_landing_zone": 0.0,
+        "imagined_final_block_xy": [
+          0.5,
+          0.08
+        ],
+        "likely_failure": "block misses the destination",
+        "verifier_suggestion": "move the place target onto the destination",
+        "approved": false
+      },
+      "skipped_reason": null,
+      "plan": {
+        "intent": "pick up the red block and put it on the green pad",
+        "action": "execute",
+        "note": "release point 22 cm short of the pad in -y",
+        "steps": [
+          {
+            "object": "red block",
+            "destination": "green pad",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.415,
+                  -0.1946,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.415,
+                  -0.1946,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.415,
+                  -0.1946,
+                  0.24
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.5,
+                  0.08,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.5,
+                  0.08,
+                  0.015
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.5,
+                  0.08,
+                  0.24
+                ]
+              }
+            ]
+          }
+        ],
+        "trace": [
+          {
+            "phase": "approach",
+            "target": [
+              0.415,
+              -0.1946,
+              0.24
+            ]
+          },
+          {
+            "phase": "descend",
+            "target": [
+              0.415,
+              -0.1946,
+              0.015
+            ]
+          },
+          {
+            "phase": "close",
+            "value": 255.0
+          },
+          {
+            "phase": "lift",
+            "target": [
+              0.415,
+              -0.1946,
+              0.24
+            ]
+          },
+          {
+            "phase": "move",
+            "target": [
+              0.5,
+              0.08,
+              0.3
+            ]
+          },
+          {
+            "phase": "place",
+            "target": [
+              0.5,
+              0.08,
+              0.015
+            ]
+          },
+          {
+            "phase": "open",
+            "value": 0.0
+          },
+          {
+            "phase": "retreat",
+            "target": [
+              0.5,
+              0.08,
+              0.24
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "round": 1,
+      "kind": "repair",
+      "grasp_xy": [
+        0.415,
+        -0.195
+      ],
+      "place_xy": [
+        0.5,
+        0.3
+      ],
+      "note": "Changed one thing: the place target moved from (0.5, 0.08) to the green pad centre (0.5, 0.30), since the previous release point fell 0.22 m short of the pad in y.",
+      "verdict": {
+        "imagined_success_probability": 1.0,
+        "ensemble_uncertainty": 0.0,
+        "p_block_lifted": 1.0,
+        "p_block_in_landing_zone": 1.0,
+        "imagined_final_block_xy": [
+          0.5,
+          0.3
+        ],
+        "likely_failure": null,
+        "verifier_suggestion": null,
+        "approved": true
+      },
+      "skipped_reason": null,
+      "plan": {
+        "intent": "pick up the red block and put it on the green pad",
+        "action": "execute",
+        "note": "Changed one thing: the place target moved from (0.5, 0.08) to the green pad centre (0.5, 0.30), since the previous release point fell 0.22 m short of the pad in y.",
+        "steps": [
+          {
+            "object": "red block",
+            "destination": "green pad",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.415,
+                  -0.195,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.415,
+                  -0.195,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.415,
+                  -0.195,
+                  0.24
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.015
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.24
+                ]
+              }
+            ]
+          }
+        ],
+        "trace": [
+          {
+            "phase": "approach",
+            "target": [
+              0.415,
+              -0.195,
+              0.24
+            ]
+          },
+          {
+            "phase": "descend",
+            "target": [
+              0.415,
+              -0.195,
+              0.015
+            ]
+          },
+          {
+            "phase": "close",
+            "value": 255.0
+          },
+          {
+            "phase": "lift",
+            "target": [
+              0.415,
+              -0.195,
+              0.24
+            ]
+          },
+          {
+            "phase": "move",
+            "target": [
+              0.5,
+              0.3,
+              0.3
+            ]
+          },
+          {
+            "phase": "place",
+            "target": [
+              0.5,
+              0.3,
+              0.015
+            ]
+          },
+          {
+            "phase": "open",
+            "value": 0.0
+          },
+          {
+            "phase": "retreat",
+            "target": [
+              0.5,
+              0.3,
+              0.24
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "decision": "executed",
+  "reason": "verifier approved at p=1.000",
+  "executed_success": true,
+  "failure_mode": null,
+  "final_block_xy": [
+    0.5027,
+    0.2776
+  ],
+  "target_distance": 0.0226,
+  "max_block_z": 0.2691,
+  "seconds": 6.56,
+  "cost_usd": 0.0472,
+  "planner_calls": 1
+}

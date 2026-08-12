@@ -68,6 +68,11 @@ class VerificationResult:
 class Verifier:
     """`verify(observation_window, skill_trace) -> VerificationResult`."""
 
+    # A training feature whose spread hit `clamp_min`'s floor was constant, so its stored std is a
+    # placeholder rather than a scale. Dividing a live value by it turns millimetres into thousands
+    # of sigma; see `constant_features`.
+    DEGENERATE_STD = 1e-5
+
     def __init__(self, checkpoint: Path, model: Path = Path("models/vjepa2-vitl-fpc64-256"), threshold: float | None = None, device=None):
         saved = torch.load(checkpoint, map_location="cpu", weights_only=False)
         self.device = device or torch.device("mps" if torch.backends.mps.is_available() else "cpu")
@@ -90,6 +95,22 @@ class Verifier:
         self.readout = (ObjectReadout(saved["latent_dim"], len(saved["manifest"]["block_names"]))
                         if self.object_conditioned else Readout(saved["latent_dim"], self.state_dim, self.binary_dim))
         self.readout.load_state_dict(saved["readout"]); self.readout.to(self.device).eval()
+
+    def constant_features(self, raw: torch.Tensor, field: str) -> torch.Tensor:
+        """`(raw - mean) / std`, with features that never varied in training pinned to what it saw.
+
+        `train_multiblock_world_model` normalises with `std.clamp_min(1e-6)`, so a feature that was
+        constant across the corpus stores an epsilon where a scale should be. One feature is:
+        `grasp_z - block_z` is the same number in all 900 episodes, because every recorded trace
+        descends to `GRASP_Z` and every recorded block height is read out of MuJoCo. Live, the block
+        height comes from the depth buffer instead, and that few-millimetre disagreement divided by
+        1e-6 reaches the ensemble as ~3.5e3 sigma — enough on its own to saturate every member and
+        pin the verdict at p(success) = 0.000 with an imagined block position tens of metres off the
+        table. A constant feature carried no information for the model to use, so the value that
+        matches training is the constant one, not the exploded one.
+        """
+        mean, std = self.norm[f"{field}_mean"], self.norm[f"{field}_std"]
+        return torch.where(std > self.DEGENERATE_STD, (raw - mean) / std, torch.zeros_like(raw))
 
     def encode(self, frames) -> torch.Tensor:
         """One observation window of raw RGB frames -> one normalised latent."""
@@ -143,8 +164,8 @@ class Verifier:
                 grasp = torch.tensor(next(e["target"] for e in trace if e["phase"] == "descend"), device=self.device)
                 place = torch.tensor(next(e["target"] for e in trace if e["phase"] == "place"), device=self.device)
                 plan = torch.cat([grasp - source_xyz, place - destination_xyz]).unsqueeze(0)
-                plan = (plan - self.norm["plan_mean"]) / self.norm["plan_std"]
-                state = (raw_state - self.norm["state_mean"]) / self.norm["state_std"]
+                plan = self.constant_features(plan, "plan")
+                state = self.constant_features(raw_state, "state")
                 task = task_features([object_name], [destination], names, self.device)
                 outputs = [member(latent, state, plan, task) for member in self.members]
                 predicted = torch.stack([output[0] for output in outputs])
