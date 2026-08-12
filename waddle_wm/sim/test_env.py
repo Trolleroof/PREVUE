@@ -2,8 +2,11 @@
 
     uv run python -m waddle_wm.sim.test_env
 """
+import math
+
 from waddle_wm.actions import PHASE_ID
-from waddle_wm.sim.env import FRAMES_TOTAL, PRELUDE_FRAMES, TRACK_KEYS, TabletopEnv
+from waddle_wm.sim.env import FRAMES_TOTAL, PRELUDE_FRAMES, TRACK_KEYS, TabletopEnv, pick_place_trace
+from waddle_wm.sim.generate_dataset import YAW_PHASES, orient_source
 
 
 def check_grid(episode):
@@ -42,8 +45,16 @@ def main():
     env.reset(env.sample_scene())
     assert not env.approach_until([[0.4, -0.2, 0.24]]), "no criterion should mean no early stop"
 
+    env.reset(block_xy=(0.4, -0.18)); orient_source(env, "red_block", 35.0)
+    oriented_trace = pick_place_trace(env.state()["block_pos"], env.state()["target_pos"])
+    for entry in oriented_trace:
+        if entry["phase"] in YAW_PHASES:
+            entry["yaw"] = math.radians(35.0)
+    oriented = env.run_trace(oriented_trace)
+    assert oriented.success, oriented.failure_mode
+
     print(f"UR5e dataset check passed: {FRAMES_TOTAL} frames, modes={[good.failure_mode, miss.failure_mode, dropped.failure_mode]}, "
-          f"approach_until stops on its criterion")
+          f"approach_until stops on its criterion, rotated grasp succeeds")
 
 
 if __name__ == "__main__":

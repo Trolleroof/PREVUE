@@ -52,7 +52,7 @@ def orient_source(env, source: str, block_yaw_deg: float) -> None:
     for name in scene.BLOCK_NAMES:
         size = ORIENTED_SIZE if name == source else (scene.BLOCK_HALF,) * 3
         env.model.geom_size[env.model.geom(f"{name}_geom").id] = size
-    mujoco.mj_setConst(env.model, env.data)
+    # geom_size is live; mj_setConst here would rebase actuator constants to the current pose.
     yaw = math.radians(block_yaw_deg)
     env.data.joint(f"{source}_free").qpos[3:7] = [math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)]
     mujoco.mj_forward(env.model, env.data)

@@ -417,11 +417,46 @@ def check_live_visual(scenes: int, checkpoint, encoder):
     print(f"live visual arm scored {scenes} real scene(s)")
 
 
+def check_yaw_aware(checkpoint, embeddings):
+    """Same estimated scene and XYZ plan, yaw-only change -> distinct rows and scores."""
+    import math
+    import numpy as np
+    import torch
+
+    arm = sel.VisualWorldModel(checkpoint, device=torch.device("cpu"))
+    selector_view, labels = view(), named()
+    base = next(candidate for candidate in selector_view["candidates"]
+                if labels[candidate["candidate_id"]] == "correct")
+    candidates = []
+    for yaw_deg in (0.0, 45.0):
+        candidate = deepcopy(base)
+        candidate["candidate_id"] = f"yaw-{yaw_deg:g}"
+        for entry in candidate["grounded_trace"]:
+            if entry["phase"] in ("approach", "descend", "lift"):
+                entry["yaw"] = math.radians(yaw_deg)
+        candidates.append(candidate)
+    selector_view["candidates"] = candidates
+
+    cache = torch.load(embeddings, weights_only=False, map_location="cpu")
+    latent = arm._normalise(next(iter(cache.values()))[0].unsqueeze(0), "context")
+    context = sel.ScenarioContext(selector_view, np.zeros((8, 1, 1, 3), dtype=np.uint8), latent)
+    estimates, state = context.estimates(), arm._state(context.estimates())
+    plan_rows = [arm.plan_row(candidate, estimates, selector_view["task"], state)
+                 for candidate in candidates]
+    assert not np.array_equal(*plan_rows), plan_rows
+    scores = sel.rank(arm, context, [candidate["candidate_id"] for candidate in candidates])["scores"]
+    probabilities = [row["probability"] for row in scores]
+    assert probabilities[0] != probabilities[1], probabilities
+    print(f"yaw-aware checkpoint: yaw-only rows and scores differ ({probabilities[0]:.4f} vs {probabilities[1]:.4f})")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--live-visual", type=int, default=0)
     ap.add_argument("--checkpoint", default="models/multiblock_world_model.pt")
     ap.add_argument("--encoder", default="models/vjepa2-vitl-fpc64-256")
+    ap.add_argument("--yaw-aware-checkpoint")
+    ap.add_argument("--embeddings", default="data/ur5e_wm_oriented/window_embeddings.pt")
     args = ap.parse_args()
 
     check_contract()
@@ -435,6 +470,8 @@ def main():
     check_no_unsupported_claim()
     if args.live_visual:
         check_live_visual(args.live_visual, args.checkpoint, args.encoder)
+    if args.yaw_aware_checkpoint:
+        check_yaw_aware(args.yaw_aware_checkpoint, args.embeddings)
 
 
 if __name__ == "__main__":
