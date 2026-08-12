@@ -330,7 +330,8 @@ def run_pools(pools: list[dict], split: str, kind: str, physics_seeds: int, sigm
     scenes, preflights, execution, views, excluded = [], {}, {}, {}, []
 
     for pool in pools:
-        scene_obj = Scene(pool["scene"]["seed"])
+        suite = pool["scene"].get("suite") or {}
+        scene_obj = Scene(pool["scene"]["seed"], suite.get("scene_spec"))
         scenario_id = scenario_id_of(pool)
         try:
             spawn = pool["scene"].get("block_spawn")

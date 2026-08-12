@@ -1,0 +1,4142 @@
+{
+  "scene_schema_version": 1,
+  "protocol": {
+    "program_schema_version": 1,
+    "implementation_sha256": "acd5c77f201a973a7c1fa719c797cebbfacaefba33bc9b1c37ec97eb3b9d8276",
+    "camera": "demo",
+    "resolution": [
+      256,
+      256
+    ],
+    "detector_queries": [
+      "the red block",
+      "the blue block",
+      "the yellow block"
+    ]
+  },
+  "split": "test",
+  "locked": true,
+  "slices": [
+    "grasp_misalignment",
+    "occlusion",
+    "block_orientation",
+    "path_obstruction",
+    "slip_drop",
+    "prior_action_state_change",
+    "release_dynamics",
+    "malformed_sequence",
+    "unreachable_waypoint",
+    "obvious_target_miss"
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "test-grasp_misalignment-baseline-v1",
+      "split": "test",
+      "scene_seed": 100,
+      "perturbation_seed": 3000,
+      "pair_id": "test-grasp_misalignment-pair-v1",
+      "variant": "baseline",
+      "program_pool_id": "test-grasp_misalignment-baseline-v1-pool",
+      "program_template_id": "test-grasp_misalignment-templates-v1",
+      "perturbation_group": "grasp_misalignment",
+      "outcome_slice": "grasp_misalignment",
+      "observability": "visible_omitted_by_coordinates",
+      "expected_effect": "raw frame retains state omitted by centre coordinates",
+      "scene_parameters": {
+        "block_positions": {
+          "red_block": [
+            0.38,
+            -0.2,
+            0.018
+          ],
+          "blue_block": [
+            0.52,
+            -0.14,
+            0.018
+          ],
+          "yellow_block": [
+            0.63,
+            -0.23,
+            0.018
+          ]
+        },
+        "red_block_size": [
+          0.018,
+          0.018,
+          0.018
+        ],
+        "red_block_yaw_deg": 0.0,
+        "obstacle": null,
+        "occluder": null,
+        "camera_offset": [
+          -0.006,
+          -0.004,
+          0.0
+        ],
+        "light_scale": 0.9400000000000001,
+        "table_rgba": [
+          0.06,
+          0.14,
+          0.22,
+          1.0
+        ],
+        "red_block_friction": [
+          0.8,
+          0.03,
+          0.01
+        ],
+        "red_block_mass_kg": 0.025,
+        "gripper_force_limit_n": 5.0,
+        "contact_solref": [
+          0.02,
+          1.0
+        ],
+        "control_delay_steps": 0,
+        "prior_action": null
+      },
+      "rendered_observation": {
+        "path": "observations/test/test-grasp_misalignment-baseline-v1.png",
+        "sha256": "b30ee70535ac57ba2cc40a37fc6a84dc5a61c25bcfe0c24c3057ec62a491539b",
+        "shape": [
+          256,
+          256,
+          3
+        ]
+      },
+      "image_derived_estimates": {
+        "red block": {
+          "label": "red block",
+          "box": [
+            166,
+            149,
+            174,
+            157
+          ],
+          "pixels": 68,
+          "score": 1.0,
+          "point_base": [
+            0.3752,
+            -0.1962,
+            0.0132
+          ],
+          "depth_m": 1.7666,
+          "size_m": 0.0349
+        },
+        "blue block": {
+          "label": "blue block",
+          "box": [
+            193,
+            152,
+            201,
+            161
+          ],
+          "pixels": 70,
+          "score": 1.0,
+          "point_base": [
+            0.5138,
+            -0.1362,
+            0.0121
+          ],
+          "depth_m": 1.7278,
+          "size_m": 0.0379
+        },
+        "yellow block": {
+          "label": "yellow block",
+          "box": [
+            204,
+            165,
+            213,
+            175
+          ],
+          "pixels": 81,
+          "score": 1.0,
+          "point_base": [
+            0.6228,
+            -0.224,
+            0.0124
+          ],
+          "depth_m": 1.6041,
+          "size_m": 0.0415
+        }
+      },
+      "perception_error_mm": {
+        "red block": 6.122,
+        "blue block": 7.272,
+        "yellow block": 9.372
+      },
+      "landing_pad": {
+        "centre": [
+          0.5,
+          0.3
+        ],
+        "radius": 0.105
+      },
+      "hidden_truth": {
+        "blocks": {
+          "red_block": {
+            "position": [
+              0.38,
+              -0.2,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "blue_block": {
+            "position": [
+              0.52,
+              -0.14,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "yellow_block": {
+            "position": [
+              0.63,
+              -0.23,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        "target_position": [
+          0.5,
+          0.3,
+          0.0
+        ],
+        "physics": {
+          "red_block_friction": [
+            0.8,
+            0.03,
+            0.01
+          ],
+          "red_block_mass_kg": 0.025,
+          "gripper_force_limit_n": 5.0,
+          "contact_solref": [
+            0.02,
+            1.0
+          ],
+          "control_delay_steps": 0
+        }
+      }
+    },
+    {
+      "scenario_id": "test-grasp_misalignment-challenge-v1",
+      "split": "test",
+      "scene_seed": 101,
+      "perturbation_seed": 3001,
+      "pair_id": "test-grasp_misalignment-pair-v1",
+      "variant": "challenge",
+      "program_pool_id": "test-grasp_misalignment-challenge-v1-pool",
+      "program_template_id": "test-grasp_misalignment-templates-v1",
+      "perturbation_group": "grasp_misalignment",
+      "outcome_slice": "grasp_misalignment",
+      "observability": "visible_omitted_by_coordinates",
+      "expected_effect": "raw frame retains state omitted by centre coordinates",
+      "scene_parameters": {
+        "block_positions": {
+          "red_block": [
+            0.38,
+            -0.2,
+            0.018
+          ],
+          "blue_block": [
+            0.52,
+            -0.14,
+            0.018
+          ],
+          "yellow_block": [
+            0.63,
+            -0.23,
+            0.018
+          ]
+        },
+        "red_block_size": [
+          0.029,
+          0.012,
+          0.018
+        ],
+        "red_block_yaw_deg": 38.0,
+        "obstacle": null,
+        "occluder": null,
+        "camera_offset": [
+          -0.006,
+          -0.004,
+          0.0
+        ],
+        "light_scale": 0.9400000000000001,
+        "table_rgba": [
+          0.065,
+          0.14,
+          0.22,
+          1.0
+        ],
+        "red_block_friction": [
+          0.8,
+          0.03,
+          0.01
+        ],
+        "red_block_mass_kg": 0.025,
+        "gripper_force_limit_n": 5.0,
+        "contact_solref": [
+          0.02,
+          1.0
+        ],
+        "control_delay_steps": 0,
+        "prior_action": null
+      },
+      "rendered_observation": {
+        "path": "observations/test/test-grasp_misalignment-challenge-v1.png",
+        "sha256": "55bd4c89ac6cb33d911180a63a95a11a5aa093b12a978dadac70689cf23e54a1",
+        "shape": [
+          256,
+          256,
+          3
+        ]
+      },
+      "image_derived_estimates": {
+        "red block": {
+          "label": "red block",
+          "box": [
+            165,
+            150,
+            175,
+            156
+          ],
+          "pixels": 77,
+          "score": 1.0,
+          "point_base": [
+            0.3791,
+            -0.2017,
+            0.018
+          ],
+          "depth_m": 1.7645,
+          "size_m": 0.0183
+        },
+        "blue block": {
+          "label": "blue block",
+          "box": [
+            193,
+            152,
+            201,
+            161
+          ],
+          "pixels": 70,
+          "score": 1.0,
+          "point_base": [
+            0.5138,
+            -0.1362,
+            0.0121
+          ],
+          "depth_m": 1.7278,
+          "size_m": 0.0379
+        },
+        "yellow block": {
+          "label": "yellow block",
+          "box": [
+            204,
+            165,
+            213,
+            175
+          ],
+          "pixels": 81,
+          "score": 1.0,
+          "point_base": [
+            0.6228,
+            -0.224,
+            0.0124
+          ],
+          "depth_m": 1.6041,
+          "size_m": 0.0415
+        }
+      },
+      "perception_error_mm": {
+        "red block": 1.924,
+        "blue block": 7.272,
+        "yellow block": 9.372
+      },
+      "landing_pad": {
+        "centre": [
+          0.5,
+          0.3
+        ],
+        "radius": 0.105
+      },
+      "hidden_truth": {
+        "blocks": {
+          "red_block": {
+            "position": [
+              0.38,
+              -0.2,
+              0.018
+            ],
+            "quaternion": [
+              0.945519,
+              0.0,
+              0.0,
+              0.325568
+            ]
+          },
+          "blue_block": {
+            "position": [
+              0.52,
+              -0.14,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "yellow_block": {
+            "position": [
+              0.63,
+              -0.23,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        "target_position": [
+          0.5,
+          0.3,
+          0.0
+        ],
+        "physics": {
+          "red_block_friction": [
+            0.8,
+            0.03,
+            0.01
+          ],
+          "red_block_mass_kg": 0.025,
+          "gripper_force_limit_n": 5.0,
+          "contact_solref": [
+            0.02,
+            1.0
+          ],
+          "control_delay_steps": 0
+        }
+      }
+    },
+    {
+      "scenario_id": "test-occlusion-baseline-v1",
+      "split": "test",
+      "scene_seed": 102,
+      "perturbation_seed": 3002,
+      "pair_id": "test-occlusion-pair-v1",
+      "variant": "baseline",
+      "program_pool_id": "test-occlusion-baseline-v1-pool",
+      "program_template_id": "test-occlusion-templates-v1",
+      "perturbation_group": "occlusion",
+      "outcome_slice": "occlusion",
+      "observability": "visible_omitted_by_coordinates",
+      "expected_effect": "raw frame retains state omitted by centre coordinates",
+      "scene_parameters": {
+        "block_positions": {
+          "red_block": [
+            0.388,
+            -0.188,
+            0.018
+          ],
+          "blue_block": [
+            0.52,
+            -0.14,
+            0.018
+          ],
+          "yellow_block": [
+            0.63,
+            -0.23,
+            0.018
+          ]
+        },
+        "red_block_size": [
+          0.018,
+          0.018,
+          0.018
+        ],
+        "red_block_yaw_deg": 0.0,
+        "obstacle": null,
+        "occluder": null,
+        "camera_offset": [
+          0.0,
+          0.004,
+          0.0
+        ],
+        "light_scale": 0.9900000000000001,
+        "table_rgba": [
+          0.06999999999999999,
+          0.14,
+          0.22,
+          1.0
+        ],
+        "red_block_friction": [
+          0.8,
+          0.03,
+          0.01
+        ],
+        "red_block_mass_kg": 0.025,
+        "gripper_force_limit_n": 5.0,
+        "contact_solref": [
+          0.02,
+          1.0
+        ],
+        "control_delay_steps": 0,
+        "prior_action": null
+      },
+      "rendered_observation": {
+        "path": "observations/test/test-occlusion-baseline-v1.png",
+        "sha256": "3a838ee2a049191fb9855e571b65364823e271b4af94d4f942458c64ff67079f",
+        "shape": [
+          256,
+          256,
+          3
+        ]
+      },
+      "image_derived_estimates": {
+        "red block": {
+          "label": "red block",
+          "box": [
+            167,
+            148,
+            175,
+            157
+          ],
+          "pixels": 67,
+          "score": 1.0,
+          "point_base": [
+            0.383,
+            -0.182,
+            0.0116
+          ],
+          "depth_m": 1.7676,
+          "size_m": 0.0402
+        },
+        "blue block": {
+          "label": "blue block",
+          "box": [
+            191,
+            152,
+            200,
+            161
+          ],
+          "pixels": 69,
+          "score": 1.0,
+          "point_base": [
+            0.5132,
+            -0.1345,
+            0.0117
+          ],
+          "depth_m": 1.7275,
+          "size_m": 0.04
+        },
+        "yellow block": {
+          "label": "yellow block",
+          "box": [
+            202,
+            166,
+            211,
+            175
+          ],
+          "pixels": 79,
+          "score": 1.0,
+          "point_base": [
+            0.6231,
+            -0.2249,
+            0.0131
+          ],
+          "depth_m": 1.6008,
+          "size_m": 0.0391
+        }
+      },
+      "perception_error_mm": {
+        "red block": 7.81,
+        "blue block": 8.746,
+        "yellow block": 8.58
+      },
+      "landing_pad": {
+        "centre": [
+          0.5,
+          0.3
+        ],
+        "radius": 0.105
+      },
+      "hidden_truth": {
+        "blocks": {
+          "red_block": {
+            "position": [
+              0.388,
+              -0.188,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "blue_block": {
+            "position": [
+              0.52,
+              -0.14,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "yellow_block": {
+            "position": [
+              0.63,
+              -0.23,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        "target_position": [
+          0.5,
+          0.3,
+          0.0
+        ],
+        "physics": {
+          "red_block_friction": [
+            0.8,
+            0.03,
+            0.01
+          ],
+          "red_block_mass_kg": 0.025,
+          "gripper_force_limit_n": 5.0,
+          "contact_solref": [
+            0.02,
+            1.0
+          ],
+          "control_delay_steps": 0
+        }
+      }
+    },
+    {
+      "scenario_id": "test-occlusion-challenge-v1",
+      "split": "test",
+      "scene_seed": 103,
+      "perturbation_seed": 3003,
+      "pair_id": "test-occlusion-pair-v1",
+      "variant": "challenge",
+      "program_pool_id": "test-occlusion-challenge-v1-pool",
+      "program_template_id": "test-occlusion-templates-v1",
+      "perturbation_group": "occlusion",
+      "outcome_slice": "occlusion",
+      "observability": "visible_omitted_by_coordinates",
+      "expected_effect": "raw frame retains state omitted by centre coordinates",
+      "scene_parameters": {
+        "block_positions": {
+          "red_block": [
+            0.388,
+            -0.188,
+            0.018
+          ],
+          "blue_block": [
+            0.52,
+            -0.14,
+            0.018
+          ],
+          "yellow_block": [
+            0.63,
+            -0.23,
+            0.018
+          ]
+        },
+        "red_block_size": [
+          0.018,
+          0.018,
+          0.018
+        ],
+        "red_block_yaw_deg": 0.0,
+        "obstacle": null,
+        "occluder": [
+          0.448,
+          -0.248,
+          0.05
+        ],
+        "camera_offset": [
+          0.0,
+          0.004,
+          0.0
+        ],
+        "light_scale": 0.9900000000000001,
+        "table_rgba": [
+          0.075,
+          0.14,
+          0.22,
+          1.0
+        ],
+        "red_block_friction": [
+          0.8,
+          0.03,
+          0.01
+        ],
+        "red_block_mass_kg": 0.025,
+        "gripper_force_limit_n": 5.0,
+        "contact_solref": [
+          0.02,
+          1.0
+        ],
+        "control_delay_steps": 0,
+        "prior_action": null
+      },
+      "rendered_observation": {
+        "path": "observations/test/test-occlusion-challenge-v1.png",
+        "sha256": "cc8638d80f09e255875af91bbcd6a0fd636af2422476542e7ee7cb3b53fa9607",
+        "shape": [
+          256,
+          256,
+          3
+        ]
+      },
+      "image_derived_estimates": {
+        "red block": {
+          "label": "red block",
+          "box": [
+            167,
+            148,
+            170,
+            156
+          ],
+          "pixels": 25,
+          "score": 1.0,
+          "point_base": [
+            0.3591,
+            -0.1767,
+            0.0066
+          ],
+          "depth_m": 1.7673,
+          "size_m": 0.1046
+        },
+        "blue block": {
+          "label": "blue block",
+          "box": [
+            191,
+            152,
+            200,
+            161
+          ],
+          "pixels": 69,
+          "score": 1.0,
+          "point_base": [
+            0.5132,
+            -0.1345,
+            0.0117
+          ],
+          "depth_m": 1.7275,
+          "size_m": 0.04
+        },
+        "yellow block": {
+          "label": "yellow block",
+          "box": [
+            202,
+            166,
+            211,
+            175
+          ],
+          "pixels": 79,
+          "score": 1.0,
+          "point_base": [
+            0.6231,
+            -0.2249,
+            0.0131
+          ],
+          "depth_m": 1.6008,
+          "size_m": 0.0391
+        }
+      },
+      "perception_error_mm": {
+        "red block": 31.031,
+        "blue block": 8.746,
+        "yellow block": 8.58
+      },
+      "landing_pad": {
+        "centre": [
+          0.5,
+          0.3
+        ],
+        "radius": 0.105
+      },
+      "hidden_truth": {
+        "blocks": {
+          "red_block": {
+            "position": [
+              0.388,
+              -0.188,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "blue_block": {
+            "position": [
+              0.52,
+              -0.14,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "yellow_block": {
+            "position": [
+              0.63,
+              -0.23,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        "target_position": [
+          0.5,
+          0.3,
+          0.0
+        ],
+        "physics": {
+          "red_block_friction": [
+            0.8,
+            0.03,
+            0.01
+          ],
+          "red_block_mass_kg": 0.025,
+          "gripper_force_limit_n": 5.0,
+          "contact_solref": [
+            0.02,
+            1.0
+          ],
+          "control_delay_steps": 0
+        }
+      }
+    },
+    {
+      "scenario_id": "test-block_orientation-baseline-v1",
+      "split": "test",
+      "scene_seed": 104,
+      "perturbation_seed": 3004,
+      "pair_id": "test-block_orientation-pair-v1",
+      "variant": "baseline",
+      "program_pool_id": "test-block_orientation-baseline-v1-pool",
+      "program_template_id": "test-block_orientation-templates-v1",
+      "perturbation_group": "block_orientation",
+      "outcome_slice": "block_orientation",
+      "observability": "visible_omitted_by_coordinates",
+      "expected_effect": "raw frame retains state omitted by centre coordinates",
+      "scene_parameters": {
+        "block_positions": {
+          "red_block": [
+            0.396,
+            -0.17600000000000002,
+            0.018
+          ],
+          "blue_block": [
+            0.52,
+            -0.14,
+            0.018
+          ],
+          "yellow_block": [
+            0.63,
+            -0.23,
+            0.018
+          ]
+        },
+        "red_block_size": [
+          0.03,
+          0.011,
+          0.018
+        ],
+        "red_block_yaw_deg": 0.0,
+        "obstacle": null,
+        "occluder": null,
+        "camera_offset": [
+          0.006,
+          -0.004,
+          0.0
+        ],
+        "light_scale": 1.04,
+        "table_rgba": [
+          0.06,
+          0.14,
+          0.22,
+          1.0
+        ],
+        "red_block_friction": [
+          0.8,
+          0.03,
+          0.01
+        ],
+        "red_block_mass_kg": 0.025,
+        "gripper_force_limit_n": 5.0,
+        "contact_solref": [
+          0.02,
+          1.0
+        ],
+        "control_delay_steps": 0,
+        "prior_action": null
+      },
+      "rendered_observation": {
+        "path": "observations/test/test-block_orientation-baseline-v1.png",
+        "sha256": "3b361cf06c24e99d1c79ac8ab6699edd356812fd4add90b4200169f6bf6dc7f2",
+        "shape": [
+          256,
+          256,
+          3
+        ]
+      },
+      "image_derived_estimates": {
+        "red block": {
+          "label": "red block",
+          "box": [
+            168,
+            147,
+            178,
+            156
+          ],
+          "pixels": 81,
+          "score": 1.0,
+          "point_base": [
+            0.3892,
+            -0.1704,
+            0.0104
+          ],
+          "depth_m": 1.7781,
+          "size_m": 0.0399
+        },
+        "blue block": {
+          "label": "blue block",
+          "box": [
+            191,
+            151,
+            199,
+            160
+          ],
+          "pixels": 70,
+          "score": 1.0,
+          "point_base": [
+            0.5144,
+            -0.1373,
+            0.0132
+          ],
+          "depth_m": 1.7365,
+          "size_m": 0.0349
+        },
+        "yellow block": {
+          "label": "yellow block",
+          "box": [
+            202,
+            164,
+            211,
+            174
+          ],
+          "pixels": 79,
+          "score": 1.0,
+          "point_base": [
+            0.6236,
+            -0.2248,
+            0.013
+          ],
+          "depth_m": 1.6093,
+          "size_m": 0.0391
+        }
+      },
+      "perception_error_mm": {
+        "red block": 8.809,
+        "blue block": 6.217,
+        "yellow block": 8.246
+      },
+      "landing_pad": {
+        "centre": [
+          0.5,
+          0.3
+        ],
+        "radius": 0.105
+      },
+      "hidden_truth": {
+        "blocks": {
+          "red_block": {
+            "position": [
+              0.396,
+              -0.176,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "blue_block": {
+            "position": [
+              0.52,
+              -0.14,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "yellow_block": {
+            "position": [
+              0.63,
+              -0.23,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        "target_position": [
+          0.5,
+          0.3,
+          0.0
+        ],
+        "physics": {
+          "red_block_friction": [
+            0.8,
+            0.03,
+            0.01
+          ],
+          "red_block_mass_kg": 0.025,
+          "gripper_force_limit_n": 5.0,
+          "contact_solref": [
+            0.02,
+            1.0
+          ],
+          "control_delay_steps": 0
+        }
+      }
+    },
+    {
+      "scenario_id": "test-block_orientation-challenge-v1",
+      "split": "test",
+      "scene_seed": 105,
+      "perturbation_seed": 3005,
+      "pair_id": "test-block_orientation-pair-v1",
+      "variant": "challenge",
+      "program_pool_id": "test-block_orientation-challenge-v1-pool",
+      "program_template_id": "test-block_orientation-templates-v1",
+      "perturbation_group": "block_orientation",
+      "outcome_slice": "block_orientation",
+      "observability": "visible_omitted_by_coordinates",
+      "expected_effect": "raw frame retains state omitted by centre coordinates",
+      "scene_parameters": {
+        "block_positions": {
+          "red_block": [
+            0.396,
+            -0.17600000000000002,
+            0.018
+          ],
+          "blue_block": [
+            0.52,
+            -0.14,
+            0.018
+          ],
+          "yellow_block": [
+            0.63,
+            -0.23,
+            0.018
+          ]
+        },
+        "red_block_size": [
+          0.03,
+          0.011,
+          0.018
+        ],
+        "red_block_yaw_deg": -28,
+        "obstacle": null,
+        "occluder": null,
+        "camera_offset": [
+          0.006,
+          -0.004,
+          0.0
+        ],
+        "light_scale": 1.04,
+        "table_rgba": [
+          0.065,
+          0.14,
+          0.22,
+          1.0
+        ],
+        "red_block_friction": [
+          0.8,
+          0.03,
+          0.01
+        ],
+        "red_block_mass_kg": 0.025,
+        "gripper_force_limit_n": 5.0,
+        "contact_solref": [
+          0.02,
+          1.0
+        ],
+        "control_delay_steps": 0,
+        "prior_action": null
+      },
+      "rendered_observation": {
+        "path": "observations/test/test-block_orientation-challenge-v1.png",
+        "sha256": "2bdd2e277c4fec2445f736079700b5edeef56f6091cbbda64ad07996c986d86d",
+        "shape": [
+          256,
+          256,
+          3
+        ]
+      },
+      "image_derived_estimates": {
+        "red block": {
+          "label": "red block",
+          "box": [
+            169,
+            146,
+            177,
+            156
+          ],
+          "pixels": 71,
+          "score": 1.0,
+          "point_base": [
+            0.3889,
+            -0.1697,
+            0.0105
+          ],
+          "depth_m": 1.7776,
+          "size_m": 0.0469
+        },
+        "blue block": {
+          "label": "blue block",
+          "box": [
+            191,
+            151,
+            199,
+            160
+          ],
+          "pixels": 70,
+          "score": 1.0,
+          "point_base": [
+            0.5144,
+            -0.1373,
+            0.0132
+          ],
+          "depth_m": 1.7365,
+          "size_m": 0.0349
+        },
+        "yellow block": {
+          "label": "yellow block",
+          "box": [
+            202,
+            164,
+            211,
+            174
+          ],
+          "pixels": 79,
+          "score": 1.0,
+          "point_base": [
+            0.6236,
+            -0.2248,
+            0.013
+          ],
+          "depth_m": 1.6093,
+          "size_m": 0.0391
+        }
+      },
+      "perception_error_mm": {
+        "red block": 9.492,
+        "blue block": 6.217,
+        "yellow block": 8.246
+      },
+      "landing_pad": {
+        "centre": [
+          0.5,
+          0.3
+        ],
+        "radius": 0.105
+      },
+      "hidden_truth": {
+        "blocks": {
+          "red_block": {
+            "position": [
+              0.396,
+              -0.176,
+              0.018
+            ],
+            "quaternion": [
+              0.970296,
+              0.0,
+              0.0,
+              -0.241922
+            ]
+          },
+          "blue_block": {
+            "position": [
+              0.52,
+              -0.14,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "yellow_block": {
+            "position": [
+              0.63,
+              -0.23,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        "target_position": [
+          0.5,
+          0.3,
+          0.0
+        ],
+        "physics": {
+          "red_block_friction": [
+            0.8,
+            0.03,
+            0.01
+          ],
+          "red_block_mass_kg": 0.025,
+          "gripper_force_limit_n": 5.0,
+          "contact_solref": [
+            0.02,
+            1.0
+          ],
+          "control_delay_steps": 0
+        }
+      }
+    },
+    {
+      "scenario_id": "test-path_obstruction-baseline-v1",
+      "split": "test",
+      "scene_seed": 106,
+      "perturbation_seed": 3006,
+      "pair_id": "test-path_obstruction-pair-v1",
+      "variant": "baseline",
+      "program_pool_id": "test-path_obstruction-baseline-v1-pool",
+      "program_template_id": "test-path_obstruction-templates-v1",
+      "perturbation_group": "path_obstruction",
+      "outcome_slice": "path_obstruction",
+      "observability": "visible_omitted_by_coordinates",
+      "expected_effect": "raw frame retains state omitted by centre coordinates",
+      "scene_parameters": {
+        "block_positions": {
+          "red_block": [
+            0.404,
+            -0.2,
+            0.018
+          ],
+          "blue_block": [
+            0.52,
+            -0.14,
+            0.018
+          ],
+          "yellow_block": [
+            0.63,
+            -0.23,
+            0.018
+          ]
+        },
+        "red_block_size": [
+          0.018,
+          0.018,
+          0.018
+        ],
+        "red_block_yaw_deg": 0.0,
+        "obstacle": null,
+        "occluder": null,
+        "camera_offset": [
+          -0.006,
+          0.004,
+          0.0
+        ],
+        "light_scale": 0.9400000000000001,
+        "table_rgba": [
+          0.06999999999999999,
+          0.14,
+          0.22,
+          1.0
+        ],
+        "red_block_friction": [
+          0.8,
+          0.03,
+          0.01
+        ],
+        "red_block_mass_kg": 0.025,
+        "gripper_force_limit_n": 5.0,
+        "contact_solref": [
+          0.02,
+          1.0
+        ],
+        "control_delay_steps": 0,
+        "prior_action": null
+      },
+      "rendered_observation": {
+        "path": "observations/test/test-path_obstruction-baseline-v1.png",
+        "sha256": "e27dc90df4f566687ff16a34872a861368cd079014d236df07b5044595aeeab1",
+        "shape": [
+          256,
+          256,
+          3
+        ]
+      },
+      "image_derived_estimates": {
+        "red block": {
+          "label": "red block",
+          "box": [
+            169,
+            150,
+            177,
+            159
+          ],
+          "pixels": 69,
+          "score": 1.0,
+          "point_base": [
+            0.3993,
+            -0.1956,
+            0.0125
+          ],
+          "depth_m": 1.7471,
+          "size_m": 0.0368
+        },
+        "blue block": {
+          "label": "blue block",
+          "box": [
+            192,
+            153,
+            201,
+            161
+          ],
+          "pixels": 68,
+          "score": 1.0,
+          "point_base": [
+            0.5149,
+            -0.1364,
+            0.0139
+          ],
+          "depth_m": 1.7232,
+          "size_m": 0.0344
+        },
+        "yellow block": {
+          "label": "yellow block",
+          "box": [
+            203,
+            166,
+            212,
+            176
+          ],
+          "pixels": 83,
+          "score": 1.0,
+          "point_base": [
+            0.6238,
+            -0.2265,
+            0.0126
+          ],
+          "depth_m": 1.5976,
+          "size_m": 0.0365
+        }
+      },
+      "perception_error_mm": {
+        "red block": 6.438,
+        "blue block": 6.243,
+        "yellow block": 7.12
+      },
+      "landing_pad": {
+        "centre": [
+          0.5,
+          0.3
+        ],
+        "radius": 0.105
+      },
+      "hidden_truth": {
+        "blocks": {
+          "red_block": {
+            "position": [
+              0.404,
+              -0.2,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "blue_block": {
+            "position": [
+              0.52,
+              -0.14,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "yellow_block": {
+            "position": [
+              0.63,
+              -0.23,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        "target_position": [
+          0.5,
+          0.3,
+          0.0
+        ],
+        "physics": {
+          "red_block_friction": [
+            0.8,
+            0.03,
+            0.01
+          ],
+          "red_block_mass_kg": 0.025,
+          "gripper_force_limit_n": 5.0,
+          "contact_solref": [
+            0.02,
+            1.0
+          ],
+          "control_delay_steps": 0
+        }
+      }
+    },
+    {
+      "scenario_id": "test-path_obstruction-challenge-v1",
+      "split": "test",
+      "scene_seed": 107,
+      "perturbation_seed": 3007,
+      "pair_id": "test-path_obstruction-pair-v1",
+      "variant": "challenge",
+      "program_pool_id": "test-path_obstruction-challenge-v1-pool",
+      "program_template_id": "test-path_obstruction-templates-v1",
+      "perturbation_group": "path_obstruction",
+      "outcome_slice": "path_obstruction",
+      "observability": "visible_omitted_by_coordinates",
+      "expected_effect": "raw frame retains state omitted by centre coordinates",
+      "scene_parameters": {
+        "block_positions": {
+          "red_block": [
+            0.404,
+            -0.2,
+            0.018
+          ],
+          "blue_block": [
+            0.52,
+            -0.14,
+            0.018
+          ],
+          "yellow_block": [
+            0.63,
+            -0.23,
+            0.018
+          ]
+        },
+        "red_block_size": [
+          0.018,
+          0.018,
+          0.018
+        ],
+        "red_block_yaw_deg": 0.0,
+        "obstacle": [
+          0.505,
+          -0.08,
+          0.125
+        ],
+        "occluder": null,
+        "camera_offset": [
+          -0.006,
+          0.004,
+          0.0
+        ],
+        "light_scale": 0.9400000000000001,
+        "table_rgba": [
+          0.075,
+          0.14,
+          0.22,
+          1.0
+        ],
+        "red_block_friction": [
+          0.8,
+          0.03,
+          0.01
+        ],
+        "red_block_mass_kg": 0.025,
+        "gripper_force_limit_n": 5.0,
+        "contact_solref": [
+          0.02,
+          1.0
+        ],
+        "control_delay_steps": 0,
+        "prior_action": null
+      },
+      "rendered_observation": {
+        "path": "observations/test/test-path_obstruction-challenge-v1.png",
+        "sha256": "79fdc47b23fc9c6355063565e3a4d15b5cef342d40a8600f4b6bece7d851d1b5",
+        "shape": [
+          256,
+          256,
+          3
+        ]
+      },
+      "image_derived_estimates": {
+        "red block": {
+          "label": "red block",
+          "box": [
+            169,
+            150,
+            177,
+            159
+          ],
+          "pixels": 69,
+          "score": 1.0,
+          "point_base": [
+            0.3993,
+            -0.1956,
+            0.0125
+          ],
+          "depth_m": 1.7471,
+          "size_m": 0.0368
+        },
+        "blue block": {
+          "label": "blue block",
+          "box": [
+            192,
+            153,
+            201,
+            161
+          ],
+          "pixels": 68,
+          "score": 1.0,
+          "point_base": [
+            0.5149,
+            -0.1364,
+            0.0139
+          ],
+          "depth_m": 1.7232,
+          "size_m": 0.0344
+        },
+        "yellow block": {
+          "label": "yellow block",
+          "box": [
+            203,
+            166,
+            212,
+            176
+          ],
+          "pixels": 83,
+          "score": 1.0,
+          "point_base": [
+            0.6238,
+            -0.2265,
+            0.0126
+          ],
+          "depth_m": 1.5976,
+          "size_m": 0.0365
+        }
+      },
+      "perception_error_mm": {
+        "red block": 6.438,
+        "blue block": 6.243,
+        "yellow block": 7.12
+      },
+      "landing_pad": {
+        "centre": [
+          0.5,
+          0.3
+        ],
+        "radius": 0.105
+      },
+      "hidden_truth": {
+        "blocks": {
+          "red_block": {
+            "position": [
+              0.404,
+              -0.2,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "blue_block": {
+            "position": [
+              0.52,
+              -0.14,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "yellow_block": {
+            "position": [
+              0.63,
+              -0.23,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        "target_position": [
+          0.5,
+          0.3,
+          0.0
+        ],
+        "physics": {
+          "red_block_friction": [
+            0.8,
+            0.03,
+            0.01
+          ],
+          "red_block_mass_kg": 0.025,
+          "gripper_force_limit_n": 5.0,
+          "contact_solref": [
+            0.02,
+            1.0
+          ],
+          "control_delay_steps": 0
+        }
+      }
+    },
+    {
+      "scenario_id": "test-slip_drop-baseline-v1",
+      "split": "test",
+      "scene_seed": 108,
+      "perturbation_seed": 3008,
+      "pair_id": "test-slip_drop-pair-v1",
+      "variant": "baseline",
+      "program_pool_id": "test-slip_drop-baseline-v1-pool",
+      "program_template_id": "test-slip_drop-templates-v1",
+      "perturbation_group": "slip_drop",
+      "outcome_slice": "slip_drop",
+      "observability": "latent_physics",
+      "expected_effect": "not expected to be inferable from one initial frame",
+      "scene_parameters": {
+        "block_positions": {
+          "red_block": [
+            0.38,
+            -0.188,
+            0.018
+          ],
+          "blue_block": [
+            0.52,
+            -0.14,
+            0.018
+          ],
+          "yellow_block": [
+            0.63,
+            -0.23,
+            0.018
+          ]
+        },
+        "red_block_size": [
+          0.018,
+          0.018,
+          0.018
+        ],
+        "red_block_yaw_deg": 0.0,
+        "obstacle": null,
+        "occluder": null,
+        "camera_offset": [
+          0.0,
+          -0.004,
+          0.0
+        ],
+        "light_scale": 0.9900000000000001,
+        "table_rgba": [
+          0.06,
+          0.14,
+          0.22,
+          1.0
+        ],
+        "red_block_friction": [
+          0.8,
+          0.03,
+          0.01
+        ],
+        "red_block_mass_kg": 0.025,
+        "gripper_force_limit_n": 5.0,
+        "contact_solref": [
+          0.02,
+          1.0
+        ],
+        "control_delay_steps": 0,
+        "prior_action": null
+      },
+      "rendered_observation": {
+        "path": "observations/test/test-slip_drop-baseline-v1.png",
+        "sha256": "945f1d837a79388e2a7c57a7c44fa4fe36a32edc978350d1a46ea1d8835c1197",
+        "shape": [
+          256,
+          256,
+          3
+        ]
+      },
+      "image_derived_estimates": {
+        "red block": {
+          "label": "red block",
+          "box": [
+            166,
+            147,
+            174,
+            156
+          ],
+          "pixels": 67,
+          "score": 1.0,
+          "point_base": [
+            0.375,
+            -0.1854,
+            0.0123
+          ],
+          "depth_m": 1.7776,
+          "size_m": 0.0348
+        },
+        "blue block": {
+          "label": "blue block",
+          "box": [
+            192,
+            152,
+            200,
+            161
+          ],
+          "pixels": 71,
+          "score": 1.0,
+          "point_base": [
+            0.5152,
+            -0.1383,
+            0.0125
+          ],
+          "depth_m": 1.7307,
+          "size_m": 0.0334
+        },
+        "yellow block": {
+          "label": "yellow block",
+          "box": [
+            203,
+            165,
+            212,
+            175
+          ],
+          "pixels": 77,
+          "score": 1.0,
+          "point_base": [
+            0.6246,
+            -0.2261,
+            0.012
+          ],
+          "depth_m": 1.6059,
+          "size_m": 0.0376
+        }
+      },
+      "perception_error_mm": {
+        "red block": 5.636,
+        "blue block": 5.092,
+        "yellow block": 6.661
+      },
+      "landing_pad": {
+        "centre": [
+          0.5,
+          0.3
+        ],
+        "radius": 0.105
+      },
+      "hidden_truth": {
+        "blocks": {
+          "red_block": {
+            "position": [
+              0.38,
+              -0.188,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "blue_block": {
+            "position": [
+              0.52,
+              -0.14,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "yellow_block": {
+            "position": [
+              0.63,
+              -0.23,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        "target_position": [
+          0.5,
+          0.3,
+          0.0
+        ],
+        "physics": {
+          "red_block_friction": [
+            0.8,
+            0.03,
+            0.01
+          ],
+          "red_block_mass_kg": 0.025,
+          "gripper_force_limit_n": 5.0,
+          "contact_solref": [
+            0.02,
+            1.0
+          ],
+          "control_delay_steps": 0
+        }
+      }
+    },
+    {
+      "scenario_id": "test-slip_drop-challenge-v1",
+      "split": "test",
+      "scene_seed": 109,
+      "perturbation_seed": 3009,
+      "pair_id": "test-slip_drop-pair-v1",
+      "variant": "challenge",
+      "program_pool_id": "test-slip_drop-challenge-v1-pool",
+      "program_template_id": "test-slip_drop-templates-v1",
+      "perturbation_group": "slip_drop",
+      "outcome_slice": "slip_drop",
+      "observability": "latent_physics",
+      "expected_effect": "not expected to be inferable from one initial frame",
+      "scene_parameters": {
+        "block_positions": {
+          "red_block": [
+            0.38,
+            -0.188,
+            0.018
+          ],
+          "blue_block": [
+            0.52,
+            -0.14,
+            0.018
+          ],
+          "yellow_block": [
+            0.63,
+            -0.23,
+            0.018
+          ]
+        },
+        "red_block_size": [
+          0.018,
+          0.018,
+          0.018
+        ],
+        "red_block_yaw_deg": 0.0,
+        "obstacle": null,
+        "occluder": null,
+        "camera_offset": [
+          0.0,
+          -0.004,
+          0.0
+        ],
+        "light_scale": 0.9900000000000001,
+        "table_rgba": [
+          0.065,
+          0.14,
+          0.22,
+          1.0
+        ],
+        "red_block_friction": [
+          0.3,
+          0.02,
+          0.004
+        ],
+        "red_block_mass_kg": 0.025,
+        "gripper_force_limit_n": 0.24,
+        "contact_solref": [
+          0.02,
+          1.0
+        ],
+        "control_delay_steps": 1,
+        "prior_action": null
+      },
+      "rendered_observation": {
+        "path": "observations/test/test-slip_drop-challenge-v1.png",
+        "sha256": "0d4a4b13d780e2181ebda712087e88d0dfce7735321e693fa513219eb16d9b44",
+        "shape": [
+          256,
+          256,
+          3
+        ]
+      },
+      "image_derived_estimates": {
+        "red block": {
+          "label": "red block",
+          "box": [
+            166,
+            147,
+            174,
+            156
+          ],
+          "pixels": 67,
+          "score": 1.0,
+          "point_base": [
+            0.375,
+            -0.1854,
+            0.0123
+          ],
+          "depth_m": 1.7776,
+          "size_m": 0.0348
+        },
+        "blue block": {
+          "label": "blue block",
+          "box": [
+            192,
+            152,
+            200,
+            161
+          ],
+          "pixels": 71,
+          "score": 1.0,
+          "point_base": [
+            0.5152,
+            -0.1383,
+            0.0125
+          ],
+          "depth_m": 1.7307,
+          "size_m": 0.0334
+        },
+        "yellow block": {
+          "label": "yellow block",
+          "box": [
+            203,
+            165,
+            212,
+            175
+          ],
+          "pixels": 77,
+          "score": 1.0,
+          "point_base": [
+            0.6246,
+            -0.2261,
+            0.012
+          ],
+          "depth_m": 1.6059,
+          "size_m": 0.0376
+        }
+      },
+      "perception_error_mm": {
+        "red block": 5.636,
+        "blue block": 5.092,
+        "yellow block": 6.661
+      },
+      "landing_pad": {
+        "centre": [
+          0.5,
+          0.3
+        ],
+        "radius": 0.105
+      },
+      "hidden_truth": {
+        "blocks": {
+          "red_block": {
+            "position": [
+              0.38,
+              -0.188,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "blue_block": {
+            "position": [
+              0.52,
+              -0.14,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "yellow_block": {
+            "position": [
+              0.63,
+              -0.23,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        "target_position": [
+          0.5,
+          0.3,
+          0.0
+        ],
+        "physics": {
+          "red_block_friction": [
+            0.3,
+            0.02,
+            0.004
+          ],
+          "red_block_mass_kg": 0.025,
+          "gripper_force_limit_n": 0.24,
+          "contact_solref": [
+            0.02,
+            1.0
+          ],
+          "control_delay_steps": 1
+        }
+      }
+    },
+    {
+      "scenario_id": "test-prior_action_state_change-baseline-v1",
+      "split": "test",
+      "scene_seed": 110,
+      "perturbation_seed": 3010,
+      "pair_id": "test-prior_action_state_change-pair-v1",
+      "variant": "baseline",
+      "program_pool_id": "test-prior_action_state_change-baseline-v1-pool",
+      "program_template_id": "test-prior_action_state_change-templates-v1",
+      "perturbation_group": "prior_action_state_change",
+      "outcome_slice": "prior_action_state_change",
+      "observability": "visible_omitted_by_coordinates",
+      "expected_effect": "raw frame retains state omitted by centre coordinates",
+      "scene_parameters": {
+        "block_positions": {
+          "red_block": [
+            0.388,
+            -0.17600000000000002,
+            0.018
+          ],
+          "blue_block": [
+            0.52,
+            -0.14,
+            0.018
+          ],
+          "yellow_block": [
+            0.63,
+            -0.23,
+            0.018
+          ]
+        },
+        "red_block_size": [
+          0.018,
+          0.018,
+          0.018
+        ],
+        "red_block_yaw_deg": 0.0,
+        "obstacle": null,
+        "occluder": null,
+        "camera_offset": [
+          0.006,
+          0.004,
+          0.0
+        ],
+        "light_scale": 1.04,
+        "table_rgba": [
+          0.06999999999999999,
+          0.14,
+          0.22,
+          1.0
+        ],
+        "red_block_friction": [
+          0.8,
+          0.03,
+          0.01
+        ],
+        "red_block_mass_kg": 0.025,
+        "gripper_force_limit_n": 5.0,
+        "contact_solref": [
+          0.02,
+          1.0
+        ],
+        "control_delay_steps": 0,
+        "prior_action": null
+      },
+      "rendered_observation": {
+        "path": "observations/test/test-prior_action_state_change-baseline-v1.png",
+        "sha256": "37ffa10a9f1ea1a893cad6d2690c44bfde0ed18a90719c113a6fa96d0bb38aff",
+        "shape": [
+          256,
+          256,
+          3
+        ]
+      },
+      "image_derived_estimates": {
+        "red block": {
+          "label": "red block",
+          "box": [
+            167,
+            147,
+            175,
+            156
+          ],
+          "pixels": 68,
+          "score": 1.0,
+          "point_base": [
+            0.383,
+            -0.1713,
+            0.011
+          ],
+          "depth_m": 1.7776,
+          "size_m": 0.0392
+        },
+        "blue block": {
+          "label": "blue block",
+          "box": [
+            190,
+            152,
+            199,
+            161
+          ],
+          "pixels": 69,
+          "score": 1.0,
+          "point_base": [
+            0.5144,
+            -0.136,
+            0.0113
+          ],
+          "depth_m": 1.7289,
+          "size_m": 0.0379
+        },
+        "yellow block": {
+          "label": "yellow block",
+          "box": [
+            201,
+            165,
+            210,
+            175
+          ],
+          "pixels": 83,
+          "score": 1.0,
+          "point_base": [
+            0.6228,
+            -0.2249,
+            0.0126
+          ],
+          "depth_m": 1.6058,
+          "size_m": 0.0395
+        }
+      },
+      "perception_error_mm": {
+        "red block": 6.862,
+        "blue block": 6.882,
+        "yellow block": 8.823
+      },
+      "landing_pad": {
+        "centre": [
+          0.5,
+          0.3
+        ],
+        "radius": 0.105
+      },
+      "hidden_truth": {
+        "blocks": {
+          "red_block": {
+            "position": [
+              0.388,
+              -0.176,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "blue_block": {
+            "position": [
+              0.52,
+              -0.14,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "yellow_block": {
+            "position": [
+              0.63,
+              -0.23,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        "target_position": [
+          0.5,
+          0.3,
+          0.0
+        ],
+        "physics": {
+          "red_block_friction": [
+            0.8,
+            0.03,
+            0.01
+          ],
+          "red_block_mass_kg": 0.025,
+          "gripper_force_limit_n": 5.0,
+          "contact_solref": [
+            0.02,
+            1.0
+          ],
+          "control_delay_steps": 0
+        }
+      }
+    },
+    {
+      "scenario_id": "test-prior_action_state_change-challenge-v1",
+      "split": "test",
+      "scene_seed": 111,
+      "perturbation_seed": 3011,
+      "pair_id": "test-prior_action_state_change-pair-v1",
+      "variant": "challenge",
+      "program_pool_id": "test-prior_action_state_change-challenge-v1-pool",
+      "program_template_id": "test-prior_action_state_change-templates-v1",
+      "perturbation_group": "prior_action_state_change",
+      "outcome_slice": "prior_action_state_change",
+      "observability": "visible_omitted_by_coordinates",
+      "expected_effect": "raw frame retains state omitted by centre coordinates",
+      "scene_parameters": {
+        "block_positions": {
+          "red_block": [
+            0.443,
+            -0.17600000000000002,
+            0.018
+          ],
+          "blue_block": [
+            0.52,
+            -0.14,
+            0.018
+          ],
+          "yellow_block": [
+            0.63,
+            -0.23,
+            0.018
+          ]
+        },
+        "red_block_size": [
+          0.018,
+          0.018,
+          0.018
+        ],
+        "red_block_yaw_deg": 0.0,
+        "obstacle": null,
+        "occluder": null,
+        "camera_offset": [
+          0.006,
+          0.004,
+          0.0
+        ],
+        "light_scale": 1.04,
+        "table_rgba": [
+          0.075,
+          0.14,
+          0.22,
+          1.0
+        ],
+        "red_block_friction": [
+          0.8,
+          0.03,
+          0.01
+        ],
+        "red_block_mass_kg": 0.025,
+        "gripper_force_limit_n": 5.0,
+        "contact_solref": [
+          0.02,
+          1.0
+        ],
+        "control_delay_steps": 0,
+        "prior_action": "red block displaced +55 mm after an earlier failed grasp"
+      },
+      "rendered_observation": {
+        "path": "observations/test/test-prior_action_state_change-challenge-v1.png",
+        "sha256": "1f997f342b8b69d3520eb547ddb318501aeae842cb243cf52371c340d9823a93",
+        "shape": [
+          256,
+          256,
+          3
+        ]
+      },
+      "image_derived_estimates": {
+        "red block": {
+          "label": "red block",
+          "box": [
+            175,
+            150,
+            183,
+            159
+          ],
+          "pixels": 68,
+          "score": 1.0,
+          "point_base": [
+            0.4367,
+            -0.1719,
+            0.012
+          ],
+          "depth_m": 1.7474,
+          "size_m": 0.038
+        },
+        "blue block": {
+          "label": "blue block",
+          "box": [
+            190,
+            152,
+            199,
+            161
+          ],
+          "pixels": 69,
+          "score": 1.0,
+          "point_base": [
+            0.5144,
+            -0.136,
+            0.0113
+          ],
+          "depth_m": 1.7289,
+          "size_m": 0.0379
+        },
+        "yellow block": {
+          "label": "yellow block",
+          "box": [
+            201,
+            165,
+            210,
+            175
+          ],
+          "pixels": 83,
+          "score": 1.0,
+          "point_base": [
+            0.6228,
+            -0.2249,
+            0.0126
+          ],
+          "depth_m": 1.6058,
+          "size_m": 0.0395
+        }
+      },
+      "perception_error_mm": {
+        "red block": 7.517,
+        "blue block": 6.882,
+        "yellow block": 8.823
+      },
+      "landing_pad": {
+        "centre": [
+          0.5,
+          0.3
+        ],
+        "radius": 0.105
+      },
+      "hidden_truth": {
+        "blocks": {
+          "red_block": {
+            "position": [
+              0.443,
+              -0.176,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "blue_block": {
+            "position": [
+              0.52,
+              -0.14,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "yellow_block": {
+            "position": [
+              0.63,
+              -0.23,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        "target_position": [
+          0.5,
+          0.3,
+          0.0
+        ],
+        "physics": {
+          "red_block_friction": [
+            0.8,
+            0.03,
+            0.01
+          ],
+          "red_block_mass_kg": 0.025,
+          "gripper_force_limit_n": 5.0,
+          "contact_solref": [
+            0.02,
+            1.0
+          ],
+          "control_delay_steps": 0
+        }
+      }
+    },
+    {
+      "scenario_id": "test-release_dynamics-baseline-v1",
+      "split": "test",
+      "scene_seed": 112,
+      "perturbation_seed": 3012,
+      "pair_id": "test-release_dynamics-pair-v1",
+      "variant": "baseline",
+      "program_pool_id": "test-release_dynamics-baseline-v1-pool",
+      "program_template_id": "test-release_dynamics-templates-v1",
+      "perturbation_group": "release_dynamics",
+      "outcome_slice": "release_dynamics",
+      "observability": "latent_physics",
+      "expected_effect": "not expected to be inferable from one initial frame",
+      "scene_parameters": {
+        "block_positions": {
+          "red_block": [
+            0.396,
+            -0.2,
+            0.018
+          ],
+          "blue_block": [
+            0.52,
+            -0.14,
+            0.018
+          ],
+          "yellow_block": [
+            0.63,
+            -0.23,
+            0.018
+          ]
+        },
+        "red_block_size": [
+          0.018,
+          0.018,
+          0.018
+        ],
+        "red_block_yaw_deg": 0.0,
+        "obstacle": null,
+        "occluder": null,
+        "camera_offset": [
+          -0.006,
+          -0.004,
+          0.0
+        ],
+        "light_scale": 0.9400000000000001,
+        "table_rgba": [
+          0.06,
+          0.14,
+          0.22,
+          1.0
+        ],
+        "red_block_friction": [
+          0.8,
+          0.03,
+          0.01
+        ],
+        "red_block_mass_kg": 0.025,
+        "gripper_force_limit_n": 5.0,
+        "contact_solref": [
+          0.02,
+          1.0
+        ],
+        "control_delay_steps": 0,
+        "prior_action": null
+      },
+      "rendered_observation": {
+        "path": "observations/test/test-release_dynamics-baseline-v1.png",
+        "sha256": "8be8f090244746fa51bf2ee0dde95f253f9fc9220c06c2521aca74e46b0c92a8",
+        "shape": [
+          256,
+          256,
+          3
+        ]
+      },
+      "image_derived_estimates": {
+        "red block": {
+          "label": "red block",
+          "box": [
+            168,
+            149,
+            177,
+            158
+          ],
+          "pixels": 67,
+          "score": 1.0,
+          "point_base": [
+            0.3903,
+            -0.1944,
+            0.0113
+          ],
+          "depth_m": 1.7575,
+          "size_m": 0.0402
+        },
+        "blue block": {
+          "label": "blue block",
+          "box": [
+            193,
+            152,
+            201,
+            161
+          ],
+          "pixels": 70,
+          "score": 1.0,
+          "point_base": [
+            0.5138,
+            -0.1362,
+            0.0121
+          ],
+          "depth_m": 1.7278,
+          "size_m": 0.0379
+        },
+        "yellow block": {
+          "label": "yellow block",
+          "box": [
+            204,
+            165,
+            213,
+            175
+          ],
+          "pixels": 81,
+          "score": 1.0,
+          "point_base": [
+            0.6228,
+            -0.224,
+            0.0124
+          ],
+          "depth_m": 1.6041,
+          "size_m": 0.0415
+        }
+      },
+      "perception_error_mm": {
+        "red block": 7.991,
+        "blue block": 7.272,
+        "yellow block": 9.372
+      },
+      "landing_pad": {
+        "centre": [
+          0.5,
+          0.3
+        ],
+        "radius": 0.105
+      },
+      "hidden_truth": {
+        "blocks": {
+          "red_block": {
+            "position": [
+              0.396,
+              -0.2,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "blue_block": {
+            "position": [
+              0.52,
+              -0.14,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "yellow_block": {
+            "position": [
+              0.63,
+              -0.23,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        "target_position": [
+          0.5,
+          0.3,
+          0.0
+        ],
+        "physics": {
+          "red_block_friction": [
+            0.8,
+            0.03,
+            0.01
+          ],
+          "red_block_mass_kg": 0.025,
+          "gripper_force_limit_n": 5.0,
+          "contact_solref": [
+            0.02,
+            1.0
+          ],
+          "control_delay_steps": 0
+        }
+      }
+    },
+    {
+      "scenario_id": "test-release_dynamics-challenge-v1",
+      "split": "test",
+      "scene_seed": 113,
+      "perturbation_seed": 3013,
+      "pair_id": "test-release_dynamics-pair-v1",
+      "variant": "challenge",
+      "program_pool_id": "test-release_dynamics-challenge-v1-pool",
+      "program_template_id": "test-release_dynamics-templates-v1",
+      "perturbation_group": "release_dynamics",
+      "outcome_slice": "release_dynamics",
+      "observability": "latent_physics",
+      "expected_effect": "not expected to be inferable from one initial frame",
+      "scene_parameters": {
+        "block_positions": {
+          "red_block": [
+            0.396,
+            -0.2,
+            0.018
+          ],
+          "blue_block": [
+            0.52,
+            -0.14,
+            0.018
+          ],
+          "yellow_block": [
+            0.63,
+            -0.23,
+            0.018
+          ]
+        },
+        "red_block_size": [
+          0.018,
+          0.018,
+          0.018
+        ],
+        "red_block_yaw_deg": 0.0,
+        "obstacle": null,
+        "occluder": null,
+        "camera_offset": [
+          -0.006,
+          -0.004,
+          0.0
+        ],
+        "light_scale": 0.9400000000000001,
+        "table_rgba": [
+          0.065,
+          0.14,
+          0.22,
+          1.0
+        ],
+        "red_block_friction": [
+          0.25,
+          0.015,
+          0.004
+        ],
+        "red_block_mass_kg": 0.065,
+        "gripper_force_limit_n": 5.0,
+        "contact_solref": [
+          0.01,
+          0.1
+        ],
+        "control_delay_steps": 2,
+        "prior_action": null
+      },
+      "rendered_observation": {
+        "path": "observations/test/test-release_dynamics-challenge-v1.png",
+        "sha256": "f5d5d8a8333dfc3d61e5c0423fae00fda97688ff530692ce9513b89417ecfeae",
+        "shape": [
+          256,
+          256,
+          3
+        ]
+      },
+      "image_derived_estimates": {
+        "red block": {
+          "label": "red block",
+          "box": [
+            168,
+            149,
+            177,
+            158
+          ],
+          "pixels": 67,
+          "score": 1.0,
+          "point_base": [
+            0.3903,
+            -0.1944,
+            0.0113
+          ],
+          "depth_m": 1.7575,
+          "size_m": 0.0402
+        },
+        "blue block": {
+          "label": "blue block",
+          "box": [
+            193,
+            152,
+            201,
+            161
+          ],
+          "pixels": 70,
+          "score": 1.0,
+          "point_base": [
+            0.5138,
+            -0.1362,
+            0.0121
+          ],
+          "depth_m": 1.7278,
+          "size_m": 0.0379
+        },
+        "yellow block": {
+          "label": "yellow block",
+          "box": [
+            204,
+            165,
+            213,
+            175
+          ],
+          "pixels": 81,
+          "score": 1.0,
+          "point_base": [
+            0.6228,
+            -0.224,
+            0.0124
+          ],
+          "depth_m": 1.6041,
+          "size_m": 0.0415
+        }
+      },
+      "perception_error_mm": {
+        "red block": 7.991,
+        "blue block": 7.272,
+        "yellow block": 9.372
+      },
+      "landing_pad": {
+        "centre": [
+          0.5,
+          0.3
+        ],
+        "radius": 0.105
+      },
+      "hidden_truth": {
+        "blocks": {
+          "red_block": {
+            "position": [
+              0.396,
+              -0.2,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "blue_block": {
+            "position": [
+              0.52,
+              -0.14,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "yellow_block": {
+            "position": [
+              0.63,
+              -0.23,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        "target_position": [
+          0.5,
+          0.3,
+          0.0
+        ],
+        "physics": {
+          "red_block_friction": [
+            0.25,
+            0.015,
+            0.004
+          ],
+          "red_block_mass_kg": 0.065,
+          "gripper_force_limit_n": 5.0,
+          "contact_solref": [
+            0.01,
+            0.1
+          ],
+          "control_delay_steps": 2
+        }
+      }
+    },
+    {
+      "scenario_id": "test-malformed_sequence-baseline-v1",
+      "split": "test",
+      "scene_seed": 114,
+      "perturbation_seed": 3014,
+      "pair_id": "test-malformed_sequence-pair-v1",
+      "variant": "baseline",
+      "program_pool_id": "test-malformed_sequence-baseline-v1-pool",
+      "program_template_id": "test-malformed_sequence-templates-v1",
+      "perturbation_group": "malformed_sequence",
+      "outcome_slice": "malformed_sequence",
+      "observability": "plan_visible_control",
+      "expected_effect": "control program defect",
+      "scene_parameters": {
+        "block_positions": {
+          "red_block": [
+            0.404,
+            -0.188,
+            0.018
+          ],
+          "blue_block": [
+            0.52,
+            -0.14,
+            0.018
+          ],
+          "yellow_block": [
+            0.63,
+            -0.23,
+            0.018
+          ]
+        },
+        "red_block_size": [
+          0.018,
+          0.018,
+          0.018
+        ],
+        "red_block_yaw_deg": 0.0,
+        "obstacle": null,
+        "occluder": null,
+        "camera_offset": [
+          0.0,
+          0.004,
+          0.0
+        ],
+        "light_scale": 0.9900000000000001,
+        "table_rgba": [
+          0.06999999999999999,
+          0.14,
+          0.22,
+          1.0
+        ],
+        "red_block_friction": [
+          0.8,
+          0.03,
+          0.01
+        ],
+        "red_block_mass_kg": 0.025,
+        "gripper_force_limit_n": 5.0,
+        "contact_solref": [
+          0.02,
+          1.0
+        ],
+        "control_delay_steps": 0,
+        "prior_action": null
+      },
+      "rendered_observation": {
+        "path": "observations/test/test-malformed_sequence-baseline-v1.png",
+        "sha256": "f437a46a490304782fc73ac1f88579066e13de3f1d5f7e62e49d2d7e4222381a",
+        "shape": [
+          256,
+          256,
+          3
+        ]
+      },
+      "image_derived_estimates": {
+        "red block": {
+          "label": "red block",
+          "box": [
+            169,
+            149,
+            177,
+            158
+          ],
+          "pixels": 69,
+          "score": 1.0,
+          "point_base": [
+            0.3991,
+            -0.1847,
+            0.012
+          ],
+          "depth_m": 1.7575,
+          "size_m": 0.0363
+        },
+        "blue block": {
+          "label": "blue block",
+          "box": [
+            191,
+            152,
+            200,
+            161
+          ],
+          "pixels": 69,
+          "score": 1.0,
+          "point_base": [
+            0.5132,
+            -0.1345,
+            0.0117
+          ],
+          "depth_m": 1.7275,
+          "size_m": 0.04
+        },
+        "yellow block": {
+          "label": "yellow block",
+          "box": [
+            202,
+            166,
+            211,
+            175
+          ],
+          "pixels": 79,
+          "score": 1.0,
+          "point_base": [
+            0.6231,
+            -0.2249,
+            0.0131
+          ],
+          "depth_m": 1.6008,
+          "size_m": 0.0391
+        }
+      },
+      "perception_error_mm": {
+        "red block": 5.908,
+        "blue block": 8.746,
+        "yellow block": 8.58
+      },
+      "landing_pad": {
+        "centre": [
+          0.5,
+          0.3
+        ],
+        "radius": 0.105
+      },
+      "hidden_truth": {
+        "blocks": {
+          "red_block": {
+            "position": [
+              0.404,
+              -0.188,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "blue_block": {
+            "position": [
+              0.52,
+              -0.14,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "yellow_block": {
+            "position": [
+              0.63,
+              -0.23,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        "target_position": [
+          0.5,
+          0.3,
+          0.0
+        ],
+        "physics": {
+          "red_block_friction": [
+            0.8,
+            0.03,
+            0.01
+          ],
+          "red_block_mass_kg": 0.025,
+          "gripper_force_limit_n": 5.0,
+          "contact_solref": [
+            0.02,
+            1.0
+          ],
+          "control_delay_steps": 0
+        }
+      }
+    },
+    {
+      "scenario_id": "test-malformed_sequence-challenge-v1",
+      "split": "test",
+      "scene_seed": 115,
+      "perturbation_seed": 3015,
+      "pair_id": "test-malformed_sequence-pair-v1",
+      "variant": "challenge",
+      "program_pool_id": "test-malformed_sequence-challenge-v1-pool",
+      "program_template_id": "test-malformed_sequence-templates-v1",
+      "perturbation_group": "malformed_sequence",
+      "outcome_slice": "malformed_sequence",
+      "observability": "plan_visible_control",
+      "expected_effect": "control program defect",
+      "scene_parameters": {
+        "block_positions": {
+          "red_block": [
+            0.404,
+            -0.188,
+            0.018
+          ],
+          "blue_block": [
+            0.52,
+            -0.14,
+            0.018
+          ],
+          "yellow_block": [
+            0.63,
+            -0.23,
+            0.018
+          ]
+        },
+        "red_block_size": [
+          0.018,
+          0.018,
+          0.018
+        ],
+        "red_block_yaw_deg": 0.0,
+        "obstacle": null,
+        "occluder": null,
+        "camera_offset": [
+          0.0,
+          0.004,
+          0.0
+        ],
+        "light_scale": 0.9900000000000001,
+        "table_rgba": [
+          0.075,
+          0.14,
+          0.22,
+          1.0
+        ],
+        "red_block_friction": [
+          0.8,
+          0.03,
+          0.01
+        ],
+        "red_block_mass_kg": 0.025,
+        "gripper_force_limit_n": 5.0,
+        "contact_solref": [
+          0.02,
+          1.0
+        ],
+        "control_delay_steps": 0,
+        "prior_action": null
+      },
+      "rendered_observation": {
+        "path": "observations/test/test-malformed_sequence-challenge-v1.png",
+        "sha256": "97a181f6de9a352a2226b4eb90fe788afb075d0dbd2aa3f370797ac94e9261c4",
+        "shape": [
+          256,
+          256,
+          3
+        ]
+      },
+      "image_derived_estimates": {
+        "red block": {
+          "label": "red block",
+          "box": [
+            169,
+            149,
+            177,
+            158
+          ],
+          "pixels": 69,
+          "score": 1.0,
+          "point_base": [
+            0.3991,
+            -0.1847,
+            0.012
+          ],
+          "depth_m": 1.7575,
+          "size_m": 0.0363
+        },
+        "blue block": {
+          "label": "blue block",
+          "box": [
+            191,
+            152,
+            200,
+            161
+          ],
+          "pixels": 69,
+          "score": 1.0,
+          "point_base": [
+            0.5132,
+            -0.1345,
+            0.0117
+          ],
+          "depth_m": 1.7275,
+          "size_m": 0.04
+        },
+        "yellow block": {
+          "label": "yellow block",
+          "box": [
+            202,
+            166,
+            211,
+            175
+          ],
+          "pixels": 79,
+          "score": 1.0,
+          "point_base": [
+            0.6231,
+            -0.2249,
+            0.0131
+          ],
+          "depth_m": 1.6008,
+          "size_m": 0.0391
+        }
+      },
+      "perception_error_mm": {
+        "red block": 5.908,
+        "blue block": 8.746,
+        "yellow block": 8.58
+      },
+      "landing_pad": {
+        "centre": [
+          0.5,
+          0.3
+        ],
+        "radius": 0.105
+      },
+      "hidden_truth": {
+        "blocks": {
+          "red_block": {
+            "position": [
+              0.404,
+              -0.188,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "blue_block": {
+            "position": [
+              0.52,
+              -0.14,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "yellow_block": {
+            "position": [
+              0.63,
+              -0.23,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        "target_position": [
+          0.5,
+          0.3,
+          0.0
+        ],
+        "physics": {
+          "red_block_friction": [
+            0.8,
+            0.03,
+            0.01
+          ],
+          "red_block_mass_kg": 0.025,
+          "gripper_force_limit_n": 5.0,
+          "contact_solref": [
+            0.02,
+            1.0
+          ],
+          "control_delay_steps": 0
+        }
+      }
+    },
+    {
+      "scenario_id": "test-unreachable_waypoint-baseline-v1",
+      "split": "test",
+      "scene_seed": 116,
+      "perturbation_seed": 3016,
+      "pair_id": "test-unreachable_waypoint-pair-v1",
+      "variant": "baseline",
+      "program_pool_id": "test-unreachable_waypoint-baseline-v1-pool",
+      "program_template_id": "test-unreachable_waypoint-templates-v1",
+      "perturbation_group": "unreachable_waypoint",
+      "outcome_slice": "unreachable_waypoint",
+      "observability": "plan_visible_control",
+      "expected_effect": "control program defect",
+      "scene_parameters": {
+        "block_positions": {
+          "red_block": [
+            0.38,
+            -0.17600000000000002,
+            0.018
+          ],
+          "blue_block": [
+            0.52,
+            -0.14,
+            0.018
+          ],
+          "yellow_block": [
+            0.63,
+            -0.23,
+            0.018
+          ]
+        },
+        "red_block_size": [
+          0.018,
+          0.018,
+          0.018
+        ],
+        "red_block_yaw_deg": 0.0,
+        "obstacle": null,
+        "occluder": null,
+        "camera_offset": [
+          0.006,
+          -0.004,
+          0.0
+        ],
+        "light_scale": 1.04,
+        "table_rgba": [
+          0.06,
+          0.14,
+          0.22,
+          1.0
+        ],
+        "red_block_friction": [
+          0.8,
+          0.03,
+          0.01
+        ],
+        "red_block_mass_kg": 0.025,
+        "gripper_force_limit_n": 5.0,
+        "contact_solref": [
+          0.02,
+          1.0
+        ],
+        "control_delay_steps": 0,
+        "prior_action": null
+      },
+      "rendered_observation": {
+        "path": "observations/test/test-unreachable_waypoint-baseline-v1.png",
+        "sha256": "cc4c56b49bdbceb5a05a618c0be252664cecccf3d0d7c419c2bf2af48ef9bfb2",
+        "shape": [
+          256,
+          256,
+          3
+        ]
+      },
+      "image_derived_estimates": {
+        "red block": {
+          "label": "red block",
+          "box": [
+            167,
+            146,
+            174,
+            155
+          ],
+          "pixels": 62,
+          "score": 1.0,
+          "point_base": [
+            0.3769,
+            -0.1741,
+            0.0134
+          ],
+          "depth_m": 1.7876,
+          "size_m": 0.0324
+        },
+        "blue block": {
+          "label": "blue block",
+          "box": [
+            191,
+            151,
+            199,
+            160
+          ],
+          "pixels": 70,
+          "score": 1.0,
+          "point_base": [
+            0.5144,
+            -0.1373,
+            0.0132
+          ],
+          "depth_m": 1.7365,
+          "size_m": 0.0349
+        },
+        "yellow block": {
+          "label": "yellow block",
+          "box": [
+            202,
+            164,
+            211,
+            174
+          ],
+          "pixels": 79,
+          "score": 1.0,
+          "point_base": [
+            0.6236,
+            -0.2248,
+            0.013
+          ],
+          "depth_m": 1.6093,
+          "size_m": 0.0391
+        }
+      },
+      "perception_error_mm": {
+        "red block": 3.636,
+        "blue block": 6.217,
+        "yellow block": 8.246
+      },
+      "landing_pad": {
+        "centre": [
+          0.5,
+          0.3
+        ],
+        "radius": 0.105
+      },
+      "hidden_truth": {
+        "blocks": {
+          "red_block": {
+            "position": [
+              0.38,
+              -0.176,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "blue_block": {
+            "position": [
+              0.52,
+              -0.14,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "yellow_block": {
+            "position": [
+              0.63,
+              -0.23,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        "target_position": [
+          0.5,
+          0.3,
+          0.0
+        ],
+        "physics": {
+          "red_block_friction": [
+            0.8,
+            0.03,
+            0.01
+          ],
+          "red_block_mass_kg": 0.025,
+          "gripper_force_limit_n": 5.0,
+          "contact_solref": [
+            0.02,
+            1.0
+          ],
+          "control_delay_steps": 0
+        }
+      }
+    },
+    {
+      "scenario_id": "test-unreachable_waypoint-challenge-v1",
+      "split": "test",
+      "scene_seed": 117,
+      "perturbation_seed": 3017,
+      "pair_id": "test-unreachable_waypoint-pair-v1",
+      "variant": "challenge",
+      "program_pool_id": "test-unreachable_waypoint-challenge-v1-pool",
+      "program_template_id": "test-unreachable_waypoint-templates-v1",
+      "perturbation_group": "unreachable_waypoint",
+      "outcome_slice": "unreachable_waypoint",
+      "observability": "plan_visible_control",
+      "expected_effect": "control program defect",
+      "scene_parameters": {
+        "block_positions": {
+          "red_block": [
+            0.38,
+            -0.17600000000000002,
+            0.018
+          ],
+          "blue_block": [
+            0.52,
+            -0.14,
+            0.018
+          ],
+          "yellow_block": [
+            0.63,
+            -0.23,
+            0.018
+          ]
+        },
+        "red_block_size": [
+          0.018,
+          0.018,
+          0.018
+        ],
+        "red_block_yaw_deg": 0.0,
+        "obstacle": null,
+        "occluder": null,
+        "camera_offset": [
+          0.006,
+          -0.004,
+          0.0
+        ],
+        "light_scale": 1.04,
+        "table_rgba": [
+          0.065,
+          0.14,
+          0.22,
+          1.0
+        ],
+        "red_block_friction": [
+          0.8,
+          0.03,
+          0.01
+        ],
+        "red_block_mass_kg": 0.025,
+        "gripper_force_limit_n": 5.0,
+        "contact_solref": [
+          0.02,
+          1.0
+        ],
+        "control_delay_steps": 0,
+        "prior_action": null
+      },
+      "rendered_observation": {
+        "path": "observations/test/test-unreachable_waypoint-challenge-v1.png",
+        "sha256": "2e09b28dbba06ed3db97d469d396d0fc35b80cdbea9a131d5c98bebd5ec2abca",
+        "shape": [
+          256,
+          256,
+          3
+        ]
+      },
+      "image_derived_estimates": {
+        "red block": {
+          "label": "red block",
+          "box": [
+            167,
+            146,
+            174,
+            155
+          ],
+          "pixels": 62,
+          "score": 1.0,
+          "point_base": [
+            0.3769,
+            -0.1741,
+            0.0134
+          ],
+          "depth_m": 1.7876,
+          "size_m": 0.0324
+        },
+        "blue block": {
+          "label": "blue block",
+          "box": [
+            191,
+            151,
+            199,
+            160
+          ],
+          "pixels": 70,
+          "score": 1.0,
+          "point_base": [
+            0.5144,
+            -0.1373,
+            0.0132
+          ],
+          "depth_m": 1.7365,
+          "size_m": 0.0349
+        },
+        "yellow block": {
+          "label": "yellow block",
+          "box": [
+            202,
+            164,
+            211,
+            174
+          ],
+          "pixels": 79,
+          "score": 1.0,
+          "point_base": [
+            0.6236,
+            -0.2248,
+            0.013
+          ],
+          "depth_m": 1.6093,
+          "size_m": 0.0391
+        }
+      },
+      "perception_error_mm": {
+        "red block": 3.636,
+        "blue block": 6.217,
+        "yellow block": 8.246
+      },
+      "landing_pad": {
+        "centre": [
+          0.5,
+          0.3
+        ],
+        "radius": 0.105
+      },
+      "hidden_truth": {
+        "blocks": {
+          "red_block": {
+            "position": [
+              0.38,
+              -0.176,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "blue_block": {
+            "position": [
+              0.52,
+              -0.14,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "yellow_block": {
+            "position": [
+              0.63,
+              -0.23,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        "target_position": [
+          0.5,
+          0.3,
+          0.0
+        ],
+        "physics": {
+          "red_block_friction": [
+            0.8,
+            0.03,
+            0.01
+          ],
+          "red_block_mass_kg": 0.025,
+          "gripper_force_limit_n": 5.0,
+          "contact_solref": [
+            0.02,
+            1.0
+          ],
+          "control_delay_steps": 0
+        }
+      }
+    },
+    {
+      "scenario_id": "test-obvious_target_miss-baseline-v1",
+      "split": "test",
+      "scene_seed": 118,
+      "perturbation_seed": 3018,
+      "pair_id": "test-obvious_target_miss-pair-v1",
+      "variant": "baseline",
+      "program_pool_id": "test-obvious_target_miss-baseline-v1-pool",
+      "program_template_id": "test-obvious_target_miss-templates-v1",
+      "perturbation_group": "obvious_target_miss",
+      "outcome_slice": "obvious_target_miss",
+      "observability": "plan_visible_control",
+      "expected_effect": "control program defect",
+      "scene_parameters": {
+        "block_positions": {
+          "red_block": [
+            0.388,
+            -0.2,
+            0.018
+          ],
+          "blue_block": [
+            0.52,
+            -0.14,
+            0.018
+          ],
+          "yellow_block": [
+            0.63,
+            -0.23,
+            0.018
+          ]
+        },
+        "red_block_size": [
+          0.018,
+          0.018,
+          0.018
+        ],
+        "red_block_yaw_deg": 0.0,
+        "obstacle": null,
+        "occluder": null,
+        "camera_offset": [
+          -0.006,
+          0.004,
+          0.0
+        ],
+        "light_scale": 0.9400000000000001,
+        "table_rgba": [
+          0.06999999999999999,
+          0.14,
+          0.22,
+          1.0
+        ],
+        "red_block_friction": [
+          0.8,
+          0.03,
+          0.01
+        ],
+        "red_block_mass_kg": 0.025,
+        "gripper_force_limit_n": 5.0,
+        "contact_solref": [
+          0.02,
+          1.0
+        ],
+        "control_delay_steps": 0,
+        "prior_action": null
+      },
+      "rendered_observation": {
+        "path": "observations/test/test-obvious_target_miss-baseline-v1.png",
+        "sha256": "26a6150a28e7bd004b145db4f61a2cd426720c42f2b2cd44b8c2f526a87ca7d7",
+        "shape": [
+          256,
+          256,
+          3
+        ]
+      },
+      "image_derived_estimates": {
+        "red block": {
+          "label": "red block",
+          "box": [
+            167,
+            149,
+            175,
+            158
+          ],
+          "pixels": 65,
+          "score": 1.0,
+          "point_base": [
+            0.3857,
+            -0.1976,
+            0.0146
+          ],
+          "depth_m": 1.7555,
+          "size_m": 0.0304
+        },
+        "blue block": {
+          "label": "blue block",
+          "box": [
+            192,
+            153,
+            201,
+            161
+          ],
+          "pixels": 68,
+          "score": 1.0,
+          "point_base": [
+            0.5149,
+            -0.1364,
+            0.0139
+          ],
+          "depth_m": 1.7232,
+          "size_m": 0.0344
+        },
+        "yellow block": {
+          "label": "yellow block",
+          "box": [
+            203,
+            166,
+            212,
+            176
+          ],
+          "pixels": 83,
+          "score": 1.0,
+          "point_base": [
+            0.6238,
+            -0.2265,
+            0.0126
+          ],
+          "depth_m": 1.5976,
+          "size_m": 0.0365
+        }
+      },
+      "perception_error_mm": {
+        "red block": 3.324,
+        "blue block": 6.243,
+        "yellow block": 7.12
+      },
+      "landing_pad": {
+        "centre": [
+          0.5,
+          0.3
+        ],
+        "radius": 0.105
+      },
+      "hidden_truth": {
+        "blocks": {
+          "red_block": {
+            "position": [
+              0.388,
+              -0.2,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "blue_block": {
+            "position": [
+              0.52,
+              -0.14,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "yellow_block": {
+            "position": [
+              0.63,
+              -0.23,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        "target_position": [
+          0.5,
+          0.3,
+          0.0
+        ],
+        "physics": {
+          "red_block_friction": [
+            0.8,
+            0.03,
+            0.01
+          ],
+          "red_block_mass_kg": 0.025,
+          "gripper_force_limit_n": 5.0,
+          "contact_solref": [
+            0.02,
+            1.0
+          ],
+          "control_delay_steps": 0
+        }
+      }
+    },
+    {
+      "scenario_id": "test-obvious_target_miss-challenge-v1",
+      "split": "test",
+      "scene_seed": 119,
+      "perturbation_seed": 3019,
+      "pair_id": "test-obvious_target_miss-pair-v1",
+      "variant": "challenge",
+      "program_pool_id": "test-obvious_target_miss-challenge-v1-pool",
+      "program_template_id": "test-obvious_target_miss-templates-v1",
+      "perturbation_group": "obvious_target_miss",
+      "outcome_slice": "obvious_target_miss",
+      "observability": "plan_visible_control",
+      "expected_effect": "control program defect",
+      "scene_parameters": {
+        "block_positions": {
+          "red_block": [
+            0.388,
+            -0.2,
+            0.018
+          ],
+          "blue_block": [
+            0.52,
+            -0.14,
+            0.018
+          ],
+          "yellow_block": [
+            0.63,
+            -0.23,
+            0.018
+          ]
+        },
+        "red_block_size": [
+          0.018,
+          0.018,
+          0.018
+        ],
+        "red_block_yaw_deg": 0.0,
+        "obstacle": null,
+        "occluder": null,
+        "camera_offset": [
+          -0.006,
+          0.004,
+          0.0
+        ],
+        "light_scale": 0.9400000000000001,
+        "table_rgba": [
+          0.075,
+          0.14,
+          0.22,
+          1.0
+        ],
+        "red_block_friction": [
+          0.8,
+          0.03,
+          0.01
+        ],
+        "red_block_mass_kg": 0.025,
+        "gripper_force_limit_n": 5.0,
+        "contact_solref": [
+          0.02,
+          1.0
+        ],
+        "control_delay_steps": 0,
+        "prior_action": null
+      },
+      "rendered_observation": {
+        "path": "observations/test/test-obvious_target_miss-challenge-v1.png",
+        "sha256": "ad3f2bd3d26a9f0c919ef3951c60beabc8cfee6e3eca1b162d2767631c9e201d",
+        "shape": [
+          256,
+          256,
+          3
+        ]
+      },
+      "image_derived_estimates": {
+        "red block": {
+          "label": "red block",
+          "box": [
+            167,
+            149,
+            175,
+            158
+          ],
+          "pixels": 65,
+          "score": 1.0,
+          "point_base": [
+            0.3857,
+            -0.1976,
+            0.0146
+          ],
+          "depth_m": 1.7555,
+          "size_m": 0.0304
+        },
+        "blue block": {
+          "label": "blue block",
+          "box": [
+            192,
+            153,
+            201,
+            161
+          ],
+          "pixels": 68,
+          "score": 1.0,
+          "point_base": [
+            0.5149,
+            -0.1364,
+            0.0139
+          ],
+          "depth_m": 1.7232,
+          "size_m": 0.0344
+        },
+        "yellow block": {
+          "label": "yellow block",
+          "box": [
+            203,
+            166,
+            212,
+            176
+          ],
+          "pixels": 83,
+          "score": 1.0,
+          "point_base": [
+            0.6238,
+            -0.2265,
+            0.0126
+          ],
+          "depth_m": 1.5976,
+          "size_m": 0.0365
+        }
+      },
+      "perception_error_mm": {
+        "red block": 3.324,
+        "blue block": 6.243,
+        "yellow block": 7.12
+      },
+      "landing_pad": {
+        "centre": [
+          0.5,
+          0.3
+        ],
+        "radius": 0.105
+      },
+      "hidden_truth": {
+        "blocks": {
+          "red_block": {
+            "position": [
+              0.388,
+              -0.2,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "blue_block": {
+            "position": [
+              0.52,
+              -0.14,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "yellow_block": {
+            "position": [
+              0.63,
+              -0.23,
+              0.018
+            ],
+            "quaternion": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        "target_position": [
+          0.5,
+          0.3,
+          0.0
+        ],
+        "physics": {
+          "red_block_friction": [
+            0.8,
+            0.03,
+            0.01
+          ],
+          "red_block_mass_kg": 0.025,
+          "gripper_force_limit_n": 5.0,
+          "contact_solref": [
+            0.02,
+            1.0
+          ],
+          "control_delay_steps": 0
+        }
+      }
+    }
+  ],
+  "lock_sha256": "1aba11736d5d1ca28c50ece713b74ed1819a737a3527481467d62179f5974151"
+}

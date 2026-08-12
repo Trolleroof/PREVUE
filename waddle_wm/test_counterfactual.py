@@ -59,7 +59,7 @@ def offline_pool() -> dict:
                       "hidden_truth": {"red_block": [0.3801, -0.1799, 0.018]},
                       "block_spawn": {"red_block": [0.3801, -0.1799, 0.018]}},
             "candidates": candidates, "rejected": [],
-            "prefixes": {str(n): ids[:n] for n in (1, 4) if n <= len(ids)},
+            "prefixes": {str(n): ids[:n] for n in (1, 4, 16) if n <= len(ids)},
             "pool_has_success": None, "summary": {}}
 
 
@@ -256,11 +256,9 @@ def check_aggregates():
     # Undefined, not zero: no selector could have succeeded, so none is charged for it.
     assert empty["selection_efficiency"] is None, empty
 
-    # The diagnostic pool has 13 candidates but its widest reporting prefix is 4. Coverage
-    # belongs to all 13 executions, including a success outside every reported prefix.
-    outside, _ = offline_artifact(pool, successes=(10,))
-    assert not any(scene["pool_has_success"] for scene in outside["scenes"])
-    assert cf.pool_coverage(outside, [pool]) == {pool["pool_id"]: True}
+    covered, _ = offline_artifact(pool, successes=(10,))
+    assert any(scene["pool_has_success"] for scene in covered["scenes"])
+    assert cf.pool_coverage(covered, [pool]) == {pool["pool_id"]: True}
     assert cf.pool_coverage(hopeless, [pool]) == {pool["pool_id"]: False}
     print("aggregation passed: benchmark_record reports from the artifact unchanged")
 
@@ -272,7 +270,8 @@ def check_live(scenes: int, physics_seeds: int, perturbation_mm: float):
     for seed in range(scenes):
         scene_obj = Scene(seed)
         pool = build_pool(scene_obj, "diagnostic", "pick up the red block and put it on the green pad",
-                          "red block", "green pad", 13, "scripted", "train", 1, 1.0, 60.0)
+                          "red block", "green pad", len(prog.diagnostic_programs()),
+                          "scripted", "train", 1, 1.0, 60.0)
         scene_obj.close()
 
         artifact, views = cf.run_pools([pool], "train", "diagnostic", physics_seeds,
@@ -283,9 +282,7 @@ def check_live(scenes: int, physics_seeds: int, perturbation_mm: float):
         assert all(checks["ok"] for checks in artifact["preflight"].values())
         assert not artifact["excluded"], artifact["excluded"]
 
-        # Every candidate, not just the ones a pool prefix happens to reach: the prefixes are
-        # 1 and 4 on a 13-candidate pool, so the scenes alone would never account for nine of
-        # the executions this issue is about.
+        # Every candidate has one execution record, including the complete prefix of 16.
         expected = {candidate["candidate_id"] for candidate in pool["candidates"]}
         cells = artifact["execution"][cf.scenario_id_of(pool)]
         assert len(cells) == physics_seeds, cells
