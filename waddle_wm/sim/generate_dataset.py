@@ -48,11 +48,12 @@ def sample_params(env, rng):
 
 
 def orient_source(env, source: str, block_yaw_deg: float) -> None:
-    """Make `source` an elongated block lying at `block_yaw_deg`, and the others plain cubes."""
+    """Rotate the source in an environment compiled with the matching rectangular geometry."""
     for name in scene.BLOCK_NAMES:
-        size = ORIENTED_SIZE if name == source else (scene.BLOCK_HALF,) * 3
-        env.model.geom_size[env.model.geom(f"{name}_geom").id] = size
-    mujoco.mj_setConst(env.model, env.data)
+        expected = ORIENTED_SIZE if name == source else (scene.BLOCK_HALF,) * 3
+        geom = env.model.geom(f"{name}_geom")
+        if not np.allclose(env.model.geom_size[geom.id], expected):
+            raise ValueError(f"oriented environment has the wrong geometry for {source}")
     yaw = math.radians(block_yaw_deg)
     env.data.joint(f"{source}_free").qpos[3:7] = [math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)]
     mujoco.mj_forward(env.model, env.data)
@@ -134,13 +135,19 @@ def main():
     start = len(records)
     env = TabletopEnv(width=args.size, height=args.size, fps=args.fps, seed=args.seed,
                       block_spawn_low=args.block_spawn_low, block_spawn_high=args.block_spawn_high)
+    oriented_envs = ({name: TabletopEnv(
+        width=args.size, height=args.size, fps=args.fps, seed=args.seed + index,
+        block_spawn_low=args.block_spawn_low, block_spawn_high=args.block_spawn_high,
+        block_sizes={name: ORIENTED_SIZE})
+        for index, name in enumerate(scene.BLOCK_NAMES)} if args.oriented else {})
     rng = np.random.default_rng(args.seed + 1)
     home = env.home_waypoint()
     for i in range(args.episodes):
         if args.mixed or args.oriented:
+            episode_env = oriented_envs[scene.BLOCK_NAMES[(start + i) % len(scene.BLOCK_NAMES)]] if args.oriented else env
             for _ in range(20):
                 try:
-                    ep = mixed_episode(env, rng, start + i, oriented=args.oriented)
+                    ep = mixed_episode(episode_env, rng, start + i, oriented=args.oriented)
                     break
                 except RuntimeError as error:
                     if "IK failed" not in str(error):
