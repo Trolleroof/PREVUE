@@ -43,7 +43,7 @@ from waddle_wm.sim.env import TabletopEnv
 PROTOCOL_VERSION = 1
 DEFAULT_ROOT = Path("data/pools")
 POOL_SIZE = 64
-PREFIXES = (1, 4, 16, 32, 64)
+PREFIXES = (1, 4, 16, 32, 64, 128)
 # Disjoint scene seeds. Nothing tuned on `test` may have been fitted on the others.
 SPLITS = {"train": range(0, 40), "calibration": range(40, 60), "test": range(100, 160)}
 
@@ -355,19 +355,24 @@ def diagnostic_pool(scene_obj: Scene, object_name: str, destination: str) -> tup
 
 
 def stress_pool(scene_obj: Scene, object_name: str, destination: str, size: int) -> tuple[list, list]:
-    """Up to 64 unique grasp-offset/yaw programs for candidate-count scaling."""
-    # ponytail: fixed 8x8 grid; add another declared axis only when N > 64 is required.
-    programs = [
+    """Up to 128 unique grasp-offset/yaw programs for candidate-count scaling."""
+    # Keep the original 64 first so extending a cached N=64 run preserves every old prefix.
+    offset_groups = [(-24.0, -16.0, -8.0, 0.0, 8.0, 16.0, 24.0, 32.0),
+                     (-32.0, -28.0, -20.0, -12.0, -4.0, 4.0, 12.0, 20.0)]
+    groups = [[
         (f"grasp_x_{offset:+03.0f}_yaw_{yaw:+03.0f}",
          prog.canonical_program(object_name, destination, grasp_offset_mm=(offset, 0.0),
                                 grasp_yaw_deg=yaw,
                                 strategy=f"stress_grasp_x_{offset:+03.0f}_yaw_{yaw:+03.0f}"))
-        for offset in (-24.0, -16.0, -8.0, 0.0, 8.0, 16.0, 24.0, 32.0)
+        for offset in offsets
         for yaw in (-45.0, -30.0, -15.0, 0.0, 15.0, 30.0, 45.0, 60.0)
-    ]
+    ] for offsets in offset_groups]
+    programs = [program for group in groups for program in group]
     if size > len(programs):
         raise ValueError(f"stress pool supports at most {len(programs)} candidates, got {size}")
-    order = np.random.default_rng(scene_obj.seed).permutation(len(programs))[:size]
+    rng = np.random.default_rng(scene_obj.seed)
+    order = np.concatenate([rng.permutation(len(group)) + index * len(group)
+                            for index, group in enumerate(groups)])[:size]
     accepted, rejected, keys = [], [], {}
     for index, source_index in enumerate(order):
         name, program = programs[int(source_index)]
