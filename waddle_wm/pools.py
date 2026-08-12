@@ -322,6 +322,11 @@ def natural_pool(scene_obj: Scene, instruction: str, object_name: str, destinati
                 if reject is not None:
                     rejected.append(reject)
                     continue
+                if candidate.duplicate_of is not None:
+                    rejected.append(Rejected(item["index"], "dedup",
+                                             f"duplicates {candidate.duplicate_of}",
+                                             item["raw"], item["generation"]))
+                    continue
                 keys.setdefault(candidate.dedup_key, candidate.candidate_id)
                 accepted.append(candidate)
     for position, candidate in enumerate(accepted):
@@ -349,6 +354,36 @@ def diagnostic_pool(scene_obj: Scene, object_name: str, destination: str) -> tup
     return accepted, rejected
 
 
+def stress_pool(scene_obj: Scene, object_name: str, destination: str, size: int) -> tuple[list, list]:
+    """Up to 64 unique grasp-offset/yaw programs for candidate-count scaling."""
+    # ponytail: fixed 8x8 grid; add another declared axis only when N > 64 is required.
+    programs = [
+        (f"grasp_x_{offset:+03.0f}_yaw_{yaw:+03.0f}",
+         prog.canonical_program(object_name, destination, grasp_offset_mm=(offset, 0.0),
+                                grasp_yaw_deg=yaw,
+                                strategy=f"stress_grasp_x_{offset:+03.0f}_yaw_{yaw:+03.0f}"))
+        for offset in (-24.0, -16.0, -8.0, 0.0, 8.0, 16.0, 24.0, 32.0)
+        for yaw in (-45.0, -30.0, -15.0, 0.0, 15.0, 30.0, 45.0, 60.0)
+    ]
+    if size > len(programs):
+        raise ValueError(f"stress pool supports at most {len(programs)} candidates, got {size}")
+    order = np.random.default_rng(scene_obj.seed).permutation(len(programs))[:size]
+    accepted, rejected, keys = [], [], {}
+    for index, source_index in enumerate(order):
+        name, program = programs[int(source_index)]
+        candidate, reject = admit(scene_obj, program, index, keys,
+                                  {"model": "scripted", "cost_usd": 0.0}, diagnostic=name)
+        if reject is not None:
+            reject.stage = f"{reject.stage} ({name})"
+            rejected.append(reject)
+            continue
+        keys[candidate.dedup_key] = candidate.candidate_id
+        accepted.append(candidate)
+    for position, candidate in enumerate(accepted):
+        candidate.index = position
+    return accepted, rejected
+
+
 @lru_cache(maxsize=1)
 def claude_cli_version() -> str:
     try:
@@ -360,7 +395,8 @@ def claude_cli_version() -> str:
 
 def generator_code_hash() -> str:
     functions = (prog.validate_program, prog.ground, prog.trace_segments, prog.execute,
-                 prog.GroundedProgram.dedup_key, Scene.observe, Scene.reachable, admit, natural_pool)
+                 prog.GroundedProgram.dedup_key, Scene.observe, Scene.reachable, admit, natural_pool,
+                 stress_pool)
     return hashlib.sha1("\n".join(inspect.getsource(function) for function in functions).encode()).hexdigest()[:12]
 
 
@@ -400,8 +436,10 @@ def build_pool(scene_obj: Scene, kind: str, instruction: str, object_name: str, 
         accepted, rejected = natural_pool(scene_obj, instruction, object_name, destination,
                                           size, model, workers, oversample, timeout,
                                           old_candidates, old_rejected)
-    else:
+    elif kind == "diagnostic":
         accepted, rejected = diagnostic_pool(scene_obj, object_name, destination)
+    else:
+        accepted, rejected = stress_pool(scene_obj, object_name, destination, size)
     pool_id = (f"{scene_record['program_pool_id']}-{kind}" if scene_record else
                f"{kind}-{object_name.replace(' ', '_')}-to-{destination.replace(' ', '_')}"
                f"-seed{scene_obj.seed:04d}-{generator_hash(settings)}")
@@ -443,7 +481,8 @@ def build_pool(scene_obj: Scene, kind: str, instruction: str, object_name: str, 
                     "cost_usd": round(sum((c.generation.get("cost_usd") or 0.0) for c in accepted)
                                       + sum((r.generation.get("cost_usd") or 0.0) for r in rejected), 4),
                     "reject_reasons": {stage: sum(1 for r in rejected if r.stage.startswith(stage))
-                                       for stage in ("generation", "schema", "grounding", "reachability")}},
+                                       for stage in ("generation", "schema", "grounding", "reachability",
+                                                     "dedup")}},
     }
     if scene_record:
         pool["scene"]["suite"] = {
@@ -473,6 +512,9 @@ def check_pool(pool: dict) -> list[str]:
     ids = [c["candidate_id"] for c in candidates]
     if len(set(ids)) != len(ids):
         problems.append("duplicate candidate_id")
+    keys = [c.get("dedup_key") for c in candidates]
+    if len(set(keys)) != len(keys):
+        problems.append("duplicate program")
     if [c["index"] for c in candidates] != list(range(len(candidates))):
         problems.append("candidate index is not a contiguous ranking from 0")
     if [c["sample_index"] for c in candidates] != sorted(c["sample_index"] for c in candidates):
@@ -559,7 +601,7 @@ def main():
                     help="which disjoint seed range to draw scenes from when --seeds is not given")
     ap.add_argument("--seeds", help="explicit scene seeds, e.g. 0,1,2 or 100-107")
     ap.add_argument("--scenes", type=int, default=8, help="how many seeds of the split to use")
-    ap.add_argument("--kind", choices=("natural", "diagnostic", "both"), default="both")
+    ap.add_argument("--kind", choices=("natural", "diagnostic", "stress", "both"), default="both")
     ap.add_argument("--pool-size", type=int, default=POOL_SIZE)
     ap.add_argument("--instruction", default="pick up the {object} and put it on the {destination}")
     ap.add_argument("--object", default="red block")
