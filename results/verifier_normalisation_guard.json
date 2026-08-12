@@ -1,0 +1,390 @@
+{
+  "what": "paired A/B of the degenerate-normalisation guard in waddle_wm.verifier.standardise",
+  "checkpoint": "models/multiblock_world_model.pt",
+  "degenerate_dimensions": {
+    "plan_std": [
+      2
+    ]
+  },
+  "protocol": "30 freshly rendered scenes, seed 0, the same good/bad plan mix test_agent --live uses. Each plan is scored twice from the same encoded window and the same camera-estimated coordinates - once through the guard, once through the raw normalisation - and then executed once in MuJoCo. Nothing about the outcome reaches either scoring path.",
+  "episodes": 30,
+  "real_successes": 16,
+  "decision_threshold": 0.6376,
+  "guarded": {
+    "agreement": 0.9333,
+    "false_accepts": 1,
+    "false_rejects": 1,
+    "scores_exactly_zero": 0,
+    "distinct_scores": 30
+  },
+  "unguarded": {
+    "agreement": 0.4667,
+    "false_accepts": 0,
+    "false_rejects": 16,
+    "scores_exactly_zero": 30,
+    "distinct_scores": 1
+  },
+  "git_sha": "a67973949c9f73315442eac223467fbcfdc69502",
+  "rows": [
+    {
+      "success": false,
+      "failure_mode": "missed",
+      "guarded": {
+        "p": 0.5291,
+        "approve": false
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": true,
+      "failure_mode": null,
+      "guarded": {
+        "p": 0.8346,
+        "approve": true
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": true,
+      "failure_mode": null,
+      "guarded": {
+        "p": 0.5914,
+        "approve": false
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": true,
+      "failure_mode": null,
+      "guarded": {
+        "p": 0.6554,
+        "approve": true
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": false,
+      "failure_mode": "target_miss",
+      "guarded": {
+        "p": 0.9112,
+        "approve": true
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": false,
+      "failure_mode": "target_miss",
+      "guarded": {
+        "p": 0.3857,
+        "approve": false
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": true,
+      "failure_mode": null,
+      "guarded": {
+        "p": 0.8337,
+        "approve": true
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": false,
+      "failure_mode": "missed",
+      "guarded": {
+        "p": 0.5258,
+        "approve": false
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": true,
+      "failure_mode": null,
+      "guarded": {
+        "p": 0.7454,
+        "approve": true
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": true,
+      "failure_mode": null,
+      "guarded": {
+        "p": 0.9074,
+        "approve": true
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": false,
+      "failure_mode": "missed",
+      "guarded": {
+        "p": 0.5223,
+        "approve": false
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": true,
+      "failure_mode": null,
+      "guarded": {
+        "p": 0.7461,
+        "approve": true
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": false,
+      "failure_mode": "missed",
+      "guarded": {
+        "p": 0.4742,
+        "approve": false
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": true,
+      "failure_mode": null,
+      "guarded": {
+        "p": 0.7992,
+        "approve": true
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": false,
+      "failure_mode": "missed",
+      "guarded": {
+        "p": 0.2135,
+        "approve": false
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": false,
+      "failure_mode": "missed",
+      "guarded": {
+        "p": 0.5489,
+        "approve": false
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": true,
+      "failure_mode": null,
+      "guarded": {
+        "p": 0.9608,
+        "approve": true
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": true,
+      "failure_mode": null,
+      "guarded": {
+        "p": 0.9511,
+        "approve": true
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": true,
+      "failure_mode": null,
+      "guarded": {
+        "p": 0.9236,
+        "approve": true
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": false,
+      "failure_mode": "missed",
+      "guarded": {
+        "p": 0.3408,
+        "approve": false
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": false,
+      "failure_mode": "missed",
+      "guarded": {
+        "p": 0.2698,
+        "approve": false
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": false,
+      "failure_mode": "missed",
+      "guarded": {
+        "p": 0.1313,
+        "approve": false
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": true,
+      "failure_mode": null,
+      "guarded": {
+        "p": 0.8642,
+        "approve": true
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": false,
+      "failure_mode": "missed",
+      "guarded": {
+        "p": 0.6087,
+        "approve": false
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": true,
+      "failure_mode": null,
+      "guarded": {
+        "p": 0.7368,
+        "approve": true
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": true,
+      "failure_mode": null,
+      "guarded": {
+        "p": 0.6812,
+        "approve": true
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": true,
+      "failure_mode": null,
+      "guarded": {
+        "p": 0.8853,
+        "approve": true
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": false,
+      "failure_mode": "target_miss",
+      "guarded": {
+        "p": 0.298,
+        "approve": false
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": false,
+      "failure_mode": "missed",
+      "guarded": {
+        "p": 0.466,
+        "approve": false
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    },
+    {
+      "success": true,
+      "failure_mode": null,
+      "guarded": {
+        "p": 0.9783,
+        "approve": true
+      },
+      "unguarded": {
+        "p": 0.0,
+        "approve": false
+      }
+    }
+  ]
+}
