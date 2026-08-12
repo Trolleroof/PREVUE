@@ -1,0 +1,37 @@
+{
+  "experiment": "matched no-vision calibration comparison",
+  "evaluated_split": "calibration",
+  "causal_baseline": "matched_no_vision",
+  "control": "same checkpoint, plan encoder, observation text, image-derived estimates, and scoring path as visual_world_model; visual latent zeroed",
+  "selected_success": {
+    "1": {
+      "estimated_state": 0.9,
+      "matched_no_vision": 0.9,
+      "visual_world_model": 0.9
+    },
+    "4": {
+      "estimated_state": 1.0,
+      "matched_no_vision": 0.9,
+      "visual_world_model": 0.9
+    },
+    "16": {
+      "estimated_state": 1.0,
+      "matched_no_vision": 0.9,
+      "visual_world_model": 0.85
+    }
+  },
+  "chosen_candidate_agreement_visual_vs_matched": {
+    "1": "20/20",
+    "4": "19/20",
+    "16": "18/20"
+  },
+  "intended_slice_visual_minus_matched_no_vision": {
+    "paired_scenes": 30,
+    "mean_difference": -0.0333,
+    "ci95": [
+      -0.1,
+      0.0
+    ]
+  },
+  "verdict": "Calibration does not support a claim that raw visual context improves candidate selection over the matched no-vision model."
+}

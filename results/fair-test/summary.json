@@ -1,0 +1,52 @@
+{
+  "experiment": "matched no-vision locked test comparison",
+  "evaluated_split": "test",
+  "causal_baseline": "matched_no_vision",
+  "control": "same checkpoint, plan encoder, observation text, image-derived estimates, and scoring path as visual_world_model; visual latent zeroed",
+  "selected_success": {
+    "1": {
+      "estimated_state": 0.9,
+      "matched_no_vision": 0.9,
+      "visual_world_model": 0.9
+    },
+    "4": {
+      "estimated_state": 1.0,
+      "matched_no_vision": 0.9,
+      "visual_world_model": 0.9
+    },
+    "16": {
+      "estimated_state": 1.0,
+      "matched_no_vision": 0.85,
+      "visual_world_model": 0.85
+    }
+  },
+  "n16": {
+    "matched_no_vision": {
+      "oracle_gap": 1.55,
+      "target_error_gap_mm": 56.9847,
+      "missed_available_success": 0.15,
+      "brier": 0.2335
+    },
+    "visual_world_model": {
+      "oracle_gap": 1.55,
+      "target_error_gap_mm": 56.9847,
+      "missed_available_success": 0.15,
+      "brier": 0.1176
+    }
+  },
+  "chosen_candidate_agreement_visual_vs_matched": {
+    "1": "20/20",
+    "4": "18/20",
+    "16": "20/20"
+  },
+  "intended_slice_visual_minus_matched_no_vision": {
+    "paired_scenes": 30,
+    "mean_difference": 0.0,
+    "ci95": [
+      0.0,
+      0.0
+    ]
+  },
+  "secondary_reference": "estimated_state reaches 1.0 selected success at N=16 but is not the causal baseline because its hand-coded retry and redetection bonuses use a different candidate representation.",
+  "verdict": "The locked test shows no measured selection benefit from raw visual context over the matched no-vision model."
+}
