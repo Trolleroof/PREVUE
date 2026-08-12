@@ -2,7 +2,7 @@
   "scene_schema_version": 1,
   "protocol": {
     "program_schema_version": 1,
-    "implementation_sha256": "acd5c77f201a973a7c1fa719c797cebbfacaefba33bc9b1c37ec97eb3b9d8276",
+    "implementation_sha256": "c5f5438bf7c0ec79d9b40c4437bfe29f8c63f3ed9fec0dde9ae365e93c5711c6",
     "camera": "demo",
     "resolution": [
       256,
@@ -4138,5 +4138,5 @@
       }
     }
   ],
-  "lock_sha256": "b303e5f247493770ee9e17b96f8a5bd8bb63ba07de698f4cb9d9b311f11357ea"
+  "lock_sha256": "5003fe27afa89230b27f20a93883bec1bc14ab1d623a13b9c0edc393825a346a"
 }

@@ -1,0 +1,34 @@
+{
+  "experiment": "paired candidate ranker calibration gate",
+  "fitted_splits": ["train", "calibration"],
+  "locked_test_split_used": false,
+  "data": {
+    "pools_per_split": 20,
+    "candidates_per_pool": 16,
+    "acting_candidates_per_split": 300,
+    "counterfactual_exclusions": 0
+  },
+  "training": {
+    "objective": "pointwise_bce_plus_within_scene_pairwise_logistic",
+    "best_epoch": 139,
+    "calibration_pair_accuracy_before": 0.5,
+    "calibration_pair_accuracy_after": 0.7682,
+    "calibration_selected_success_before": 0.4,
+    "calibration_selected_success_after": 0.85,
+    "calibration_selected_success_without_visual_context": 0.9,
+    "block_orientation_selected_success": 0.5
+  },
+  "selector_comparison": {
+    "selected_success": {
+      "1": {"estimated_state": 0.9, "visual_world_model": 0.9},
+      "4": {"estimated_state": 1.0, "visual_world_model": 0.9},
+      "16": {"estimated_state": 1.0, "visual_world_model": 0.85}
+    },
+    "intended_slice_visual_minus_estimated_state": {
+      "paired_scenes": 30,
+      "mean_difference": -0.1333,
+      "ci95": [-0.2667, -0.0333]
+    }
+  },
+  "verdict": "Calibration fails the visual-value gate: paired training learns candidate regularities, but visual context does not improve selection. The locked test split was not run."
+}

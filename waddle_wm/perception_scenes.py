@@ -150,9 +150,12 @@ def apply_scene_spec(env, spec: dict) -> None:
     """Apply one manifest record to the existing UR5e model, before observation."""
     params = spec["scene_parameters"]
     red_geom = env.model.geom("red_block_geom")
-    env.model.geom_size[red_geom.id] = params["red_block_size"]
+    if not np.allclose(env.model.geom_size[red_geom.id], params["red_block_size"]):
+        raise ValueError("scene environment was compiled with the wrong red block size")
     env.model.geom_friction[red_geom.id] = params["red_block_friction"]
-    env.model.body_mass[env.model.body("red_block").id] = params["red_block_mass_kg"]
+    if not np.isclose(env.model.body_mass[env.model.body("red_block").id],
+                      params["red_block_mass_kg"]):
+        raise ValueError("scene environment was compiled with the wrong red block mass")
     gripper = env.model.actuator(relling_scene.GRIPPER_ACTUATOR).id
     env.model.actuator_forcerange[gripper] = [-params["gripper_force_limit_n"],
                                                params["gripper_force_limit_n"]]
@@ -163,7 +166,6 @@ def apply_scene_spec(env, spec: dict) -> None:
     env.model.cam_pos[camera] += params["camera_offset"]
     env.model.light_diffuse[:] *= params["light_scale"]
     env.model.geom_rgba[env.model.geom("table").id] = params["table_rgba"]
-    mujoco.mj_setConst(env.model, env.data)
     env.reset(blocks=params["block_positions"])
     obstacle = env.model.body("scene_obstacle_body").mocapid[0]
     env.data.mocap_pos[obstacle] = params["obstacle"] or [0.0, 0.0, -1.0]
