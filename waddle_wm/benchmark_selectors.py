@@ -199,7 +199,7 @@ def prefix_coverage(artifact: dict, pools: dict) -> dict:
     """
     candidates = {pool_id: len(pool["candidates"]) for pool_id, pool in pools.items()}
     ranked = sorted({scene["pool_id"] for scene in artifact["scenes"]})
-    present = {}
+    present = {size: set() for size in PREFIXES}
     for scene in artifact["scenes"]:
         present.setdefault(scene["prefix"], set()).add(scene["pool_id"])
 
@@ -213,7 +213,7 @@ def prefix_coverage(artifact: dict, pools: dict) -> dict:
         coverage[str(size)] = {"pools": len(present[size]), "short_of_prefix": short}
     return {"ranked_pools": len(ranked), "requested_prefixes": list(PREFIXES),
             "by_prefix": coverage,
-            "balanced": all(len(pool_ids) == len(ranked) for pool_ids in present.values())}
+            "balanced": all(pool_ids == set(ranked) for pool_ids in present.values())}
 
 
 def sub_artifact(artifact: dict, keep) -> dict | None:
