@@ -40,6 +40,82 @@ That re-verifies and re-executes the recorded plans and prints how far the repla
 from the recorded ones. On the traces in this repo the drift is **0.0000** and there are no outcome
 mismatches — the verifier and the simulator are deterministic; only the planner is not.
 
+## The loop the agent runs
+
+`SkillAgent.run` verifies before it moves: a rejected plan is repaired from the *imagined* failure
+and only an approved plan reaches MuJoCo. That is what this page measures, and
+[`llm_agent.md`](llm_agent.md) documents.
+
+Between `cef148e` and `856d6bb` the agent had drifted away from it — `run` scored the plan, called
+the verdict advisory, executed regardless, and repaired from the real failure instead. That made the
+`none` and `world-model` arms behave identically up to logging, and made the four arms of the
+issue #26 benchmark three copies of one policy. `SkillAgent(feedback=True)` now selects that
+behaviour explicitly, and only [`benchmark_feedback.py`](../waddle_wm/benchmark_feedback.py)'s
+`mujoco` arm asks for it. Everything else — the demo, the browser UI, the other three benchmark
+arms — verifies first.
+
+The check that this is fixed is the replay: it reproduces the recorded table exactly, final verdicts
+included, at **0.0000** drift.
+
+```bash
+uv run python -m waddle_wm.demo --replay results/demo --arm none --arm rules
+```
+
+## Watch it instead
+
+The same run, as a page you can scrub:
+
+```bash
+uv run python -m waddle_wm.build_experiment_page
+open results/demo/experiment.html
+```
+
+`experiment.html` is standalone — the six traces in `results/demo` are inlined at build time, so it
+opens over `file://` with no server, no MuJoCo, no checkpoint, and no Claude call. It replays what
+was recorded and nothing else: every probability, waypoint, and final block position on the page is
+read out of a trace, and switching the scenario chip switches between `grasp_miss` and `place_miss`.
+
+While an arm executes, the page shows **MuJoCo footage of that arm's plan**, with the top-down
+schematic shrunk to a plan minimap beside it. The clips come from:
+
+```bash
+uv run python -m waddle_wm.render_demo_clips        # -> results/demo/{scenario}.{arm}.clip.mp4
+```
+
+which re-runs the waypoints stored in each trace — the flawed opening plan for `none`, the approved
+repaired plan for the verified arms — and *refuses to write a clip whose outcome disagrees with the
+trace it came from*. Because the rules and world-model arms converged on the same repaired
+waypoints, their clips are byte-identical and the page inlines one copy. Build the page after
+rendering the clips, or it falls back to the schematic throughout.
+
+The `none` footage is worth watching: the grasp aimed 6 cm past the red block closes on the **blue**
+block next to it and delivers that to the pad instead. The trace only records that the red block
+never moved and finished 0.510 m from the pad; the video shows what the arm did with its confidence.
+
+The page renders as a pure function of `(scenario, t)` — `window.demo.seek(t)` — so it can also be
+captured frame by frame rather than screen-recorded:
+
+```bash
+node waddle_wm/ui/record.mjs --out results/demo/experiment.mp4          # 44 s, 1920×1080
+node waddle_wm/ui/record.mjs --stills 41 --out results/demo             # poster frame
+```
+
+The recorder drives headless Chrome over the DevTools Protocol and encodes with ffmpeg; it needs
+neither installed packages nor a visible screen. `results/demo/*.mp4` is gitignored — re-record it.
+
+The same build also writes `compare.html`: the unverified run and the world-model-verified run of
+the *same* flawed plan, side by side in MuJoCo, with the imagined verdicts that separated them.
+
+```bash
+node waddle_wm/ui/record.mjs --page results/demo/compare.html \
+                             --out results/demo/verified-vs-unverified.mp4      # 22 s
+```
+
+Both pages show the world-model arm from its **recorded** verdicts: `models/multiblock_world_model.pt`
+is gitignored, so that arm cannot be re-run here — the footage is its recorded approved plan
+re-executed, outcome-checked against the trace. The `none` and `rules` arms need no checkpoint and
+do run live.
+
 The rate table below comes from the sweep, which is the same thing over more scenes (about 6 minutes
 and $1.67):
 
