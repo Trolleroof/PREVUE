@@ -97,7 +97,7 @@ class SkillAgent:
 
     def __init__(self, checkpoint: Path = DEFAULT_CHECKPOINT, seed: int = 0, model: str = MODEL,
                  repairs: int = 2, threshold: float | None = None, verify: bool = True,
-                 verifier_mode: str | None = None):
+                 verifier_mode: str | None = None, feedback: bool = False):
         self.verifier_mode = verifier_mode or ("world-model" if verify else "none")
         if self.verifier_mode not in ("none", "rules", "world-model"):
             raise ValueError(f"unknown verifier mode {self.verifier_mode!r}")
@@ -108,6 +108,11 @@ class SkillAgent:
         self.camera = SceneCamera(self.env.model, self.env.data)
         self.planner = ClaudePlanner(model=model)
         self.repairs, self.model = repairs, model
+        # Where a repair comes from. Default: the verifier's imagined failure, before the arm
+        # moves — the loop `docs/demo.md` and `docs/llm_agent.md` describe. `feedback=True`
+        # instead executes every proposal and repairs from what MuJoCo actually did, which is
+        # only the `mujoco` arm of the issue #26 benchmark.
+        self.feedback = feedback
 
     def observe(self, block_xy=None, target_xy=None):
         """Reset the scene, render the pre-execution window, and encode it once."""
@@ -247,10 +252,36 @@ class SkillAgent:
             verdict = verdict_for_claude(result)
             run.rounds.append(Round(index, kind, plan.summary(), verified=True, verdict=verdict))
             emit("verdict", {"round": index, "verifier": self.verifier_mode, **verdict})
-            # Verifier predictions are advisory; simulator execution is the decision.
-            break
-        if step is not None:
+            if result.approve:
+                run.decision, run.reason = "executed", f"verifier approved at p={result.success_probability:.3f}"
+                break
+            if index == self.repairs:
+                run.decision = "rejected"
+                run.reason = (f"still rejected after {self.repairs} repairs "
+                              f"(p={result.success_probability:.3f}, {result.likely_failure})")
+                emit("rejected", {"reason": run.reason})
+                break
+            # The point of the project: the imagined failure, not a real one, is what Claude repairs from.
+            try:
+                plan = self.planner.repair(instruction, observation, plan, verdict)
+                step = self.ground_step(plan.steps[0]) if plan.steps else None
+            except (PlanError, RuntimeError) as error:
+                run.decision, run.reason = "error", str(error)
+                emit("error", {"reason": run.reason})
+                break
+
+        if self.feedback and step is not None:
+            # The MuJoCo-feedback arm of the issue #26 benchmark: repair from real failures
+            # instead of imagined ones. Never the demo's loop — that one must not move the arm
+            # before something has judged the plan.
             run.execution, frames = self.execute_with_feedback(run, instruction, step, emit)
+            run.frames = frames
+        elif run.decision == "executed" and step is not None:
+            emit("executing", {"object": step.object, "destination": step.destination,
+                               "trace": step.summary()["trace"]})
+            run.execution, frames = self.execute(step)
+            run.execution["frames"] = len(frames)
+            emit("executed", run.execution)
             run.frames = frames
         if run.final_plan is None:
             run.final_plan = plan
@@ -262,9 +293,19 @@ class SkillAgent:
         """Execute a compound instruction one observed, scored, and logged step at a time."""
         executions, clips = [], []
         for index, proposed in enumerate(plan.steps):
-            step = self.ground_step(proposed)
-            execution, frames = self.execute_with_feedback(
-                run, f"Step {index + 1} of the compound task: move the {step.object} onto the {step.destination}", step, emit)
+            label = f"Step {index + 1} of the compound task: move the {proposed.object} onto the {proposed.destination}"
+            if not self.feedback:
+                # Same discipline as the single-step loop: nothing moves until a verdict allows it.
+                step, latent = self.verify_sequence_step(run, plan, proposed, latent, index, label, emit)
+                if run.decision in ("rejected", "error"):
+                    break
+                emit("executing", {"step": index + 1, "object": step.object,
+                                   "destination": step.destination, "trace": step.summary()["trace"]})
+                execution, frames = self.execute(step)
+                emit("executed", execution)
+            else:
+                step = self.ground_step(proposed)
+                execution, frames = self.execute_with_feedback(run, label, step, emit)
             executions.append(execution); clips.append(frames)
             if execution.get("success") is False:
                 run.decision, run.reason = "rejected", f"step {index + 1} failed after feedback budget: {execution['failure_mode']}"
@@ -281,6 +322,46 @@ class SkillAgent:
         run.planner_calls = list(self.planner.calls)
         run.seconds = round(time.time() - started, 2)
         return run
+
+    def verify_sequence_step(self, run, plan, proposed, latent, index, label, emit):
+        """Score one step of a compound plan, repairing it from the verdict until it passes."""
+        step = self.ground_step(proposed)
+        for attempt in range(self.repairs + 1):
+            step = self.ground_step(proposed)
+            emit("step", {"index": index + 1, "total": len(plan.steps), "repair": attempt, **step.summary()})
+            result, skip = self.verify_step(step, latent)
+            round_index = index * (self.repairs + 1) + attempt
+            if skip is not None:
+                run.rounds.append(Round(round_index, "step", step.summary(), verified=False, skipped_reason=skip))
+                emit("unverified", {"round": round_index, "reason": skip})
+                break
+            verdict = verdict_for_claude(result)
+            run.rounds.append(Round(round_index, "step", step.summary(), verified=True, verdict=verdict))
+            emit("verdict", {"round": round_index, "verifier": self.verifier_mode, **verdict})
+            if result.approve:
+                break
+            if attempt == self.repairs:
+                run.decision = "rejected"
+                run.reason = (f"step {index + 1} still rejected after {self.repairs} repairs "
+                              f"at p={result.success_probability:.3f}: {result.likely_failure}")
+                run.final_plan = Plan(plan.intent, "execute", [step], plan.note)
+                emit("rejected", {"reason": run.reason})
+                break
+            detections = self.perceive()
+            observation = describe_observation(detections, landing_pad(self.env.model),
+                                               self.env.state()["gripper_pos"])
+            try:
+                repaired = self.planner.repair(label, observation,
+                                               Plan(plan.intent, "execute", [step], plan.note), verdict)
+                if (len(repaired.steps) != 1 or repaired.steps[0].object != step.object
+                        or repaired.steps[0].destination != step.destination):
+                    raise PlanError("a compound-step repair must keep the same object and destination")
+                proposed = repaired.steps[0]
+            except (PlanError, RuntimeError) as error:
+                run.decision, run.reason = "error", str(error)
+                emit("error", {"reason": run.reason})
+                break
+        return step, latent
 
     def execute_with_feedback(self, run, instruction, step, emit):
         """Execute every proposal, then repair from the actual failed scene."""

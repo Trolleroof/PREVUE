@@ -274,13 +274,18 @@ def main():
             records.append(record)
             print(f"  -> {record['decision']}: {outcome_word(record)}", flush=True)
 
+            # A replay re-runs the recorded plans, so its frames *are* the recorded run's frames —
+            # worth writing, since the videos are gitignored and this path costs no tokens.
+            video_dir = args.replay if args.replay else args.out
+            if run.frames is not None and not args.no_video:
+                video_dir.mkdir(parents=True, exist_ok=True)
+                iio.imwrite(video_dir / f"{scenario.name}.{arm}.mp4", np.asarray(run.frames),
+                            fps=10, codec="libx264")
             if args.replay:
                 drifts += replay_drift(saved, record)
                 continue
             args.out.mkdir(parents=True, exist_ok=True)
             (args.out / f"{scenario.name}.{arm}.json").write_text(json.dumps(record, indent=2, default=float))
-            if run.frames is not None and not args.no_video:
-                iio.imwrite(args.out / f"{scenario.name}.{arm}.mp4", np.asarray(run.frames), fps=10, codec="libx264")
 
     text = report(records)
     if args.replay:

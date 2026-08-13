@@ -12,11 +12,13 @@ from pathlib import Path
 
 from waddle_wm.agent import SkillAgent
 
+#: arm -> (verifier mode, where its repairs come from). The first three repair from an
+#: imagined failure before the arm moves; only `mujoco` is allowed to learn from a real one.
 ARMS = {
-    "claude-self-critique": "none",
-    "estimated-state": "rules",
-    "visual-world-model": "world-model",
-    "mujoco": "none",
+    "claude-self-critique": ("none", False),
+    "estimated-state": ("rules", False),
+    "visual-world-model": ("world-model", False),
+    "mujoco": ("none", True),
 }
 
 
@@ -64,9 +66,9 @@ def run_suite(prompts, seeds, args):
     rows, proposal_budget = [], args.repairs + 1
     for prompt in prompts:
         for seed in seeds:
-            for arm, mode in ARMS.items():
+            for arm, (mode, feedback) in ARMS.items():
                 agent = SkillAgent(args.checkpoint, seed, args.model, args.repairs,
-                                   verifier_mode=mode)
+                                   verifier_mode=mode, feedback=feedback)
                 started = time.time()
                 run = agent.run(prompt, seed)
                 rows.append(row(arm, prompt, seed, run.as_json(), time.time() - started,

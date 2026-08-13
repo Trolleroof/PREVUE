@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Waddle — unverified vs world-model verified</title>
+<style>
+  :root {
+    --bg: #05080f; --panel: #0d1420; --line: #1e2a3d; --line2: #2c3d57;
+    --ink: #e9f0fa; --dim: #8ea3bf; --faint: #5b6f8d;
+    --accent: #4da3ff; --good: #2fd07f; --bad: #ff6b6b; --violet: #b78bff;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); overflow: hidden;
+               font: 15px/1.5 ui-sans-serif, -apple-system, "Segoe UI", Inter, sans-serif;
+               -webkit-font-smoothing: antialiased; }
+  #frame { width: 1600px; height: 900px; position: absolute; left: 0; top: 0; transform-origin: top left;
+           background: radial-gradient(1100px 640px at 50% -14%, #101c30 0%, #05080f 62%);
+           display: flex; flex-direction: column; }
+
+  header { padding: 26px 34px 12px; }
+  h1 { margin: 0; font-size: 30px; letter-spacing: -.018em; font-weight: 650; }
+  h1 em { font-style: normal; color: var(--accent); }
+  .sub { margin-top: 6px; color: var(--dim); font-size: 14px; }
+  .sub b { color: var(--ink); font-weight: 560; }
+
+  main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 6px 34px 0; min-height: 0; }
+  .side { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 18px 20px 16px;
+          display: flex; flex-direction: column; min-height: 0; position: relative; overflow: hidden; }
+  .side.left { border-color: #3a2020; }
+  .side.right { border-color: #1d3b56; }
+  .who { display: flex; align-items: baseline; gap: 10px; }
+  .who h2 { margin: 0; font-size: 20px; font-weight: 620; letter-spacing: -.01em; }
+  .who span { font: 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--faint);
+              margin-left: auto; }
+  .who .tag { font: 11px var(--mono); letter-spacing: .08em; text-transform: uppercase;
+              padding: 4px 9px; border-radius: 6px; border: 1px solid; }
+  .left .tag { color: var(--bad); border-color: #5f2626; background: #2a1212; }
+  .right .tag { color: var(--accent); border-color: #23405f; background: #0f2036; }
+  .what { margin: 5px 0 0; color: var(--dim); font-size: 13px; min-height: 20px; }
+
+  .screen { margin-top: 12px; flex: 1; min-height: 0; border-radius: 12px; background: #04070d;
+            border: 1px solid var(--line); position: relative; overflow: hidden; display: grid;
+            place-items: center; }
+  .screen video { height: 100%; width: auto; display: none; }
+  .screen video[data-on="1"] { display: block; }
+  .screen .idle { color: var(--faint); font: 12px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+  .stamp { position: absolute; left: 50%; transform: translateX(-50%); bottom: 16px;
+           font: 12.5px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; white-space: nowrap;
+           padding: 10px 15px; border-radius: 9px; border: 1px solid; backdrop-filter: blur(6px); }
+  .stamp.ok { color: var(--good); border-color: #1d5c3d; background: #0e2a1ecc; }
+  .stamp.no { color: var(--bad); border-color: #5f2626; background: #2a1212cc; }
+
+  /* Fixed so both screens keep the same size however much text a rail carries. */
+  .rail { margin-top: 12px; display: flex; flex-direction: column; gap: 7px;
+          height: 206px; flex: none; overflow: hidden; }
+  .step { border-left: 2px solid var(--line2); padding-left: 11px; font-size: 13.5px; }
+  .step.no { border-left-color: var(--bad); }
+  .step.ok { border-left-color: var(--good); }
+  .step.warn { border-left-color: #6b5a20; }
+  .step .k { font: 10.5px/1.5 var(--mono); letter-spacing: .09em; text-transform: uppercase; color: var(--faint); }
+  .step .v b { font-family: var(--mono); }
+  .step .n { color: var(--dim); font: 12px/1.5 var(--mono); }
+
+  footer { padding: 14px 34px 20px; display: flex; align-items: flex-end; gap: 28px; min-height: 96px; }
+  footer .big { font-size: 30px; letter-spacing: -.02em; font-weight: 640; line-height: 1.15; }
+  footer .big s { color: var(--bad); text-decoration: none; }
+  footer .big span { color: var(--good); }
+  footer .note { color: var(--dim); font-size: 13px; max-width: 560px; margin-left: auto; text-align: right; }
+  footer .note b { color: var(--ink); font-weight: 560; }
+  .meta { font: 11px var(--mono); color: var(--faint); letter-spacing: .04em; }
+</style>
+</head>
+<body>
+<div id="frame">
+  <header>
+    <h1 id="title"></h1>
+    <div class="sub" id="subtitle"></div>
+  </header>
+
+  <main>
+    <section class="side left" id="sideNone">
+      <div class="who"><h2>No verifier</h2><div class="tag">runs it</div><span>arm 1</span></div>
+      <p class="what">The flawed plan goes straight to physics.</p>
+      <div class="screen" id="screenNone"><div class="idle">waiting</div></div>
+      <div class="rail" id="railNone"></div>
+    </section>
+
+    <section class="side right" id="sideWm">
+      <div class="who"><h2>Visual world model</h2><div class="tag">imagines it first</div><span>arm 3</span></div>
+      <p class="what">Rolls the plan forward in latent space and judges the ending.</p>
+      <div class="screen" id="screenWm"><div class="idle">waiting</div></div>
+      <div class="rail" id="railWm"></div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="big" id="verdict"></div>
+    <div class="note" id="note"></div>
+  </footer>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+
+/* ------------------------------------------------------------------ *
+ * One scenario, two arms, told as five beats. Everything is a pure
+ * function of t so `record.mjs` can capture it frame by frame.
+ * ------------------------------------------------------------------ */
+const SCENARIO = "grasp_miss";
+const T = { title: [0, 3.0], verdict: [3.0, 8.0], run: [8.0, 13.4], outcome: [13.4, 17.4], close: [17.4, 22.0] };
+const DURATION = T.close[1];
+
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const span = (t, [a, b]) => clamp((t - a) / (b - a));
+const fmt = (v, n = 3) => Number(v).toFixed(n);
+const xy = p => `(${fmt(p[0])}, ${fmt(p[1])})`;
+
+let scenario = SCENARIO, t = 0, playing = true, last = performance.now();
+const arm = id => DATA.scenarios[scenario].arms[id];
+
+/* ---- footage ---- *
+ * One <video> per panel, so two panels showing the same clip (arms that ran identical
+ * waypoints share one inlined copy) never fight over a single element.
+ */
+const screens = new Map();
+function mount(screenId, armId) {
+  const src = (DATA.videos || {})[(DATA.video_index || {})[`${scenario}.${armId}`]];
+  if (!src) return null;
+  let video = screens.get(screenId);
+  if (!video) {
+    video = document.createElement("video");
+    Object.assign(video, { muted: true, playsInline: true, preload: "auto" });
+    document.getElementById(screenId).appendChild(video);
+    screens.set(screenId, video);
+  }
+  if (video.getAttribute("src") !== src) video.setAttribute("src", src);
+  return video;
+}
+
+/** Park both clips on the frame t implies; resolves once the seek has landed. */
+function drawFilms() {
+  const u = span(t, T.run);
+  const showing = t >= T.run[0];
+  const waits = [];
+  for (const [screenId, armId] of [["screenNone", "none"], ["screenWm", "world-model"]]) {
+    const video = mount(screenId, armId);
+    if (!video) continue;
+    video.dataset.on = showing ? "1" : "0";
+    document.querySelector(`#${screenId} .idle`).style.display = showing ? "none" : "block";
+    if (!showing) continue;
+    const length = Number.isFinite(video.duration) ? video.duration : 4.8;
+    const target = clamp(u, 0, 0.999) * length;
+    if (Math.abs(video.currentTime - target) < 0.02) continue;
+    waits.push(new Promise(resolve => {
+      video.addEventListener("seeked", resolve, { once: true });
+      video.currentTime = target;
+      setTimeout(resolve, 250);
+    }));
+  }
+  return Promise.all(waits);
+}
+
+/* ---- rails ---- */
+const step = (cls, key, value, note) =>
+  `<div class="step ${cls}"><div class="k">${key}</div><div class="v">${value}</div>` +
+  (note ? `<div class="n">${note}</div>` : "") + "</div>";
+
+function drawRails() {
+  const none = arm("none"), wm = arm("world-model");
+  const opening = wm.rounds[0].verdict, approved = wm.rounds[1].verdict;
+  const left = [], right = [];
+
+  if (t >= T.verdict[0]) {
+    left.push(step("warn", "verifier", "none — nothing imagines this plan",
+                   "the 6 cm grasp error is not visible in the waypoints"));
+    right.push(step("no", "imagined future", `p(success) <b>${fmt(opening.imagined_success_probability)}</b> · reject`,
+                    `${opening.likely_failure} · p(lifted) ${fmt(opening.p_block_lifted)} · ` +
+                    `uncertainty ${fmt(opening.ensemble_uncertainty)}`));
+  }
+  if (t >= T.verdict[0] + 1.8)
+    right.push(step("", "claude · repair", "re-aimed the grasp onto the observed block",
+                    `x ${fmt(wm.rounds[0].grasp_xy[0])} → ${fmt(wm.rounds[1].grasp_xy[0])}, one waypoint changed`));
+  if (t >= T.verdict[0] + 3.4)
+    right.push(step("ok", "imagined future", `p(success) <b>${fmt(approved.imagined_success_probability)}</b> · approve`,
+                    `uncertainty ${fmt(approved.ensemble_uncertainty)} — now it is allowed to move`));
+  if (t >= T.run[0]) {
+    left.push(step("", "mujoco", "executing the plan as given"));
+    right.push(step("", "mujoco", "executing the approved plan"));
+  }
+  document.getElementById("railNone").innerHTML = left.join("");
+  document.getElementById("railWm").innerHTML = right.join("");
+
+  for (const [screenId, armId] of [["screenNone", "none"], ["screenWm", "world-model"]]) {
+    const record = arm(armId);
+    const screen = document.getElementById(screenId);
+    const old = screen.querySelector(".stamp");
+    if (t < T.outcome[0]) { if (old) old.remove(); continue; }
+    const ok = record.executed_success;
+    const html = `<div class="stamp ${ok ? "ok" : "no"}">${ok ? "success" : "failure · " + record.failure_mode} · ` +
+                 `${fmt(record.target_distance)} m from the pad</div>`;
+    if (!old) screen.insertAdjacentHTML("beforeend", html);
+    else old.outerHTML = html;
+  }
+}
+
+/* ---- copy ---- */
+function drawCopy() {
+  const sc = DATA.scenarios[scenario];
+  const none = arm("none"), wm = arm("world-model");
+  const title = document.getElementById("title"), subtitle = document.getElementById("subtitle");
+  title.innerHTML = t < T.outcome[0]
+    ? `Same scene. Same flawed plan. <em>One of them imagines it first.</em>`
+    : `The plan was wrong. <em>Only one of them knew before it moved.</em>`;
+  subtitle.innerHTML =
+    `“${sc.instruction}” · the opening plan aims the grasp <b>${sc.flaw.replace("grasp aimed ", "")}</b> · ` +
+    `<b>${DATA.model}</b> plans and repairs · MuJoCo decides`;
+
+  const verdict = document.getElementById("verdict"), note = document.getElementById("note");
+  if (t < T.close[0]) {
+    verdict.innerHTML = t < T.outcome[0] ? "" :
+      `<s>${fmt(none.target_distance, 2)} m off</s> &nbsp;vs&nbsp; <span>${fmt(wm.target_distance, 3)} m</span> from the pad centre`;
+    note.innerHTML = t < T.outcome[0] ? "" :
+      `The unverified arm closed on the <b>blue</b> block and delivered that instead; the red block never moved. ` +
+      `The verified arm ran a plan its own imagined rollout had already approved.`;
+  } else {
+    const rates = DATA.sweep.rates.filter(r => r.scenario === scenario);
+    const pick = id => rates.find(r => r.arm === id);
+    verdict.innerHTML = `<s>${pick("none").success}/${pick("none").scenes}</s> unverified &nbsp;→&nbsp; ` +
+                        `<span>${pick("world-model").success}/${pick("world-model").scenes}</span> with the world model`;
+    note.innerHTML = `Over ${DATA.sweep.scenes} randomised scenes, it caught the bad plan in ` +
+                     `<b>${pick("world-model").caught}/${pick("world-model").scenes}</b>. ` +
+                     `Honest caveat: a pixel-free geometry rule scores ` +
+                     `<b>${pick("rules").success}/${pick("rules").scenes}</b> on the same scenes — ` +
+                     `checking the plan is what helps; that <em>vision</em> is why is not yet shown.`;
+  }
+}
+
+function render() {
+  const films = drawFilms();
+  drawRails();
+  drawCopy();
+  return films;
+}
+
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  if (playing) { t += dt; if (t > DURATION) t = 0; render(); }
+  requestAnimationFrame(frame);
+}
+
+function fitFrame() {
+  const scale = Math.min(innerWidth / 1600, innerHeight / 900);
+  const frameEl = document.getElementById("frame");
+  frameEl.style.transform = `scale(${scale})`;
+  frameEl.style.marginLeft = `${(innerWidth - 1600 * scale) / 2}px`;
+  frameEl.style.marginTop = `${(innerHeight - 900 * scale) / 2}px`;
+}
+addEventListener("resize", fitFrame);
+addEventListener("keydown", event => { if (event.key === " ") { event.preventDefault(); playing = !playing; } });
+
+window.demo = {
+  duration: DURATION,
+  seek(seconds, name) { if (name) scenario = name; playing = false; t = seconds; return render(); },
+  play() { playing = true; last = performance.now(); },
+};
+
+fitFrame();
+render();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
