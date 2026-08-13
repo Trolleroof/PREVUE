@@ -25,11 +25,23 @@ import numpy as np
 
 from waddle_wm.agent import DEFAULT_CHECKPOINT, SkillAgent
 from waddle_wm.perception import landing_pad
-from waddle_wm.planner import MODEL, describe_observation
+from waddle_wm.planner import MODEL, PlanError, describe_observation
 
 UI = Path(__file__).parent / "ui" / "index.html"
 RUNS = Path("results/agent")
 DISPLAY = (720, 720)
+# UI-only: same 3/4 angle as `demo`, pulled back so the full table is in frame.
+DISPLAY_CAMERA = dict(lookat=(0.10, 0.00, 0.00), distance=3.4, azimuth=128, elevation=-28)
+
+
+def display_camera() -> mujoco.MjvCamera:
+    cam = mujoco.MjvCamera()
+    cam.type = mujoco.mjtCamera.mjCAMERA_FREE
+    cam.lookat[:] = DISPLAY_CAMERA["lookat"]
+    cam.distance = DISPLAY_CAMERA["distance"]
+    cam.azimuth = DISPLAY_CAMERA["azimuth"]
+    cam.elevation = DISPLAY_CAMERA["elevation"]
+    return cam
 
 
 class Session:
@@ -63,7 +75,7 @@ class Session:
         The episode the page plays back is rendered at `DISPLAY` rather than the 256 px
         the verifier and the dataset need, which is the only reason this hook exists.
         """
-        self.display.update_scene(self.agent.env.data, camera=self.agent.env.camera)
+        self.display.update_scene(self.agent.env.data, camera=display_camera())
         self._display_frames.append(self.display.render().copy())
 
     def _worker(self):
@@ -104,10 +116,9 @@ class Session:
             yield item
 
     def reset(self, seed: int | None = None):
-        if seed is not None:
-            self.seed = seed
-            self.agent.env.rng = np.random.default_rng(seed)
+        self.seed = int(seed) if seed is not None else self.seed + 1
         env = self.agent.env
+        env.rng = np.random.default_rng(self.seed)
         self.block_xy = env.sample_scene()      # every command re-runs this scene until it is reset
         self.refused = None
         env.reset(self.block_xy)
@@ -117,28 +128,76 @@ class Session:
         env = self.agent.env
         detections = self.agent.perceive()
         return {"seed": self.seed,
+                "video": self.preview(),
                 "observation": describe_observation(detections, landing_pad(env.model), env.state()["gripper_pos"]),
                 "detections": [detection.summary() for detection in detections]}
 
+    def preview(self) -> str:
+        """Render a short loop of the current scene for the viewport."""
+        frames = []
+        for _ in range(16):
+            self.display.update_scene(self.agent.env.data, camera=display_camera())
+            frames.append(self.display.render().copy())
+        video = RUNS / f"preview-{self.seed}-{time.strftime('%H%M%S')}.mp4"
+        iio.imwrite(video, np.asarray(frames), fps=4, codec="libx264")
+        return f"/runs/{video.name}"
+
+    def _write_video(self, stamp: str, tag: str, run) -> str | None:
+        if run.frames is None:
+            return None
+        # Display capture includes earlier retries; the clip we keep is the last attempt.
+        n = len(run.frames)
+        frames = self._display_frames[-n:] if len(self._display_frames) >= n else run.frames
+        video = RUNS / f"{stamp}-{tag}.mp4"
+        iio.imwrite(video, np.asarray(frames), fps=10, codec="libx264")
+        return f"/runs/{video.name}"
+
     def command(self, instruction: str, emit):
-        """Run one instruction end to end, calling `emit(name, payload)` as it goes."""
+        """Same user instruction, twice: world model vs unverified."""
         stamp = time.strftime("%Y%m%d-%H%M%S")
-        self._display_frames = []
-        run = self.agent.run(instruction, self.seed, block_xy=self.block_xy, on_event=emit)
-        payload = run.as_json()
-        if run.frames is not None:
-            frames = self._display_frames if len(self._display_frames) == len(run.frames) else run.frames
-            video = RUNS / f"{stamp}.mp4"
-            iio.imwrite(video, np.asarray(frames), fps=10, codec="libx264")
-            run.video = payload["video"] = f"/runs/{video.name}"
-        log = RUNS / f"{stamp}.json"
-        log.write_text(json.dumps(payload, indent=2, default=float))
-        payload["log"] = str(log)
-        # A rejected plan never ran, so the failure the verifier predicted is invisible
-        # until someone asks for it. Keep it around so the page can offer exactly that.
-        self.refused = run.final_plan if run.decision == "rejected" else None
-        payload["can_run_anyway"] = self.refused is not None
-        emit("done", payload)
+        saved_mode = self.agent.verifier_mode
+        instruction = (instruction or "").strip()
+        self.agent.observe(self.block_xy)
+        pad_xy, radius = landing_pad(self.agent.env.model)
+        observation = describe_observation(
+            self.agent.perceive(), (pad_xy, radius), self.agent.env.state()["gripper_pos"])
+        emit("observed", {"observation": observation})
+        try:
+            plan = self.agent.planner.propose(instruction, observation)
+        except (PlanError, RuntimeError) as error:
+            emit("error", {"reason": str(error)})
+            emit("done", {"decision": "error", "reason": str(error), "videos": {}})
+            return
+        emit("plan", {"kind": "propose", "shared": True, **plan.summary()})
+
+        videos, results = {}, {}
+        execute_budget = None
+        try:
+            # Same Claude plan, two arms: world model imagines and may repair; baseline runs it.
+            for mode, tag in (("world-model", "world-model"), ("none", "unverified")):
+                emit("arm", {"arm": mode})
+                self.agent.verifier_mode = mode
+                self._display_frames = []
+                kwargs = dict(block_xy=self.block_xy, opening_plan=plan, retry_failed_execution=True,
+                              on_event=lambda name, payload, arm=mode: emit(name, {**payload, "arm": arm}))
+                if mode == "none" and execute_budget is not None:
+                    kwargs["execute_budget"] = execute_budget
+                run = self.agent.run(instruction, self.seed, **kwargs)
+                if mode == "world-model":
+                    attempts = (run.execution or {}).get("attempts")
+                    execute_budget = len(attempts) if attempts else 1
+                video = self._write_video(stamp, tag, run)
+                run.video = video
+                videos[mode] = video
+                results[mode] = {"decision": run.decision, "execution": run.execution, "reason": run.reason}
+                emit("arm-done", {"arm": mode, "video": video, **results[mode]})
+                log = RUNS / f"{stamp}-{tag}.json"
+                log.write_text(json.dumps(run.as_json(), indent=2, default=float))
+        finally:
+            self.agent.verifier_mode = saved_mode
+
+        self.refused = None
+        emit("done", {"decision": "compared", "videos": videos, "results": results, "can_run_anyway": False})
 
     def run_anyway(self) -> dict:
         """Execute the plan the verifier refused, so its prediction can be checked."""
@@ -163,6 +222,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
+        if content_type.startswith("text/html"):
+            self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
 
@@ -196,11 +257,14 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Transfer-Encoding", "chunked")
         self.end_headers()
 
-        for name, payload in self.session.stream(str(body.get("instruction", "")).strip()):
-            chunk = f"data: {json.dumps({'event': name, **payload}, default=float)}\n\n".encode()
-            self.wfile.write(f"{len(chunk):X}\r\n".encode() + chunk + b"\r\n")
-            self.wfile.flush()
-        self.wfile.write(b"0\r\n\r\n")
+        try:
+            for name, payload in self.session.stream(str(body.get("instruction", "")).strip()):
+                chunk = f"data: {json.dumps({'event': name, **payload}, default=float)}\n\n".encode()
+                self.wfile.write(f"{len(chunk):X}\r\n".encode() + chunk + b"\r\n")
+                self.wfile.flush()
+            self.wfile.write(b"0\r\n\r\n")
+        except (BrokenPipeError, ConnectionResetError):
+            return  # browser refreshed or closed the tab mid-stream
 
 
 def main():

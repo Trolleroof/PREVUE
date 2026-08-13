@@ -3,272 +3,302 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Waddle skill agent — talk to the arm</title>
+<title>Simulator</title>
 <style>
   :root {
-    --bg: #080c14; --panel: #101724; --line: #1e2a3d; --ink: #e6edf7; --dim: #8ea3bf;
-    --accent: #4da3ff; --good: #2fd07f; --bad: #ff6b6b; --warn: #ffc857; --mono: ui-monospace, "SF Mono", Menlo, monospace;
+    --bg: #000; --panel: #0a0a0a; --line: #333; --ink: #fff; --dim: #888;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; height: 100vh; display: flex; background: var(--bg); color: var(--ink);
-         font: 15px/1.5 ui-sans-serif, -apple-system, "Segoe UI", sans-serif; }
-  .stage { flex: 1 1 55%; display: flex; flex-direction: column; padding: 22px; gap: 14px; min-width: 380px; }
-  .side { flex: 1 1 45%; max-width: 620px; display: flex; flex-direction: column;
-          border-left: 1px solid var(--line); background: var(--panel); }
-  h1 { font-size: 17px; margin: 0; letter-spacing: .01em; }
-  h1 small { color: var(--dim); font-weight: 400; margin-left: 8px; font-size: 13px; }
-  .viewport { flex: 1; display: grid; place-items: center; background: #05080f;
-              border: 1px solid var(--line); border-radius: 14px; overflow: hidden; position: relative; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
+               font: 15px/1.5 ui-sans-serif, -apple-system, "Segoe UI", sans-serif; }
+  body { display: flex; flex-direction: column; }
+  .pair { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 18px 18px 0; min-height: 0; }
+  .pane { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px;
+          display: flex; flex-direction: column; min-height: 0; }
+  .pane.wm { border-color: var(--ink); }
+  .who h2 { margin: 0; font-size: 18px; font-weight: 560; }
+  .viewport { flex: 1 1 auto; margin-top: 12px; display: grid; place-items: center; background: #000;
+              border: 1px solid var(--line); border-radius: 12px; overflow: hidden; position: relative; min-height: 0; }
   .viewport video { width: 100%; height: 100%; object-fit: contain; display: block; }
-  .empty { color: var(--dim); font-size: 14px; }
-  .badge { position: absolute; top: 12px; left: 12px; padding: 4px 10px; border-radius: 999px;
-           background: #0009; border: 1px solid var(--line); font: 12px var(--mono); color: var(--dim);
-           backdrop-filter: blur(6px); }
-  .controls { display: flex; gap: 8px; align-items: center; font: 12px var(--mono); color: var(--dim); }
-  button { background: #16203180; color: var(--ink); border: 1px solid var(--line); border-radius: 9px;
+  .stream-name { position: absolute; top: 12px; left: 12px; z-index: 2;
+                 font: 11px var(--mono); letter-spacing: .1em; text-transform: uppercase;
+                 padding: 6px 9px; border: 1px solid var(--line); border-radius: 7px; background: #000c; }
+  .empty { color: var(--dim); font: 12px var(--mono); letter-spacing: .08em; text-transform: uppercase;
+           display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .empty.busy { position: absolute; inset: 0; justify-content: center; }
+  .spin { width: 28px; height: 28px; border: 2px solid var(--line); border-top-color: var(--ink);
+          border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .stamp { position: absolute; left: 50%; transform: translateX(-50%); bottom: 16px;
+           font: 12px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; white-space: nowrap;
+           padding: 10px 15px; border-radius: 9px; border: 1px solid var(--line); background: #000c;
+           backdrop-filter: blur(6px); display: none; }
+  .stamp.on { display: block; }
+  .stamp.ok { color: var(--ink); border-color: var(--ink); }
+  .stamp.no { color: var(--dim); }
+  .rail { margin-top: 10px; flex: 0 0 auto; max-height: 140px; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
+  .step { border-left: 2px solid var(--line); padding-left: 11px; font-size: 13px; }
+  .step.ok { border-left-color: var(--ink); }
+  .step.no { border-left-color: var(--dim); }
+  .step .k { font: 10.5px var(--mono); letter-spacing: .09em; text-transform: uppercase; color: var(--dim); }
+  .foot { display: flex; align-items: center; gap: 10px; padding: 12px 18px 16px; flex-shrink: 0; }
+  button { background: transparent; color: var(--ink); border: 1px solid var(--line); border-radius: 9px;
            padding: 7px 13px; font-size: 13px; cursor: pointer; }
-  button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-  button:disabled { opacity: .45; cursor: not-allowed; }
-  .log { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
-  .msg { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: #0c121d; }
-  .msg.you { background: #16273f; border-color: #24405f; align-self: flex-end; max-width: 85%; }
-  .msg .who { font: 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-bottom: 6px; }
-  .msg.verdict { border-left: 3px solid var(--accent); }
-  .msg.verdict.ok { border-left-color: var(--good); }
-  .msg.verdict.no { border-left-color: var(--bad); }
-  .msg.warn { border-left: 3px solid var(--warn); }
-  .msg.err { border-left: 3px solid var(--bad); }
-  .trace { font: 12px/1.7 var(--mono); color: var(--dim); margin-top: 6px; white-space: pre-wrap; }
-  .foot { font: 11px var(--mono); color: var(--dim); padding: 0 2px 6px; }
-  .bar { height: 4px; border-radius: 3px; background: #1b2637; margin-top: 9px; overflow: hidden; }
-  .bar i { display: block; height: 100%; background: var(--good); }
-  .bar i.no { background: var(--bad); }
-  form { display: flex; gap: 8px; padding: 16px; border-top: 1px solid var(--line); background: #0b111b; }
-  input { flex: 1; background: #0a0f18; border: 1px solid var(--line); border-radius: 10px;
-          padding: 12px 14px; color: var(--ink); font-size: 14px; }
-  input:focus { outline: none; border-color: var(--accent); }
-  .hint { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 14px; }
-  .hint button { font-size: 12px; color: var(--dim); padding: 5px 10px; }
-  .spin { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--accent);
-          animation: pulse 1s ease-in-out infinite; margin-right: 7px; vertical-align: middle; }
-  @keyframes pulse { 0%, 100% { opacity: .25 } 50% { opacity: 1 } }
+  button:hover:not(:disabled) { border-color: var(--ink); }
+  button:disabled { opacity: .35; cursor: not-allowed; }
+  form { display: flex; gap: 8px; flex: 1; }
+  input { flex: 1; background: #000; border: 1px solid var(--line); border-radius: 10px;
+          padding: 10px 14px; color: var(--ink); font-size: 14px; }
+  input:focus { outline: none; border-color: var(--ink); }
+  #seed { font: 12px var(--mono); color: var(--dim); }
 </style>
 </head>
 <body>
-  <main class="stage">
-    <h1>Waddle skill agent <small>Claude Opus 5 plans · the world model imagines · MuJoCo executes</small></h1>
-    <div class="viewport" id="viewport"></div>
-    <div class="controls">
-      <button id="reset">New scene</button>
-      <button id="replay" disabled>Replay episode</button>
-      <span id="seed"></span>
-    </div>
-  </main>
-
-  <aside class="side">
-    <div class="log" id="log"></div>
-    <div class="hint" id="hint"></div>
+  <div class="pair">
+    <section class="pane wm">
+      <div class="who"><h2>World model</h2></div>
+      <div class="viewport" id="viewWm" data-arm="world-model">
+        <div class="stream-name">World model</div>
+        <div class="empty" data-idle>—</div>
+        <div class="stamp" id="stampWm"></div>
+      </div>
+      <div class="rail" id="railWm"></div>
+    </section>
+    <section class="pane">
+      <div class="who"><h2>Baseline</h2></div>
+      <div class="viewport" id="viewNone" data-arm="none">
+        <div class="stream-name">Baseline</div>
+        <div class="empty" data-idle>—</div>
+        <div class="stamp" id="stampNone"></div>
+      </div>
+      <div class="rail" id="railNone"></div>
+    </section>
+  </div>
+  <div class="foot">
+    <button type="button" id="reset">Reset</button>
+    <button type="button" id="replay" disabled>Replay</button>
+    <span id="seed"></span>
     <form id="form">
-      <input id="input" autocomplete="off" placeholder="Tell the arm what to do…" />
+      <input id="input" autocomplete="off" placeholder="Command…" />
       <button id="send">Send</button>
     </form>
-  </aside>
+  </div>
 
 <script>
 const $ = id => document.getElementById(id);
-const log = $("log"), viewport = $("viewport");
-let busy = false, lastVideo = null, running = null;
+const views = { "world-model": $("viewWm"), none: $("viewNone") };
+const stamps = { "world-model": $("stampWm"), none: $("stampNone") };
+const rails = { "world-model": $("railWm"), none: $("railNone") };
+let busy = false, lastVideos = {}, lastStamps = {}, abortCommand = null, currentArm = "world-model";
 
-const EXAMPLES = [
-  "pick up the red block and put it on the green pad",
-  "balance the red block on the -x rim of the green pad, overhanging a little",
-  "move the gripper over the blue block and hover there",
-  "put the red block 25 cm to the -x side of the green pad",
-];
+function round(v, n = 3) { return Number(v).toFixed(n); }
 
-function add(kind, who, html) {
+function rail(arm, kind, key, text) {
   const el = document.createElement("div");
-  el.className = "msg " + kind;
-  el.innerHTML = `<div class="who">${who}</div>${html}`;
-  log.appendChild(el);
-  log.scrollTop = log.scrollHeight;
-  return el;
+  el.className = "step " + (kind || "");
+  el.innerHTML = `<div class="k">${key}</div><div>${text}</div>`;
+  rails[arm].appendChild(el);
 }
 
-const round = (v, n = 3) => Number(v).toFixed(n);
-const point = p => `[${p.map(v => round(v)).join(", ")}]`;
-
-/** Eight canonical phases say the same thing twice; the grasp and the release are the plan. */
-function traceText(trace) {
-  const at = phase => (trace.find(e => e.phase === phase) || {}).target;
-  if (at("descend") && at("place")) return `grasp  ${point(at("descend"))}\nplace  ${point(at("place"))}`;
-  return trace.map(e => e.target ? `${e.phase.padEnd(9)} ${point(e.target)}` : e.phase).join("\n");
+function clearRails() {
+  Object.values(rails).forEach(r => { r.innerHTML = ""; });
+  Object.values(stamps).forEach(s => { s.className = "stamp"; s.textContent = ""; });
 }
 
-function showEmpty(message = "Prompt it to do something.") {
-  viewport.innerHTML = `<div class="empty">${message}</div>`;
+function setStamp(arm, execution) {
+  const stamp = stamps[arm];
+  if (!stamp || !execution) return;
+  const last = Array.isArray(execution.steps) ? execution.steps.at(-1) : execution;
+  if (!last || last.success === undefined) return;
+  const dist = `${round(last.target_distance)} m from the pad`;
+  stamp.textContent = last.success
+    ? `success · ${dist}`
+    : `failure · ${(last.failure_mode || "missed").replaceAll("_", " ")} · ${dist}`;
+  stamp.className = "stamp on " + (last.success ? "ok" : "no");
+  lastStamps[arm] = { className: stamp.className, text: stamp.textContent };
 }
 
-function showVideo(src) {
-  viewport.innerHTML = "";
+function showEmpty(message, el) {
+  const targets = el ? [el] : Object.values(views);
+  targets.forEach(box => {
+    [...box.querySelectorAll("video, .empty")].forEach(n => n.remove());
+    const idle = document.createElement("div");
+    const loading = /^loading$/i.test(message);
+    idle.className = "empty" + (loading ? " busy" : "");
+    if (loading) {
+      idle.innerHTML = `<div class="spin" aria-hidden="true"></div><span>loading</span>`;
+    } else {
+      idle.textContent = message;
+    }
+    box.insertBefore(idle, box.querySelector(".stamp"));
+  });
+}
+
+function showVideo(src, el) {
+  if (!src || !el) return;
+  [...el.querySelectorAll("video, .empty")].forEach(n => n.remove());
   const video = document.createElement("video");
-  Object.assign(video, { src, autoplay: true, loop: true, muted: true, playsInline: true, controls: true });
-  viewport.append(video, Object.assign(document.createElement("span"),
-                                       { className: "badge", textContent: "pre-recorded episode · 10 fps" }));
-  lastVideo = src; $("replay").disabled = false;
+  Object.assign(video, { autoplay: true, loop: true, muted: true, playsInline: true, controls: false });
+  video.dataset.arm = el.dataset.arm || "";
+  video.src = `${src}${src.includes("?") ? "&" : "?"}t=${Date.now()}`;
+  video.addEventListener("loadeddata", () => video.play().catch(() => {}));
+  el.insertBefore(video, el.querySelector(".stamp"));
+}
+
+function showArm(arm, src) {
+  lastVideos[arm] = src || null;
+  if (src) showVideo(src, views[arm]); else showEmpty("—", views[arm]);
+  $("replay").disabled = !(lastVideos["world-model"] || lastVideos.none);
+}
+
+function showBoth(videos) {
+  const wmSrc = videos && (videos["world-model"] || videos.wm);
+  const noneSrc = videos && (videos.none || videos.unverified || videos["no-world-model"]);
+  showArm("world-model", wmSrc);
+  showArm("none", noneSrc);
+  for (const arm of ["world-model", "none"]) {
+    if (lastStamps[arm]) {
+      stamps[arm].className = lastStamps[arm].className;
+      stamps[arm].textContent = lastStamps[arm].text;
+    }
+  }
 }
 
 const HANDLERS = {
-  observed(d) {
-    add("info", "Camera · observed", '<div class="trace">' + d.observation.replaceAll("\n", "<br>") + "</div>");
+  arm(d) {
+    currentArm = d.arm;
+    showEmpty("loading", views[d.arm]);
+    stamps[d.arm].className = "stamp";
   },
+  observed() {},
   plan(d) {
-    if (d.action === "abstain") return;      // the abstained card carries the same note
-    add("", d.kind === "propose" ? "Claude · plan" : "Claude · repair " + d.round,
-        `<div>${d.note}</div><div class="trace">${traceText(d.trace)}</div>`);
+    if (d.action === "abstain" || d.shared) return;
+    const arm = d.arm || currentArm;
+    if (d.kind === "repair") rail(arm, "", "repair", d.after_miss ? "repaired after the miss" : "re-aimed the grasp");
+    if (d.kind === "retry") rail(arm, "", "retry", "same plan again");
   },
   step(d) {
-    add("", d.repair ? `Opus · repair ${d.repair} for step ${d.index}/${d.total}` : `Opus · step ${d.index}/${d.total}`,
-        `<div>Move the ${d.object} onto the ${d.destination}.</div><div class="trace">${traceText(d.trace)}</div>`);
+    rail(d.arm || currentArm, "", "step", `${d.index} of ${d.total} · ${d.object} → ${d.destination}`);
   },
   verdict(d) {
+    const arm = d.arm || "world-model";
     const p = d.imagined_success_probability;
-    const headline = d.verifier === "rules"
-      ? (d.approved ? "Passed deterministic geometry and reachability checks" : `Rejected — ${d.likely_failure}`)
-      : d.approved
-      ? `Approved — p(success) ${round(p)} ± ${round(d.ensemble_uncertainty)}`
-      : `Rejected — p(success) ${round(p)} ± ${round(d.ensemble_uncertainty)} — ${d.likely_failure}`;
-    const detail = d.approved ? "" :
-      `<div class="trace">p(lifted) ${round(d.p_block_lifted)}   p(in zone) ${round(d.p_block_in_landing_zone)}` +
-      `   imagined block xy ${point(d.imagined_final_block_xy)}</div>`;
-    const verifier = d.verifier === "rules" ? "Simple plan checks" : "World model";
-    add("verdict " + (d.approved ? "ok" : "no"), verifier, `<div>${headline}</div>
-      <div class="bar"><i class="${d.approved ? "" : "no"}" style="width:${(p * 100).toFixed(0)}%"></i></div>${detail}`);
+    rail(arm, d.approved ? "ok" : "no", "imagined",
+         d.approved ? `p ${round(p)} · approve` : `p ${round(p)} · reject · ${d.likely_failure}`);
   },
-  unverified: d => add("warn", "Verifier · skipped", `<div>${d.reason}</div>`),
-  executing() {
-    running = add("", "MuJoCo", `<div><span class="spin"></span>executing…</div>`);
+  unverified(d) {
+    const arm = d.arm || currentArm;
+    if (arm === "none") return;
+    rail(arm, "", "verifier", d.reason || "skipped");
+  },
+  executing(d) {
+    const arm = d.arm || currentArm;
+    const n = (d.attempt || 0) + 1;
+    rail(arm, "", "run", n > 1 ? `executing · try ${n}` : "executing");
+  },
+  retrying(d) {
+    const arm = d.arm || currentArm;
+    rail(arm, "", "retry", `try ${d.attempt + 1} · from here`);
+    showEmpty("loading", views[arm]);
+    stamps[arm].className = "stamp";
   },
   executed(d) {
+    const arm = d.arm || currentArm;
     const free = d.success === undefined;
-    const line = free ? `${d.outcome} Gripper ended at ${point(d.final_gripper_xyz)}.`
-                      : d.success ? `Success — ${d.object} landed ${round(d.target_distance)} m from ${d.destination}`
-                                  : `Failed: ${d.failure_mode} — ${d.object} at ${point(d.final_block_xy)}`;
-    (running || add("", "MuJoCo", "")).outerHTML =
-      `<div class="msg ${free ? "" : "verdict " + (d.success ? "ok" : "no")}">
-         <div class="who">MuJoCo · what really happened</div><div>${line}</div></div>`;
-    running = null;
+    const n = (d.attempt || 0) + 1;
+    rail(arm, d.success ? "ok" : "no", "run",
+         free ? d.outcome : d.success ? `success · ${round(d.target_distance)} m`
+                                      : (n > 1 ? `try ${n} · ${d.failure_mode}` : `${d.failure_mode}`));
+    if (d.success !== false) setStamp(arm, d);
   },
-  abstained: d => add("warn", "Claude · abstained", `<div>${d.reason}</div>`),
-  rejected: d => add("err", "Not executed", `<div>${d.reason}</div>`),
-  error: d => add("err", "Error", `<div>${d.reason}</div>`),
+  abstained: d => rail(d.arm || currentArm, "no", "abstain", d.reason),
+  rejected: d => rail(d.arm || currentArm, "no", "blocked", d.reason),
+  error: d => rail(d.arm || currentArm, "no", "error", d.reason),
+  "arm-done"(d) {
+    showArm(d.arm, d.video);
+    setStamp(d.arm, d.execution);
+  },
   done(d) {
-    if (d.video) showVideo(d.video);
-    else showEmpty(NOT_RUN[d.decision] || "Nothing ran.");
-    if (d.can_run_anyway) offerRunAnyway();
-    const foot = document.createElement("div");
-    foot.className = "foot";
-    foot.textContent = [d.model, d.verifier && (d.verifier + " verifier"), d.decision,
-                        d.rounds && (d.rounds.length + " planner/verifier round(s)"),
-                        d.seconds && d.seconds + " s", d.cost_usd != null && "$" + d.cost_usd,
-                        d.log].filter(Boolean).join("  ·  ");
-    log.appendChild(foot);
-    log.scrollTop = log.scrollHeight;
+    showBoth(d.videos || {});
+    const results = d.results || {};
+    if (results["world-model"]) setStamp("world-model", results["world-model"].execution);
+    if (results.none) setStamp("none", results.none.execution);
   },
 };
-
-const NOT_RUN = {
-  rejected: "Not executed — the world model rejected the plan.",
-  abstained: "Not executed — Claude abstained.",
-  error: "Nothing ran — the run errored.",
-};
-
-/** A refused plan is the interesting case: run it and see whether the prediction held. */
-function offerRunAnyway() {
-  const card = add("warn", "Nothing was executed",
-    `<div>Run the refused plan anyway to see whether the predicted failure is real.</div>`);
-  const button = document.createElement("button");
-  button.textContent = "Run it anyway";
-  button.style.marginTop = "10px";
-  button.addEventListener("click", async () => {
-    button.disabled = true;
-    button.textContent = "running…";
-    const result = await (await fetch("/api/run-anyway", { method: "POST",
-      headers: { "Content-Type": "application/json" }, body: "{}" })).json();
-    button.remove();
-    if (result.error) return add("err", "Error", `<div>${result.error}</div>`);
-    const e = result.execution, failed = e.success === false;
-    add("verdict " + (failed ? "no" : "ok"), "MuJoCo · ran it anyway",
-      `<div>${failed ? `Failed: ${e.failure_mode} — block ended at ${point(e.final_block_xy)}, `
-                       + `${round(e.target_distance)} m from the pad centre. The verifier was right.`
-                     : `It succeeded — ${round(e.target_distance)} m from the pad centre. `
-                       + `The verifier was wrong to refuse it.`}</div>`);
-    if (result.video) showVideo(result.video);
-  });
-  card.appendChild(button);
-  log.scrollTop = log.scrollHeight;
-}
 
 async function send(instruction) {
   if (busy || !instruction) return;
-  busy = true; $("send").disabled = $("reset").disabled = true;
-  add("you", "You", `<div>${instruction}</div>`);
-  const waiting = add("", "Claude", `<div><span class="spin"></span>thinking…</div>`);
+  const ac = new AbortController();
+  abortCommand = ac;
+  busy = true; $("send").disabled = true;
+  clearRails();
+  lastStamps = {};
+  showEmpty("loading");
+  rail("world-model", "", "plan", instruction);
+  rail("none", "", "plan", instruction);
 
-  const response = await fetch("/api/command", {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ instruction }),
-  });
-  const reader = response.body.getReader(), decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let cut;
-    while ((cut = buffer.indexOf("\n\n")) >= 0) {
-      const line = buffer.slice(0, cut).replace(/^data: /, "");
-      buffer = buffer.slice(cut + 2);
-      if (!line) continue;
-      const payload = JSON.parse(line);
-      if (payload.event === "plan") waiting.remove();
-      (HANDLERS[payload.event] || (() => {}))(payload);
+  try {
+    const response = await fetch("/api/command", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ instruction }), signal: ac.signal,
+    });
+    const reader = response.body.getReader(), decoder = new TextDecoder();
+    let buffer = "";
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let cut;
+      while ((cut = buffer.indexOf("\n\n")) >= 0) {
+        const line = buffer.slice(0, cut).replace(/^data: /, "");
+        buffer = buffer.slice(cut + 2);
+        if (!line) continue;
+        const payload = JSON.parse(line);
+        (HANDLERS[payload.event] || (() => {}))(payload);
+      }
     }
+  } catch (error) {
+    if (error.name !== "AbortError") rail(currentArm, "no", "error", error.message);
+  } finally {
+    if (abortCommand === ac) abortCommand = null;
+    busy = false; $("send").disabled = false;
+    $("input").focus();
   }
-  waiting.remove();
-  busy = false; $("send").disabled = $("reset").disabled = false;
-  $("input").focus();
 }
 
-function submit(event) {
+$("form").addEventListener("submit", event => {
   event.preventDefault();
   const value = $("input").value.trim();
   $("input").value = "";
+  if (!value) return;
   send(value);
-}
-
-$("form").addEventListener("submit", submit);
-$("input").addEventListener("keydown", event => { if (event.key === "Enter") submit(event); });
+});
 
 $("reset").addEventListener("click", async () => {
-  const snapshot = await (await fetch("/api/reset", { method: "POST", headers: { "Content-Type": "application/json" },
-                                                     body: "{}" })).json();
-  lastVideo = null; $("replay").disabled = true;
-  showEmpty("New scene. Prompt it to do something.");
-  $("seed").textContent = `seed ${snapshot.seed}`;
+  abortCommand?.abort();
+  $("reset").disabled = true;
+  clearRails();
+  lastStamps = {};
+  showEmpty("loading");
+  try {
+    const snapshot = await (await fetch("/api/reset", { method: "POST", headers: { "Content-Type": "application/json" },
+                                                       body: "{}" })).json();
+    lastVideos = {}; $("replay").disabled = true;
+    if (snapshot.video) showBoth({ "world-model": snapshot.video, none: snapshot.video });
+    else showEmpty("—");
+    $("seed").textContent = `seed ${snapshot.seed}`;
+  } finally {
+    $("reset").disabled = false;
+  }
 });
 
-$("replay").addEventListener("click", () => lastVideo && showVideo(lastVideo));
+$("replay").addEventListener("click", () => showBoth(lastVideos));
 
-EXAMPLES.forEach(text => {
-  const button = document.createElement("button");
-  button.textContent = text;
-  button.addEventListener("click", () => send(text));
-  $("hint").appendChild(button);
+fetch("/api/scene").then(r => r.json()).then(s => {
+  $("seed").textContent = `seed ${s.seed}`;
+  if (s.video) showBoth({ "world-model": s.video, none: s.video });
 });
-
-showEmpty();
-fetch("/api/scene").then(r => r.json()).then(s => { $("seed").textContent = `seed ${s.seed}`; });
 </script>
 </body>
 </html>

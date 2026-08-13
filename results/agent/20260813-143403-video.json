@@ -1,0 +1,778 @@
+{
+  "instruction": "pick up the red cube and place it on the yellow cube",
+  "seed": 0,
+  "model": "claude-opus-5",
+  "verifier": "world-model",
+  "observation": "- red block: centre x=0.537, y=-0.223, z=0.013 (box [188, 159, 196, 169] px, 3.5 cm across, 1.66 m from the camera)\n- blue block: centre x=0.486, y=-0.171, z=0.012 (box [185, 154, 193, 162] px, 7.5 cm across, 1.71 m from the camera)\n- yellow block: centre x=0.634, y=-0.178, z=0.012 (box [208, 162, 217, 172] px, 3.5 cm across, 1.63 m from the camera)\n- green landing pad (known task frame, not detected) centred at x=0.500, y=0.300, radius 0.105\n- gripper pinch point (proprioception) at x=-0.134, y=0.490, z=0.322",
+  "scene": {
+    "detections": [
+      {
+        "label": "red block",
+        "box": [
+          188,
+          159,
+          196,
+          169
+        ],
+        "pixels": 75,
+        "score": 1.0,
+        "point_base": [
+          0.5369,
+          -0.2228,
+          0.0131
+        ],
+        "depth_m": 1.6562,
+        "size_m": 0.0353
+      },
+      {
+        "label": "blue block",
+        "box": [
+          185,
+          154,
+          193,
+          162
+        ],
+        "pixels": 57,
+        "score": 1.0,
+        "point_base": [
+          0.4863,
+          -0.1708,
+          0.0117
+        ],
+        "depth_m": 1.7082,
+        "size_m": 0.0753
+      },
+      {
+        "label": "yellow block",
+        "box": [
+          208,
+          162,
+          217,
+          172
+        ],
+        "pixels": 79,
+        "score": 1.0,
+        "point_base": [
+          0.6342,
+          -0.1776,
+          0.0119
+        ],
+        "depth_m": 1.6338,
+        "size_m": 0.0353
+      }
+    ],
+    "landing_pad": {
+      "centre": [
+        0.5,
+        0.3
+      ],
+      "radius": 0.105
+    },
+    "truth": {
+      "red_block": [
+        0.542,
+        -0.226,
+        0.0179
+      ],
+      "blue_block": [
+        0.5,
+        -0.18,
+        0.0179
+      ],
+      "yellow_block": [
+        0.64,
+        -0.18,
+        0.0179
+      ]
+    }
+  },
+  "rounds": [
+    {
+      "index": 0,
+      "kind": "given",
+      "plan": {
+        "intent": "Grasp the red cube and stack it on top of the yellow cube.",
+        "action": "execute",
+        "note": "Grasped the red cube at its observed centre, transited at 0.3 m, and released it at the yellow cube's x,y at stacking height z=0.051.",
+        "steps": [
+          {
+            "object": "red block",
+            "destination": "yellow block",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.537,
+                  -0.223,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.537,
+                  -0.223,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.537,
+                  -0.223,
+                  0.3
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.051
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.3
+                ]
+              }
+            ]
+          }
+        ],
+        "trace": [
+          {
+            "phase": "approach",
+            "target": [
+              0.537,
+              -0.223,
+              0.24
+            ]
+          },
+          {
+            "phase": "descend",
+            "target": [
+              0.537,
+              -0.223,
+              0.015
+            ]
+          },
+          {
+            "phase": "close",
+            "value": 255.0
+          },
+          {
+            "phase": "lift",
+            "target": [
+              0.537,
+              -0.223,
+              0.3
+            ]
+          },
+          {
+            "phase": "move",
+            "target": [
+              0.634,
+              -0.178,
+              0.3
+            ]
+          },
+          {
+            "phase": "place",
+            "target": [
+              0.634,
+              -0.178,
+              0.051
+            ]
+          },
+          {
+            "phase": "open",
+            "value": 0.0
+          },
+          {
+            "phase": "retreat",
+            "target": [
+              0.634,
+              -0.178,
+              0.3
+            ]
+          }
+        ]
+      },
+      "verified": true,
+      "verdict": {
+        "imagined_success_probability": 0.674,
+        "ensemble_uncertainty": 0.143,
+        "p_block_lifted": 0.956,
+        "p_block_in_landing_zone": 0.705,
+        "imagined_final_block_xy": [
+          0.5246,
+          -0.1716
+        ],
+        "likely_failure": null,
+        "verifier_suggestion": null,
+        "approved": true
+      },
+      "skipped_reason": null
+    },
+    {
+      "index": 1,
+      "kind": "retry",
+      "plan": {
+        "intent": "Grasp the red cube and stack it on top of the yellow cube.",
+        "action": "execute",
+        "note": "Changed one thing: the grasp waypoint, from [0.537,-0.223] to [0.552,-0.215]. The block was nudged to [0.566,-0.2063] instead of being carried, which means a finger struck its -x,-y face; biasing the grasp toward +x,+y should centre the pinch on the cube. Place target unchanged.",
+        "steps": [
+          {
+            "object": "red block",
+            "destination": "yellow block",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.552,
+                  -0.215,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.552,
+                  -0.215,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.552,
+                  -0.215,
+                  0.3
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.051
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.3
+                ]
+              }
+            ]
+          }
+        ],
+        "trace": [
+          {
+            "phase": "approach",
+            "target": [
+              0.552,
+              -0.215,
+              0.24
+            ]
+          },
+          {
+            "phase": "descend",
+            "target": [
+              0.552,
+              -0.215,
+              0.015
+            ]
+          },
+          {
+            "phase": "close",
+            "value": 255.0
+          },
+          {
+            "phase": "lift",
+            "target": [
+              0.552,
+              -0.215,
+              0.3
+            ]
+          },
+          {
+            "phase": "move",
+            "target": [
+              0.634,
+              -0.178,
+              0.3
+            ]
+          },
+          {
+            "phase": "place",
+            "target": [
+              0.634,
+              -0.178,
+              0.051
+            ]
+          },
+          {
+            "phase": "open",
+            "value": 0.0
+          },
+          {
+            "phase": "retreat",
+            "target": [
+              0.634,
+              -0.178,
+              0.3
+            ]
+          }
+        ]
+      },
+      "verified": true,
+      "verdict": {
+        "imagined_success_probability": 0.387,
+        "ensemble_uncertainty": 0.157,
+        "p_block_lifted": 0.865,
+        "p_block_in_landing_zone": 0.447,
+        "imagined_final_block_xy": [
+          0.5271,
+          -0.1982
+        ],
+        "likely_failure": "block misses the destination",
+        "verifier_suggestion": "move the place target onto the destination",
+        "approved": false
+      },
+      "skipped_reason": null
+    },
+    {
+      "index": 1,
+      "kind": "repair",
+      "plan": {
+        "intent": "Grasp the red cube and stack it on top of the yellow cube.",
+        "action": "execute",
+        "note": "Changed one thing: the grasp waypoint, reverted from [0.552,-0.215] back to the observed red-block centre [0.537,-0.223]. The imagined block ended near the pick region rather than the destination, meaning the offset grasp lost the cube during transit; a centred pinch should carry it. Place target unchanged at the yellow cube, z=0.051.",
+        "steps": [
+          {
+            "object": "red block",
+            "destination": "yellow block",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.537,
+                  -0.223,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.537,
+                  -0.223,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.537,
+                  -0.223,
+                  0.3
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.051
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.3
+                ]
+              }
+            ]
+          }
+        ],
+        "trace": [
+          {
+            "phase": "approach",
+            "target": [
+              0.537,
+              -0.223,
+              0.24
+            ]
+          },
+          {
+            "phase": "descend",
+            "target": [
+              0.537,
+              -0.223,
+              0.015
+            ]
+          },
+          {
+            "phase": "close",
+            "value": 255.0
+          },
+          {
+            "phase": "lift",
+            "target": [
+              0.537,
+              -0.223,
+              0.3
+            ]
+          },
+          {
+            "phase": "move",
+            "target": [
+              0.634,
+              -0.178,
+              0.3
+            ]
+          },
+          {
+            "phase": "place",
+            "target": [
+              0.634,
+              -0.178,
+              0.051
+            ]
+          },
+          {
+            "phase": "open",
+            "value": 0.0
+          },
+          {
+            "phase": "retreat",
+            "target": [
+              0.634,
+              -0.178,
+              0.3
+            ]
+          }
+        ]
+      },
+      "verified": true,
+      "verdict": {
+        "imagined_success_probability": 0.674,
+        "ensemble_uncertainty": 0.143,
+        "p_block_lifted": 0.956,
+        "p_block_in_landing_zone": 0.705,
+        "imagined_final_block_xy": [
+          0.5246,
+          -0.1716
+        ],
+        "likely_failure": null,
+        "verifier_suggestion": null,
+        "approved": true
+      },
+      "skipped_reason": null
+    },
+    {
+      "index": 2,
+      "kind": "retry",
+      "plan": {
+        "intent": "Grasp the red cube and stack it on top of the yellow cube.",
+        "action": "execute",
+        "note": "Changed exactly one thing: the place target, shifted to [0.664,-0.163] to compensate for the observed drift. The real run dropped the block at [0.566,-0.206], about 0.068 m short of the yellow cube along the transit direction, so biasing the place point further along that same direction should land the cube on the yellow block. Grasp waypoint unchanged at the observed red-block centre.",
+        "steps": [
+          {
+            "object": "red block",
+            "destination": "yellow block",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.537,
+                  -0.223,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.537,
+                  -0.223,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.537,
+                  -0.223,
+                  0.3
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.664,
+                  -0.163,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.664,
+                  -0.163,
+                  0.051
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.664,
+                  -0.163,
+                  0.3
+                ]
+              }
+            ]
+          }
+        ],
+        "trace": [
+          {
+            "phase": "approach",
+            "target": [
+              0.537,
+              -0.223,
+              0.24
+            ]
+          },
+          {
+            "phase": "descend",
+            "target": [
+              0.537,
+              -0.223,
+              0.015
+            ]
+          },
+          {
+            "phase": "close",
+            "value": 255.0
+          },
+          {
+            "phase": "lift",
+            "target": [
+              0.537,
+              -0.223,
+              0.3
+            ]
+          },
+          {
+            "phase": "move",
+            "target": [
+              0.664,
+              -0.163,
+              0.3
+            ]
+          },
+          {
+            "phase": "place",
+            "target": [
+              0.664,
+              -0.163,
+              0.051
+            ]
+          },
+          {
+            "phase": "open",
+            "value": 0.0
+          },
+          {
+            "phase": "retreat",
+            "target": [
+              0.664,
+              -0.163,
+              0.3
+            ]
+          }
+        ]
+      },
+      "verified": true,
+      "verdict": {
+        "imagined_success_probability": 0.681,
+        "ensemble_uncertainty": 0.145,
+        "p_block_lifted": 0.957,
+        "p_block_in_landing_zone": 0.712,
+        "imagined_final_block_xy": [
+          0.5382,
+          -0.1593
+        ],
+        "likely_failure": null,
+        "verifier_suggestion": null,
+        "approved": true
+      },
+      "skipped_reason": null
+    }
+  ],
+  "decision": "executed",
+  "reason": "failed target_miss in 3 attempts",
+  "execution": {
+    "success": false,
+    "failure_mode": "target_miss",
+    "object": "red block",
+    "destination": "yellow block",
+    "max_block_z": 0.2669,
+    "final_block_xy": [
+      0.5997,
+      -0.1919
+    ],
+    "final_gripper_xyz": [
+      0.6633,
+      -0.1627,
+      0.2781
+    ],
+    "target_distance": 0.042,
+    "attempt": 2,
+    "frames": 48,
+    "attempts": [
+      {
+        "success": false,
+        "failure_mode": "target_miss",
+        "object": "red block",
+        "destination": "yellow block",
+        "max_block_z": 0.2659,
+        "final_block_xy": [
+          0.566,
+          -0.2063
+        ],
+        "final_gripper_xyz": [
+          0.633,
+          -0.1776,
+          0.2795
+        ],
+        "target_distance": 0.0785,
+        "attempt": 0,
+        "frames": 48
+      },
+      {
+        "success": false,
+        "failure_mode": "target_miss",
+        "object": "red block",
+        "destination": "yellow block",
+        "max_block_z": 0.2659,
+        "final_block_xy": [
+          0.566,
+          -0.2063
+        ],
+        "final_gripper_xyz": [
+          0.633,
+          -0.1776,
+          0.2795
+        ],
+        "target_distance": 0.0785,
+        "attempt": 1,
+        "frames": 48
+      },
+      {
+        "success": false,
+        "failure_mode": "target_miss",
+        "object": "red block",
+        "destination": "yellow block",
+        "max_block_z": 0.2669,
+        "final_block_xy": [
+          0.5997,
+          -0.1919
+        ],
+        "final_gripper_xyz": [
+          0.6633,
+          -0.1627,
+          0.2781
+        ],
+        "target_distance": 0.042,
+        "attempt": 2,
+        "frames": 48
+      }
+    ],
+    "failed_executions": 3,
+    "first_try_success": false
+  },
+  "video": "/runs/20260813-143403-video.mp4",
+  "planner_calls": [
+    {
+      "model": "claude-opus-5",
+      "cost_usd": 0.038216,
+      "duration_ms": 4364,
+      "session_id": "c44f1c5d-12dd-4ec7-afab-eb5e533c56ce"
+    },
+    {
+      "model": "claude-opus-5",
+      "cost_usd": 0.061906,
+      "duration_ms": 14474,
+      "session_id": "d77ded5b-8af8-4cf8-8332-c4a7fbc33f22"
+    },
+    {
+      "model": "claude-opus-5",
+      "cost_usd": 0.050046,
+      "duration_ms": 5633,
+      "session_id": "6abca7cb-2a3d-4e79-a3b0-9b3b65057f23"
+    },
+    {
+      "model": "claude-opus-5",
+      "cost_usd": 0.051356,
+      "duration_ms": 5965,
+      "session_id": "79cbda80-05d2-41d0-b651-de9582b219d0"
+    }
+  ],
+  "seconds": 35.29,
+  "cost_usd": 0.2015
+}

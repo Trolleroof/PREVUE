@@ -52,14 +52,17 @@ class Scenario:
     flaw: str
     tests: str
 
-    def opening_plan(self, block_xy, pad_xy) -> Plan:
+    def opening_plan(self, block_xy, pad_xy, block: str = "red block",
+                     grasp_offset=None, place_offset=None, note=None) -> Plan:
         """The flawed plan, aimed off the block or off the pad by the offsets above.
 
         Built from the camera's estimate of the block, not from simulator state, so the arms are
         given exactly the kind of plan the planner itself emits.
         """
-        grasp = [round(block_xy[0] + self.grasp_offset[0], 4), round(block_xy[1] + self.grasp_offset[1], 4)]
-        place = [round(pad_xy[0] + self.place_offset[0], 4), round(pad_xy[1] + self.place_offset[1], 4)]
+        gx, gy = grasp_offset if grasp_offset is not None else self.grasp_offset
+        px, py = place_offset if place_offset is not None else self.place_offset
+        grasp = [round(block_xy[0] + gx, 4), round(block_xy[1] + gy, 4)]
+        place = [round(pad_xy[0] + px, 4), round(pad_xy[1] + py, 4)]
         trace = [{"phase": "approach", "target": [*grasp, HOVER_Z]},
                  {"phase": "descend", "target": [*grasp, GRASP_Z]},
                  {"phase": "close"},
@@ -68,8 +71,9 @@ class Scenario:
                  {"phase": "place", "target": [*place, GRASP_Z]},
                  {"phase": "open"},
                  {"phase": "retreat", "target": [*place, HOVER_Z]}]
-        return validate({"intent": self.instruction, "action": "execute", "note": self.flaw,
-                         "steps": [{"object": "red block", "destination": "green pad", "trace": trace}]})
+        return validate({"intent": self.instruction, "action": "execute",
+                         "note": note if note is not None else self.flaw,
+                         "steps": [{"object": block, "destination": "green pad", "trace": trace}]})
 
 
 # Frozen before the run. Both offsets are large enough to fail in MuJoCo and small enough that

@@ -199,11 +199,17 @@ class SkillAgent:
                                     step.destination.replace(" ", "_"), positions), None
 
     def run(self, instruction: str, seed: int = 0, block_xy=None, target_xy=None, on_event=None,
-            opening_plan: Plan | None = None) -> AgentRun:
+            opening_plan: Plan | None = None, retry_failed_execution: bool = False,
+            execute_budget: int | None = None) -> AgentRun:
         """`opening_plan` skips the proposal call and starts the loop from a plan given to it.
 
         The demo uses it to hand every verifier arm the *same* flawed opening plan, so the arms
         differ only in what they do about it. Repairs still come from Claude.
+
+        `retry_failed_execution` is the split-screen demo: after an approved plan misses in
+        MuJoCo, reset and try again (up to `execute_budget` or `repairs + 1` real runs). The
+        video arm repairs from that miss; the geometry arm keeps the same plan so both sides
+        show the same number of attempts.
         """
         started = time.time()
         emit = on_event or (lambda *_: None)
@@ -277,17 +283,109 @@ class SkillAgent:
             run.execution, frames = self.execute_with_feedback(run, instruction, step, emit)
             run.frames = frames
         elif run.decision == "executed" and step is not None:
-            emit("executing", {"object": step.object, "destination": step.destination,
-                               "trace": step.summary()["trace"]})
-            run.execution, frames = self.execute(step)
-            run.execution["frames"] = len(frames)
-            emit("executed", run.execution)
-            run.frames = frames
+            budget = 1
+            if retry_failed_execution:
+                budget = execute_budget if execute_budget is not None else self.repairs + 1
+            imagined = run.rounds[-1].verdict if run.rounds else None
+            run.execution, run.frames, plan, step = self.execute_attempts(
+                run, instruction, plan, step, imagined, emit, block_xy, target_xy, budget)
         if run.final_plan is None:
             run.final_plan = plan
         run.planner_calls = list(self.planner.calls)
         run.seconds = round(time.time() - started, 2)
         return run
+
+    def execute_attempts(self, run, instruction, plan, step, imagined, emit, block_xy, target_xy, budget):
+        """Run an approved plan; if it misses, reset and try again up to `budget` times.
+
+        Video repairs from the real miss. Geometry keeps the same plan so the two panes
+        can show the same number of attempts.
+        """
+        clips, attempts = [], []
+        for attempt in range(max(1, int(budget))):
+            if attempt > 0:
+                # Stay in the failed scene — the block has moved; do not reset.
+                _, latent = self.observe_current()
+                detections = self.perceive()
+                self._plan_points = {detection.label: detection.point_base for detection in detections}
+                pad = landing_pad(self.env.model)
+                observation = describe_observation(detections, pad, self.env.state()["gripper_pos"])
+                if self.verifier_mode == "world-model":
+                    verdict = {"approved_then_executed": True,
+                               "actual_failure": attempts[-1].get("failure_mode"),
+                               "target_distance": attempts[-1].get("target_distance"),
+                               "final_block_xy": attempts[-1].get("final_block_xy"),
+                               "previous_imagined": imagined,
+                               "verifier_suggestion": "the approved plan failed in the real run; "
+                                                      "change the grasp or the place target"}
+                    try:
+                        plan = self.planner.repair(instruction, observation, plan, verdict)
+                        step = self.ground_step(plan.steps[0]) if plan.steps else None
+                    except (PlanError, RuntimeError) as error:
+                        run.decision, run.reason = "error", str(error)
+                        emit("error", {"reason": run.reason})
+                        break
+                    emit("plan", {"round": attempt, "kind": "repair", "after_miss": True, **plan.summary()})
+                    if not plan.executable or step is None:
+                        run.decision, run.reason = "abstained", plan.note
+                        emit("abstained", {"reason": plan.note})
+                        break
+                else:
+                    step = self.ground_step(plan.steps[0]) if plan.steps else None
+                    emit("plan", {"round": attempt, "kind": "retry", **plan.summary()})
+                result, skip = self.verify_step(step, latent)
+                if skip:
+                    run.rounds.append(Round(attempt, "retry", plan.summary(), verified=False,
+                                            skipped_reason=skip))
+                    emit("unverified", {"round": attempt, "reason": skip})
+                else:
+                    imagined = verdict_for_claude(result)
+                    run.rounds.append(Round(attempt, "retry", plan.summary(), verified=True, verdict=imagined))
+                    emit("verdict", {"round": attempt, "verifier": self.verifier_mode, **imagined})
+                    if self.verifier_mode == "world-model" and not result.approve:
+                        try:
+                            plan = self.planner.repair(instruction, observation, plan, imagined)
+                            step = self.ground_step(plan.steps[0]) if plan.steps else None
+                        except (PlanError, RuntimeError) as error:
+                            run.decision, run.reason = "error", str(error)
+                            emit("error", {"reason": run.reason})
+                            break
+                        emit("plan", {"round": attempt, "kind": "repair", "after_miss": True, **plan.summary()})
+                        result, skip = self.verify_step(step, latent)
+                        if not skip:
+                            imagined = verdict_for_claude(result)
+                            run.rounds.append(Round(attempt, "repair", plan.summary(),
+                                                    verified=True, verdict=imagined))
+                            emit("verdict", {"round": attempt, "verifier": self.verifier_mode, **imagined})
+
+            emit("executing", {"attempt": attempt, "object": step.object, "destination": step.destination,
+                               "trace": step.summary()["trace"]})
+            execution, frames = self.execute(step)
+            execution["attempt"] = attempt
+            execution["frames"] = len(frames)
+            attempts.append(execution)
+            clips.append(frames)
+            emit("executed", execution)
+            if execution.get("success") is not False:
+                break
+            if attempt + 1 < max(1, int(budget)):
+                emit("retrying", {"attempt": attempt + 1,
+                                  "reason": execution.get("failure_mode") or "missed"})
+
+        if not attempts:
+            return run.execution, run.frames, plan, step
+        last = dict(attempts[-1])
+        last["attempts"] = attempts
+        last["failed_executions"] = sum(row.get("success") is False for row in attempts)
+        last["first_try_success"] = attempts[0].get("success") is not False
+        if last.get("success"):
+            run.reason = ("verifier approved and the run succeeded" if last["first_try_success"]
+                          else f"succeeded on attempt {len(attempts)} after a real miss")
+        else:
+            run.reason = f"failed {last.get('failure_mode')} in {len(attempts)} attempts"
+        run.decision = "executed"
+        # Playback is the last attempt only — retries still happen, they just stay off-screen.
+        return last, clips[-1], plan, step
 
     def run_sequence(self, run: AgentRun, plan: Plan, latent, emit, started) -> AgentRun:
         """Execute a compound instruction one observed, scored, and logged step at a time."""
