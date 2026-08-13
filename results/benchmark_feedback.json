@@ -1,0 +1,96 @@
+{
+  "rows": [
+    {
+      "mode": "none",
+      "prompt": "pick up the red block and put it on the green pad",
+      "seed": 0,
+      "success": true,
+      "first_try_success": true,
+      "failed_executions": 0,
+      "repairs": 0,
+      "cost_usd": 0.0388,
+      "latency_s": 7.588,
+      "decision": "executed"
+    },
+    {
+      "mode": "none",
+      "prompt": "pick up the red block and put it on the green pad",
+      "seed": 1,
+      "success": true,
+      "first_try_success": true,
+      "failed_executions": 0,
+      "repairs": 0,
+      "cost_usd": 0.0154,
+      "latency_s": 7.635,
+      "decision": "executed"
+    },
+    {
+      "mode": "none",
+      "prompt": "pick up the red block and put it on the green pad",
+      "seed": 2,
+      "success": true,
+      "first_try_success": true,
+      "failed_executions": 0,
+      "repairs": 0,
+      "cost_usd": 0.0152,
+      "latency_s": 6.716,
+      "decision": "executed"
+    },
+    {
+      "mode": "world-model",
+      "prompt": "pick up the red block and put it on the green pad",
+      "seed": 0,
+      "success": true,
+      "first_try_success": true,
+      "failed_executions": 0,
+      "repairs": 0,
+      "cost_usd": 0.0152,
+      "latency_s": 11.006,
+      "decision": "executed"
+    },
+    {
+      "mode": "world-model",
+      "prompt": "pick up the red block and put it on the green pad",
+      "seed": 1,
+      "success": true,
+      "first_try_success": false,
+      "failed_executions": 2,
+      "repairs": 2,
+      "cost_usd": 0.0492,
+      "latency_s": 24.718,
+      "decision": "executed"
+    },
+    {
+      "mode": "world-model",
+      "prompt": "pick up the red block and put it on the green pad",
+      "seed": 2,
+      "success": true,
+      "first_try_success": true,
+      "failed_executions": 0,
+      "repairs": 0,
+      "cost_usd": 0.0155,
+      "latency_s": 10.205,
+      "decision": "executed"
+    }
+  ],
+  "summary": {
+    "none": {
+      "n": 3,
+      "final_success": 1.0,
+      "first_try_success": 1.0,
+      "failed_executions": 0,
+      "repairs": 0,
+      "cost_usd": 0.0694,
+      "latency_s_mean": 7.313
+    },
+    "world-model": {
+      "n": 3,
+      "final_success": 1.0,
+      "first_try_success": 0.6666666666666666,
+      "failed_executions": 2,
+      "repairs": 2,
+      "cost_usd": 0.0799,
+      "latency_s_mean": 15.31
+    }
+  }
+}

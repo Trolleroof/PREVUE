@@ -1,0 +1,1430 @@
+{
+  "summary": {
+    "none": {
+      "n": 50,
+      "success": 1.0,
+      "mean_target_distance_cm": 0.29,
+      "chosen_offsets_cm": {
+        "-6": 0,
+        "-3": 0,
+        "0": 50,
+        "3": 0,
+        "6": 0
+      }
+    },
+    "world-model": {
+      "n": 50,
+      "success": 1.0,
+      "mean_target_distance_cm": 5.62,
+      "chosen_offsets_cm": {
+        "-6": 50,
+        "-3": 0,
+        "0": 0,
+        "3": 0,
+        "6": 0
+      }
+    }
+  },
+  "rows": [
+    {
+      "seed": 0,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.39,
+        28.07
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.27,
+      "latency_s": 0.517
+    },
+    {
+      "seed": 0,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.39,
+        28.07
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.62,
+      "latency_s": 0.509
+    },
+    {
+      "seed": 1,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.21,
+        28.49
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.32,
+      "latency_s": 0.496
+    },
+    {
+      "seed": 1,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.21,
+        28.49
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.62,
+      "latency_s": 0.495
+    },
+    {
+      "seed": 2,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.42,
+        28.12
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.27,
+      "latency_s": 0.515
+    },
+    {
+      "seed": 2,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.42,
+        28.12
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.62,
+      "latency_s": 0.479
+    },
+    {
+      "seed": 3,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.52,
+        28.19
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.27,
+      "latency_s": 0.596
+    },
+    {
+      "seed": 3,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.52,
+        28.19
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.61,
+      "latency_s": 0.475
+    },
+    {
+      "seed": 4,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.37,
+        28.07
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.3,
+      "latency_s": 0.521
+    },
+    {
+      "seed": 4,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.37,
+        28.07
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.62,
+      "latency_s": 0.523
+    },
+    {
+      "seed": 5,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.42,
+        28.15
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.26,
+      "latency_s": 0.499
+    },
+    {
+      "seed": 5,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.42,
+        28.15
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.63,
+      "latency_s": 0.501
+    },
+    {
+      "seed": 6,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.39,
+        28.08
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.27,
+      "latency_s": 0.52
+    },
+    {
+      "seed": 6,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.39,
+        28.08
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.62,
+      "latency_s": 0.613
+    },
+    {
+      "seed": 7,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.22,
+        28.43
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.32,
+      "latency_s": 0.642
+    },
+    {
+      "seed": 7,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.22,
+        28.43
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.61,
+      "latency_s": 0.47
+    },
+    {
+      "seed": 8,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.2,
+        28.52
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.28,
+      "latency_s": 0.491
+    },
+    {
+      "seed": 8,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.2,
+        28.52
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.62,
+      "latency_s": 0.475
+    },
+    {
+      "seed": 9,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.37,
+        28.06
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.32,
+      "latency_s": 0.49
+    },
+    {
+      "seed": 9,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.37,
+        28.06
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.63,
+      "latency_s": 0.46
+    },
+    {
+      "seed": 10,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.37,
+        28.05
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.3,
+      "latency_s": 0.51
+    },
+    {
+      "seed": 10,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.37,
+        28.05
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.64,
+      "latency_s": 0.466
+    },
+    {
+      "seed": 11,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.53,
+        28.21
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.26,
+      "latency_s": 0.495
+    },
+    {
+      "seed": 11,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.53,
+        28.21
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.62,
+      "latency_s": 0.462
+    },
+    {
+      "seed": 12,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.23,
+        28.45
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.3,
+      "latency_s": 0.504
+    },
+    {
+      "seed": 12,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.23,
+        28.45
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.62,
+      "latency_s": 0.476
+    },
+    {
+      "seed": 13,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.39,
+        28.09
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.27,
+      "latency_s": 0.489
+    },
+    {
+      "seed": 13,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.39,
+        28.09
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.62,
+      "latency_s": 0.469
+    },
+    {
+      "seed": 14,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.37,
+        28.06
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.29,
+      "latency_s": 0.532
+    },
+    {
+      "seed": 14,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.37,
+        28.06
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.64,
+      "latency_s": 0.581
+    },
+    {
+      "seed": 15,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.22,
+        28.43
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.33,
+      "latency_s": 0.498
+    },
+    {
+      "seed": 15,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.22,
+        28.43
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.61,
+      "latency_s": 0.477
+    },
+    {
+      "seed": 16,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.43,
+        28.14
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.26,
+      "latency_s": 0.528
+    },
+    {
+      "seed": 16,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.43,
+        28.14
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.62,
+      "latency_s": 0.478
+    },
+    {
+      "seed": 17,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.37,
+        28.05
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.31,
+      "latency_s": 0.653
+    },
+    {
+      "seed": 17,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.37,
+        28.05
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.61,
+      "latency_s": 1.0
+    },
+    {
+      "seed": 18,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.22,
+        28.42
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.32,
+      "latency_s": 0.496
+    },
+    {
+      "seed": 18,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.22,
+        28.42
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.61,
+      "latency_s": 0.697
+    },
+    {
+      "seed": 19,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.22,
+        28.44
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.29,
+      "latency_s": 1.379
+    },
+    {
+      "seed": 19,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.22,
+        28.44
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.63,
+      "latency_s": 0.567
+    },
+    {
+      "seed": 20,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.42,
+        28.14
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.27,
+      "latency_s": 0.619
+    },
+    {
+      "seed": 20,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.42,
+        28.14
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.61,
+      "latency_s": 0.492
+    },
+    {
+      "seed": 21,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.4,
+        28.08
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.25,
+      "latency_s": 0.537
+    },
+    {
+      "seed": 21,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.4,
+        28.08
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.63,
+      "latency_s": 0.804
+    },
+    {
+      "seed": 22,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.55,
+        28.24
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.28,
+      "latency_s": 0.502
+    },
+    {
+      "seed": 22,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.55,
+        28.24
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.61,
+      "latency_s": 0.518
+    },
+    {
+      "seed": 23,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.41,
+        28.14
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.27,
+      "latency_s": 0.511
+    },
+    {
+      "seed": 23,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.41,
+        28.14
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.61,
+      "latency_s": 0.491
+    },
+    {
+      "seed": 24,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.53,
+        28.19
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.27,
+      "latency_s": 0.643
+    },
+    {
+      "seed": 24,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.53,
+        28.19
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.61,
+      "latency_s": 0.635
+    },
+    {
+      "seed": 25,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.54,
+        28.23
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.28,
+      "latency_s": 0.516
+    },
+    {
+      "seed": 25,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.54,
+        28.23
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.61,
+      "latency_s": 0.498
+    },
+    {
+      "seed": 26,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.54,
+        28.22
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.28,
+      "latency_s": 0.581
+    },
+    {
+      "seed": 26,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.54,
+        28.22
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.62,
+      "latency_s": 0.687
+    },
+    {
+      "seed": 27,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.32,
+        28.04
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.35,
+      "latency_s": 0.576
+    },
+    {
+      "seed": 27,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.32,
+        28.04
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.62,
+      "latency_s": 0.624
+    },
+    {
+      "seed": 28,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.39,
+        28.1
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.31,
+      "latency_s": 0.709
+    },
+    {
+      "seed": 28,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.39,
+        28.1
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.61,
+      "latency_s": 0.487
+    },
+    {
+      "seed": 29,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.43,
+        28.15
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.28,
+      "latency_s": 0.499
+    },
+    {
+      "seed": 29,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.43,
+        28.15
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.62,
+      "latency_s": 0.597
+    },
+    {
+      "seed": 30,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.43,
+        28.14
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.26,
+      "latency_s": 0.6
+    },
+    {
+      "seed": 30,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.43,
+        28.14
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.63,
+      "latency_s": 0.785
+    },
+    {
+      "seed": 31,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.37,
+        28.04
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.32,
+      "latency_s": 0.522
+    },
+    {
+      "seed": 31,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.37,
+        28.04
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.63,
+      "latency_s": 0.513
+    },
+    {
+      "seed": 32,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.53,
+        28.21
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.28,
+      "latency_s": 0.581
+    },
+    {
+      "seed": 32,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.53,
+        28.21
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.61,
+      "latency_s": 0.597
+    },
+    {
+      "seed": 33,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.22,
+        28.42
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.3,
+      "latency_s": 0.567
+    },
+    {
+      "seed": 33,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.22,
+        28.42
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.63,
+      "latency_s": 0.567
+    },
+    {
+      "seed": 34,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.2,
+        28.51
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.3,
+      "latency_s": 0.492
+    },
+    {
+      "seed": 34,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.2,
+        28.51
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.62,
+      "latency_s": 0.499
+    },
+    {
+      "seed": 35,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.42,
+        28.14
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.27,
+      "latency_s": 0.53
+    },
+    {
+      "seed": 35,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.42,
+        28.14
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.61,
+      "latency_s": 0.499
+    },
+    {
+      "seed": 36,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.43,
+        28.14
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.27,
+      "latency_s": 0.52
+    },
+    {
+      "seed": 36,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.43,
+        28.14
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.61,
+      "latency_s": 0.492
+    },
+    {
+      "seed": 37,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.42,
+        28.14
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.27,
+      "latency_s": 0.501
+    },
+    {
+      "seed": 37,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.42,
+        28.14
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.61,
+      "latency_s": 0.521
+    },
+    {
+      "seed": 38,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.4,
+        28.07
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.26,
+      "latency_s": 0.497
+    },
+    {
+      "seed": 38,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.4,
+        28.07
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.62,
+      "latency_s": 0.53
+    },
+    {
+      "seed": 39,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.42,
+        28.15
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.27,
+      "latency_s": 0.508
+    },
+    {
+      "seed": 39,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.42,
+        28.15
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.61,
+      "latency_s": 0.527
+    },
+    {
+      "seed": 40,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.42,
+        28.14
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.27,
+      "latency_s": 0.541
+    },
+    {
+      "seed": 40,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.42,
+        28.14
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.63,
+      "latency_s": 0.673
+    },
+    {
+      "seed": 41,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.38,
+        28.09
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.3,
+      "latency_s": 0.663
+    },
+    {
+      "seed": 41,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.38,
+        28.09
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.62,
+      "latency_s": 0.514
+    },
+    {
+      "seed": 42,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.38,
+        28.07
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.29,
+      "latency_s": 0.536
+    },
+    {
+      "seed": 42,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.38,
+        28.07
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.62,
+      "latency_s": 0.638
+    },
+    {
+      "seed": 43,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.4,
+        28.06
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.27,
+      "latency_s": 0.57
+    },
+    {
+      "seed": 43,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.4,
+        28.06
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.61,
+      "latency_s": 0.714
+    },
+    {
+      "seed": 44,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.52,
+        28.19
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.27,
+      "latency_s": 0.542
+    },
+    {
+      "seed": 44,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.52,
+        28.19
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.61,
+      "latency_s": 0.48
+    },
+    {
+      "seed": 45,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.29,
+        28.01
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.35,
+      "latency_s": 0.491
+    },
+    {
+      "seed": 45,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.29,
+        28.01
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.62,
+      "latency_s": 0.542
+    },
+    {
+      "seed": 46,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.37,
+        28.04
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.32,
+      "latency_s": 0.616
+    },
+    {
+      "seed": 46,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.37,
+        28.04
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.62,
+      "latency_s": 0.516
+    },
+    {
+      "seed": 47,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.42,
+        28.14
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.27,
+      "latency_s": 0.524
+    },
+    {
+      "seed": 47,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.42,
+        28.14
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.62,
+      "latency_s": 0.49
+    },
+    {
+      "seed": 48,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.53,
+        28.2
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.27,
+      "latency_s": 0.546
+    },
+    {
+      "seed": 48,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.53,
+        28.2
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.61,
+      "latency_s": 0.493
+    },
+    {
+      "seed": 49,
+      "mode": "none",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.42,
+        28.13
+      ],
+      "chosen_offset_cm": 0,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 0.3,
+      "latency_s": 0.546
+    },
+    {
+      "seed": 49,
+      "mode": "world-model",
+      "initial_failure": "target_miss",
+      "post_failure_block_xy_cm": [
+        64.42,
+        28.13
+      ],
+      "chosen_offset_cm": -6,
+      "success": true,
+      "failure_mode": null,
+      "target_distance_cm": 5.62,
+      "latency_s": 0.489
+    }
+  ]
+}

@@ -1,0 +1,200 @@
+{
+  "rows": [
+    {
+      "mode": "none",
+      "prompt": "pick up the red block and put it on the green pad",
+      "seed": 0,
+      "success": true,
+      "first_try_success": false,
+      "failed_executions": 1,
+      "repairs": 1,
+      "cost_usd": 0.0501,
+      "latency_s": 7.957,
+      "failure_modes": [
+        "target_miss"
+      ],
+      "final_target_distance_cm": 0.45,
+      "final_max_block_z_cm": 27.77,
+      "decision": "executed"
+    },
+    {
+      "mode": "world-model",
+      "prompt": "pick up the red block and put it on the green pad",
+      "seed": 0,
+      "success": true,
+      "first_try_success": false,
+      "failed_executions": 1,
+      "repairs": 1,
+      "cost_usd": 0.0165,
+      "latency_s": 12.627,
+      "failure_modes": [
+        "target_miss"
+      ],
+      "final_target_distance_cm": 0.45,
+      "final_max_block_z_cm": 27.77,
+      "decision": "executed"
+    },
+    {
+      "mode": "none",
+      "prompt": "pick up the red block and put it on the green pad",
+      "seed": 1,
+      "success": true,
+      "first_try_success": false,
+      "failed_executions": 1,
+      "repairs": 1,
+      "cost_usd": 0.0502,
+      "latency_s": 8.792,
+      "failure_modes": [
+        "target_miss"
+      ],
+      "final_target_distance_cm": 0.44,
+      "final_max_block_z_cm": 29.66,
+      "decision": "executed"
+    },
+    {
+      "mode": "world-model",
+      "prompt": "pick up the red block and put it on the green pad",
+      "seed": 1,
+      "success": true,
+      "first_try_success": false,
+      "failed_executions": 1,
+      "repairs": 1,
+      "cost_usd": 0.016,
+      "latency_s": 12.997,
+      "failure_modes": [
+        "target_miss"
+      ],
+      "final_target_distance_cm": 0.44,
+      "final_max_block_z_cm": 29.66,
+      "decision": "executed"
+    },
+    {
+      "mode": "none",
+      "prompt": "pick up the red block and put it on the green pad",
+      "seed": 2,
+      "success": false,
+      "first_try_success": false,
+      "failed_executions": 3,
+      "repairs": 2,
+      "cost_usd": 0.1324,
+      "latency_s": 33.269,
+      "failure_modes": [
+        "target_miss",
+        "target_miss",
+        "target_miss"
+      ],
+      "final_target_distance_cm": 13.26,
+      "final_max_block_z_cm": 27.43,
+      "decision": "executed"
+    },
+    {
+      "mode": "world-model",
+      "prompt": "pick up the red block and put it on the green pad",
+      "seed": 2,
+      "success": false,
+      "first_try_success": false,
+      "failed_executions": 3,
+      "repairs": 2,
+      "cost_usd": 0.0473,
+      "latency_s": 29.27,
+      "failure_modes": [
+        "target_miss",
+        "target_miss",
+        "target_miss"
+      ],
+      "final_target_distance_cm": 13.26,
+      "final_max_block_z_cm": 27.43,
+      "decision": "pending"
+    },
+    {
+      "mode": "none",
+      "prompt": "pick up the red block and put it on the green pad",
+      "seed": 3,
+      "success": true,
+      "first_try_success": false,
+      "failed_executions": 1,
+      "repairs": 1,
+      "cost_usd": 0.0506,
+      "latency_s": 7.727,
+      "failure_modes": [
+        "target_miss"
+      ],
+      "final_target_distance_cm": 0.48,
+      "final_max_block_z_cm": 27.49,
+      "decision": "executed"
+    },
+    {
+      "mode": "world-model",
+      "prompt": "pick up the red block and put it on the green pad",
+      "seed": 3,
+      "success": true,
+      "first_try_success": false,
+      "failed_executions": 1,
+      "repairs": 1,
+      "cost_usd": 0.0167,
+      "latency_s": 11.752,
+      "failure_modes": [
+        "target_miss"
+      ],
+      "final_target_distance_cm": 0.48,
+      "final_max_block_z_cm": 27.49,
+      "decision": "executed"
+    },
+    {
+      "mode": "none",
+      "prompt": "pick up the red block and put it on the green pad",
+      "seed": 4,
+      "success": true,
+      "first_try_success": false,
+      "failed_executions": 2,
+      "repairs": 2,
+      "cost_usd": 0.1178,
+      "latency_s": 23.375,
+      "failure_modes": [
+        "target_miss",
+        "target_miss"
+      ],
+      "final_target_distance_cm": 2.17,
+      "final_max_block_z_cm": 27.69,
+      "decision": "executed"
+    },
+    {
+      "mode": "world-model",
+      "prompt": "pick up the red block and put it on the green pad",
+      "seed": 4,
+      "success": true,
+      "first_try_success": false,
+      "failed_executions": 2,
+      "repairs": 2,
+      "cost_usd": 0.0485,
+      "latency_s": 26.685,
+      "failure_modes": [
+        "target_miss",
+        "target_miss"
+      ],
+      "final_target_distance_cm": 0.31,
+      "final_max_block_z_cm": 27.51,
+      "decision": "executed"
+    }
+  ],
+  "summary": {
+    "none": {
+      "n": 5,
+      "final_success": 0.8,
+      "first_try_success": 0.0,
+      "failed_executions": 8,
+      "repairs": 7,
+      "cost_usd": 0.4011,
+      "latency_s_mean": 16.224
+    },
+    "world-model": {
+      "n": 5,
+      "final_success": 0.8,
+      "first_try_success": 0.0,
+      "failed_executions": 8,
+      "repairs": 7,
+      "cost_usd": 0.145,
+      "latency_s_mean": 18.666
+    }
+  }
+}
