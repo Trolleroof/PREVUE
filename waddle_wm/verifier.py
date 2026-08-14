@@ -114,6 +114,15 @@ class Verifier:
 
     def __init__(self, checkpoint: Path, model: Path = Path("models/vjepa2-vitl-fpc64-256"), threshold: float | None = None, device=None):
         saved = torch.load(checkpoint, map_location="cpu", weights_only=False)
+        # A task-suite checkpoint scores a *sequence* of subtasks, which `verify()`'s single
+        # object/destination signature cannot express. Say so here rather than failing later on
+        # a missing key, and name the class that does serve it.
+        if saved.get("model_type") == "task_suite_state":
+            raise ValueError(
+                f"{checkpoint} is a `task_suite_state` checkpoint: it scores multi-step plans "
+                f"(place, then stack) and is served by `waddle_wm.suite_verifier.SuiteVerifier`, "
+                f"whose verify() takes a list of subtasks. This class serves the single-subtask "
+                f"`multiblock_state` and `latent_dynamics` checkpoints.")
         self.device = device or torch.device("mps" if torch.backends.mps.is_available() else "cpu")
         self.manifest = saved["manifest"]
         self.threshold = saved.get("decision_threshold", 0.5) if threshold is None else threshold

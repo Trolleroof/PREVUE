@@ -368,6 +368,12 @@ out of 16, and the missed-available-success rate is 0.20 / 0.15 / 0.20.
 heuristic on the slice it exists for; on the plan-visible slice all three deployable
 arms are already perfect, which is what that slice is for.
 
+**Followed up in [`task_suite_world_model.md`](task_suite_world_model.md).** The yaw-aware
+scorer this section asks for is built, and on a corpus where the heading actually decides the
+grasp it beats a same-architecture no-vision control by 0.217 AUC on the coordinate-matched
+orientation slice, and beats the geometry rule below by 8.4 points of accuracy overall. It also
+records why the first three attempts at it returned nothing.
+
 `block_orientation` is the sharp case. The pool *does* contain a program that works —
 the ±45° oriented grasps — and every deployable selector misses it on both scenes,
 while the coin flip finds it once. The rotated block's heading is visible in the frame
