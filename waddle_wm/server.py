@@ -153,51 +153,25 @@ class Session:
         return f"/runs/{video.name}"
 
     def command(self, instruction: str, emit):
-        """Same user instruction, twice: world model vs unverified."""
         stamp = time.strftime("%Y%m%d-%H%M%S")
-        saved_mode = self.agent.verifier_mode
         instruction = (instruction or "").strip()
-        self.agent.observe(self.block_xy)
-        pad_xy, radius = landing_pad(self.agent.env.model)
-        observation = describe_observation(
-            self.agent.perceive(), (pad_xy, radius), self.agent.env.state()["gripper_pos"])
-        emit("observed", {"observation": observation})
-        try:
-            plan = self.agent.planner.propose(instruction, observation)
-        except (PlanError, RuntimeError) as error:
-            emit("error", {"reason": str(error)})
-            emit("done", {"decision": "error", "reason": str(error), "videos": {}})
-            return
-        emit("plan", {"kind": "propose", "shared": True, **plan.summary()})
-
-        videos, results = {}, {}
-        execute_budget = None
-        try:
-            # Same Claude plan, two arms: world model imagines and may repair; baseline runs it.
-            for mode, tag in (("world-model", "world-model"), ("none", "unverified")):
-                emit("arm", {"arm": mode})
-                self.agent.verifier_mode = mode
-                self._display_frames = []
-                kwargs = dict(block_xy=self.block_xy, opening_plan=plan, retry_failed_execution=True,
-                              on_event=lambda name, payload, arm=mode: emit(name, {**payload, "arm": arm}))
-                if mode == "none" and execute_budget is not None:
-                    kwargs["execute_budget"] = execute_budget
-                run = self.agent.run(instruction, self.seed, **kwargs)
-                if mode == "world-model":
-                    attempts = (run.execution or {}).get("attempts")
-                    execute_budget = len(attempts) if attempts else 1
-                video = self._write_video(stamp, tag, run)
-                run.video = video
-                videos[mode] = video
-                results[mode] = {"decision": run.decision, "execution": run.execution, "reason": run.reason}
-                emit("arm-done", {"arm": mode, "video": video, **results[mode]})
-                log = RUNS / f"{stamp}-{tag}.json"
-                log.write_text(json.dumps(run.as_json(), indent=2, default=float))
-        finally:
-            self.agent.verifier_mode = saved_mode
+        self._display_frames = []
+        
+        run = self.agent.run(
+            instruction,
+            self.seed,
+            block_xy=self.block_xy,
+            retry_failed_execution=True,
+            on_event=emit
+        )
+        video = self._write_video(stamp, "world-model", run)
+        run.video = video
+        log = RUNS / f"{stamp}-world-model.json"
+        log.write_text(json.dumps(run.as_json(), indent=2, default=float))
 
         self.refused = None
-        emit("done", {"decision": "compared", "videos": videos, "results": results, "can_run_anyway": False})
+        emit("arm-done", {"arm": "world-model", "video": video, "decision": run.decision, "execution": run.execution, "reason": run.reason})
+        emit("done", {"decision": run.decision, "video": video, "execution": run.execution})
 
     def run_anyway(self) -> dict:
         """Execute the plan the verifier refused, so its prediction can be checked."""

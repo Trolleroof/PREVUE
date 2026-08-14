@@ -139,6 +139,11 @@ class SkillAgent:
             anchor = current if np.linalg.norm(planned - current) <= np.linalg.norm(planned - original) else original
             return planned + current - anchor
 
+        pad_pos, pad_radius = landing_pad(self.env.model)
+        pad_center = np.asarray(pad_pos[:2])
+        placed_on_pad = [pt[:2] for name, pt in points.items()
+                         if name != step.object and np.linalg.norm(np.asarray(pt[:2]) - pad_center) < pad_radius]
+
         trace = []
         for entry in step.trace:
             entry = dict(entry)
@@ -147,6 +152,15 @@ class SkillAgent:
             elif destination is not None and entry["phase"] in ("move", "place", "retreat"):
                 z = float(destination[2] + 2 * scene.BLOCK_HALF) if entry["phase"] == "place" else entry["target"][2]
                 entry["target"] = [*rebase(entry["target"][:2], step.destination).tolist(), z]
+            elif destination is None and entry["phase"] in ("move", "place", "retreat") and placed_on_pad:
+                target_xy = np.asarray(entry["target"][:2])
+                for pb in placed_on_pad:
+                    if np.linalg.norm(target_xy - np.asarray(pb)) < 0.055:
+                        offset_dir = np.array([1.0, 0.0]) if target_xy[0] >= pb[0] else np.array([-1.0, 0.0])
+                        target_xy = target_xy + offset_dir * 0.055
+                        if np.linalg.norm(target_xy - pad_center) > pad_radius - 0.02:
+                            target_xy = pad_center - offset_dir * 0.04
+                entry["target"] = [*target_xy.tolist(), entry["target"][2]]
             trace.append(entry)
         return SkillStep(step.object, step.destination, trace)
 
@@ -154,6 +168,8 @@ class SkillAgent:
         """Observe the result of one step before verifying the next one."""
         self.env.clear_recording()
         frames = self.env.observation_frames(WINDOW_FRAMES)
+        detections = self.perceive()
+        self._plan_points = {detection.label: detection.point_base for detection in detections}
         return frames, self.verifier.encode_live(frames) if self.verifier else None
 
     def rule_verdict(self, step: SkillStep) -> VerificationResult:
@@ -256,8 +272,21 @@ class SkillAgent:
                 run.decision, run.reason = "executed", reason
                 break
             verdict = verdict_for_claude(result)
+            grasp_pt = next((e["target"][:2] for e in step.trace if e["phase"] == "descend"), None) if step else None
+            place_pt = next((e["target"][:2] for e in step.trace if e["phase"] == "place"), None) if step else None
+            init_pt = self._plan_points.get(step.object, None) if step else None
+            pad_info = landing_pad(self.env.model)
+            spatial_meta = {
+                "object": step.object if step else "",
+                "destination": step.destination if step else "",
+                "initial_xy": [round(float(v), 4) for v in init_pt[:2]] if init_pt is not None else None,
+                "grasp_xy": [round(float(v), 4) for v in grasp_pt] if grasp_pt is not None else None,
+                "place_xy": [round(float(v), 4) for v in place_pt] if place_pt is not None else None,
+                "pad_center": [round(float(v), 4) for v in pad_info[0]],
+                "pad_radius": round(float(pad_info[1]), 4)
+            }
             run.rounds.append(Round(index, kind, plan.summary(), verified=True, verdict=verdict))
-            emit("verdict", {"round": index, "verifier": self.verifier_mode, **verdict})
+            emit("verdict", {"round": index, "verifier": self.verifier_mode, **verdict, **spatial_meta})
             if result.approve:
                 run.decision, run.reason = "executed", f"verifier approved at p={result.success_probability:.3f}"
                 break
@@ -397,17 +426,33 @@ class SkillAgent:
                 step, latent = self.verify_sequence_step(run, plan, proposed, latent, index, label, emit)
                 if run.decision in ("rejected", "error"):
                     break
-                emit("executing", {"step": index + 1, "object": step.object,
-                                   "destination": step.destination, "trace": step.summary()["trace"]})
-                execution, frames = self.execute(step)
-                emit("executed", execution)
+                step_success = False
+                step_clips = []
+                for exec_attempt in range(self.repairs + 1):
+                    if exec_attempt > 0:
+                        emit("retrying", {"step": index + 1, "attempt": exec_attempt, "reason": execution.get("failure_mode") or "missed"})
+                        self.observe_current()
+                        step = self.ground_step(proposed)
+                    emit("executing", {"step": index + 1, "attempt": exec_attempt, "object": step.object,
+                                       "destination": step.destination, "trace": step.summary()["trace"]})
+                    execution, frames = self.execute(step)
+                    emit("executed", execution)
+                    step_clips.append(frames)
+                    if execution.get("success") is not False:
+                        step_success = True
+                        break
+                executions.append(execution)
+                clips.extend(step_clips)
+                if not step_success:
+                    run.decision, run.reason = "rejected", f"step {index + 1} failed: {execution.get('failure_mode')}"
+                    break
             else:
                 step = self.ground_step(proposed)
                 execution, frames = self.execute_with_feedback(run, label, step, emit)
-            executions.append(execution); clips.append(frames)
-            if execution.get("success") is False:
-                run.decision, run.reason = "rejected", f"step {index + 1} failed after feedback budget: {execution['failure_mode']}"
-                break
+                executions.append(execution); clips.append(frames)
+                if execution.get("success") is False:
+                    run.decision, run.reason = "rejected", f"step {index + 1} failed after feedback budget: {execution['failure_mode']}"
+                    break
             if index + 1 < len(plan.steps):
                 _, latent = self.observe_current()
         else:
@@ -434,8 +479,21 @@ class SkillAgent:
                 emit("unverified", {"round": round_index, "reason": skip})
                 break
             verdict = verdict_for_claude(result)
+            grasp_pt = next((e["target"][:2] for e in step.trace if e["phase"] == "descend"), None) if step else None
+            place_pt = next((e["target"][:2] for e in step.trace if e["phase"] == "place"), None) if step else None
+            init_pt = self._plan_points.get(step.object, None) if step else None
+            pad_info = landing_pad(self.env.model)
+            spatial_meta = {
+                "object": step.object if step else "",
+                "destination": step.destination if step else "",
+                "initial_xy": [round(float(v), 4) for v in init_pt[:2]] if init_pt is not None else None,
+                "grasp_xy": [round(float(v), 4) for v in grasp_pt] if grasp_pt is not None else None,
+                "place_xy": [round(float(v), 4) for v in place_pt] if place_pt is not None else None,
+                "pad_center": [round(float(v), 4) for v in pad_info[0]],
+                "pad_radius": round(float(pad_info[1]), 4)
+            }
             run.rounds.append(Round(round_index, "step", step.summary(), verified=True, verdict=verdict))
-            emit("verdict", {"round": round_index, "verifier": self.verifier_mode, **verdict})
+            emit("verdict", {"round": round_index, "verifier": self.verifier_mode, **verdict, **spatial_meta})
             if result.approve:
                 break
             if attempt == self.repairs:

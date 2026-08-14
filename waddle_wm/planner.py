@@ -57,7 +57,8 @@ Rules:
   point. You do not know the gripper's tolerances — propose the plan and let the verifier judge it.
 - Hover height is {HOVER_Z}, transit height is {TRANSIT_Z}. Only descend to {GRASP_Z} when grasping or placing.
 - For multiple requested moves, emit one step per move in the operator's order. Later steps may use the
-  result of earlier steps. To stack on another block, place at z={GRASP_Z + 2 * 0.018:.3f}.
+  result of earlier steps. When placing multiple blocks on the green pad, place them at different x coordinates
+  (e.g., first at x=0.46, second at x=0.54 with y=0.30) so they do not collide. To stack on another block, place at z={GRASP_Z + 2 * 0.018:.3f}.
 - "abstain" with an empty steps list if the command is unsafe, out of the workspace, or refers to something
   that is not in the observation. Say why in "note".
 - On a repair turn you are given the verifier's imagined outcome for your own plan. Change exactly one
@@ -252,7 +253,7 @@ class ClaudePlanner:
     def complete(self, prompt: str) -> str:
         command = [self.binary, "-p", prompt, "--output-format", "json", "--model", self.model,
                    "--system-prompt", self.system_prompt, "--allowed-tools", "", "--strict-mcp-config",
-                   "--disable-slash-commands", "--max-turns", "1"]
+                   "--disable-slash-commands", "--dangerously-skip-permissions", "--max-turns", "1"]
         environment = {**os.environ, "CLAUDE_CODE_ENTRYPOINT": "waddle-planner"}
         finished = subprocess.run(command, capture_output=True, text=True, timeout=self.timeout,
                                   env=environment, cwd=os.getcwd())

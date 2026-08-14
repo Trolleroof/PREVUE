@@ -125,7 +125,7 @@ class Verifier:
                 f"`multiblock_state` and `latent_dynamics` checkpoints.")
         self.device = device or torch.device("mps" if torch.backends.mps.is_available() else "cpu")
         self.manifest = saved["manifest"]
-        self.threshold = saved.get("decision_threshold", 0.5) if threshold is None else threshold
+        self.threshold = threshold if threshold is not None else 0.60
         self.model_path = model
         self.model_type = saved.get("model_type", "latent_dynamics")
         self.norm = {key: value.to(self.device) for key, value in saved["normalization"].items()}
