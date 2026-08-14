@@ -259,6 +259,23 @@ Imagined final block positions land 0.098 m RMSE / 0.084 m median from the truth
 0.211 m of the earlier multi-block model. Better, and still far too coarse to plan from: this
 model earns its keep as a verifier, not as a simulator.
 
+### Seeing a verdict rather than reading one
+
+```bash
+uv run python -m waddle_wm.render_suite_verdicts --data data/ur5e_wm_suite
+```
+
+Writes clips to `results/suite_verdicts/`: the plan scored from the eight-frame observation
+window alone, played beside the episode, with the true outcome withheld until the arm has
+finished. Two per quadrant, so the false accepts and false rejects are as easy to find as the
+successes, and each clip also carries the no-vision control's answer — which makes the cases
+where the pixels flipped the decision visible one at a time.
+
+`false-accept-ur5e_00150` is the one to watch first: the visual model approves at 0.71, the
+coordinates-only control rejects at 0.43, and the grasp misses. Vision changed the answer, and
+changed it the wrong way. `false-reject-ur5e_00071` is the mirror image on an `ordered_stack`,
+where the model doubts the second subtask at 0.26 and the stack lands anyway.
+
 ## 7. What this does and does not show
 
 **Does.** On this corpus, a verifier that looks at the scene beats every control that does not,

@@ -99,14 +99,21 @@ class SuiteVerifier:
         self.threshold = float(saved["decision_threshold"] if threshold is None else threshold)
         self.encoder_path = encoder
         self._encoder = None
-        self.members = []
-        for state in saved["members"]:
-            model = SuiteWorldModel(saved["context_dim"], saved["plan_dim"], saved["task_dim"],
-                                    hidden=saved["hidden"], context_width=saved["context_width"],
-                                    dropout=saved["dropout"]).to(self.device)
-            model.load_state_dict(state)
-            model.eval()
-            self.members.append(model)
+        def build(states):
+            built = []
+            for state in states or []:
+                model = SuiteWorldModel(saved["context_dim"], saved["plan_dim"], saved["task_dim"],
+                                        hidden=saved["hidden"], context_width=saved["context_width"],
+                                        dropout=saved["dropout"]).to(self.device)
+                model.load_state_dict(state)
+                model.eval()
+                built.append(model)
+            return built
+
+        self.members = build(saved["members"])
+        # The no-pixels control that was trained alongside, kept so a caller can show what the
+        # coordinates alone would have said. Not a fallback for the visual arm.
+        self.blind_members = build(saved.get("blind_members"))
         self.task_dim = saved["task_dim"]
 
     # ------------------------------------------------------------------ observation
@@ -184,14 +191,26 @@ class SuiteVerifier:
                 apply_normaliser(to(state), self.normalisation["initial"]))
 
     def verify(self, context: torch.Tensor, trace, subtasks, positions,
-               family: str | None = None, use_context: bool = True) -> PlanVerdict:
-        """Score a compiled plan. `positions` are the camera's estimates, one xyz per block."""
+               family: str | None = None, use_context: bool = True,
+               blind_control: bool = False) -> PlanVerdict:
+        """Score a compiled plan. `positions` are the camera's estimates, one xyz per block.
+
+        `blind_control=True` answers with the no-pixels ensemble trained alongside this one —
+        the honest "what would the coordinates alone have said" arm. `use_context=False` merely
+        zeroes this model's context, which feeds it an input it was never fitted on; it is kept
+        for diagnostics and is not the ablation to quote.
+        """
         plan, task, mask, state = self._features(trace, subtasks, positions,
                                                  family or self._infer_family(subtasks))
-        if not use_context:
+        members = self.members
+        if blind_control:
+            if not self.blind_members:
+                raise ValueError("this checkpoint carries no trained blind control")
+            members, context = self.blind_members, torch.zeros_like(context)
+        elif not use_context:
             context = torch.zeros_like(context)
         with torch.inference_mode():
-            outputs = [member(context, state, plan, task, mask) for member in self.members]
+            outputs = [member(context, state, plan, task, mask) for member in members]
             states = torch.stack([output[0] for output in outputs])
             logits = torch.stack([output[1] for output in outputs])
             # output[2] is the training-time heading readout; the verdict does not consult it.
