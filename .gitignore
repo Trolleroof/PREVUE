@@ -1,6 +1,6 @@
-.venv/
+.venv
 .hf-cache/
-models/
+models
 __pycache__/
 data/*
 !data/perception_scenes/
