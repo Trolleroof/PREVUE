@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "waddle-server",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "python", "-m", "waddle_wm.server"],
+      "port": 8420
+    }
+  ]
+}
