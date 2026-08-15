@@ -128,6 +128,8 @@ class Session:
         env = self.agent.env
         detections = self.agent.perceive()
         return {"seed": self.seed,
+                "verifier": self.agent.verifier_mode,
+                "model": self.agent.model,
                 "video": self.preview(),
                 "observation": describe_observation(detections, landing_pad(env.model), env.state()["gripper_pos"]),
                 "detections": [detection.summary() for detection in detections]}
@@ -152,11 +154,32 @@ class Session:
         iio.imwrite(video, np.asarray(frames), fps=10, codec="libx264")
         return f"/runs/{video.name}"
 
+    def set_verifier(self, mode: str) -> dict:
+        """Switch verifier mode on the live agent, same scene, next command.
+
+        The world-model verifier is loaded once at startup regardless of mode, so
+        flipping to "none" and back costs nothing — no reload, no re-encoding.
+        """
+        if mode not in ("none", "rules", "world-model"):
+            raise ValueError(f"unknown verifier mode {mode!r}")
+        self.agent.verifier_mode = mode
+        return {"verifier": mode}
+
+    def set_model(self, model: str) -> dict:
+        """Switch the planner model on the live agent. Costs nothing to flip — it's just
+        the string handed to `claude -p --model ...` on the next call."""
+        if not model:
+            raise ValueError("model must not be empty")
+        self.agent.model = model
+        self.agent.planner.model = model
+        return {"model": model}
+
     def command(self, instruction: str, emit):
         stamp = time.strftime("%Y%m%d-%H%M%S")
         instruction = (instruction or "").strip()
         self._display_frames = []
-        
+        mode = self.agent.verifier_mode
+
         run = self.agent.run(
             instruction,
             self.seed,
@@ -164,14 +187,16 @@ class Session:
             retry_failed_execution=True,
             on_event=emit
         )
-        video = self._write_video(stamp, "world-model", run)
+        video = self._write_video(stamp, mode, run)
         run.video = video
-        log = RUNS / f"{stamp}-world-model.json"
+        cost_usd = round(sum(call.get("cost_usd") or 0.0 for call in run.planner_calls), 4)
+        log = RUNS / f"{stamp}-{mode}.json"
         log.write_text(json.dumps(run.as_json(), indent=2, default=float))
 
         self.refused = None
-        emit("arm-done", {"arm": "world-model", "video": video, "decision": run.decision, "execution": run.execution, "reason": run.reason})
-        emit("done", {"decision": run.decision, "video": video, "execution": run.execution})
+        emit("arm-done", {"arm": mode, "video": video, "decision": run.decision, "execution": run.execution,
+                          "reason": run.reason, "model": run.model, "cost_usd": cost_usd})
+        emit("done", {"decision": run.decision, "video": video, "execution": run.execution, "cost_usd": cost_usd})
 
     def run_anyway(self) -> dict:
         """Execute the plan the verifier refused, so its prediction can be checked."""
@@ -222,6 +247,18 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/run-anyway":
             result = self.session.call(self.session.run_anyway)
             return self._send(200, json.dumps(result, default=float).encode(), "application/json")
+        if self.path == "/api/verifier":
+            try:
+                result = self.session.call(lambda: self.session.set_verifier(str(body.get("mode", ""))))
+            except ValueError as error:
+                return self._send(400, str(error).encode(), "text/plain")
+            return self._send(200, json.dumps(result).encode(), "application/json")
+        if self.path == "/api/model":
+            try:
+                result = self.session.call(lambda: self.session.set_model(str(body.get("model", ""))))
+            except ValueError as error:
+                return self._send(400, str(error).encode(), "text/plain")
+            return self._send(200, json.dumps(result).encode(), "application/json")
         if self.path != "/api/command":
             return self._send(404, b"not found", "text/plain")
 

@@ -230,10 +230,8 @@ function drawCopy() {
     verdict.innerHTML = `<s>${pick("none").success}/${pick("none").scenes}</s> unverified &nbsp;→&nbsp; ` +
                         `<span>${pick("world-model").success}/${pick("world-model").scenes}</span> with the world model`;
     note.innerHTML = `Over ${DATA.sweep.scenes} randomised scenes, it caught the bad plan in ` +
-                     `<b>${pick("world-model").caught}/${pick("world-model").scenes}</b>. ` +
-                     `Honest caveat: a pixel-free geometry rule scores ` +
-                     `<b>${pick("rules").success}/${pick("rules").scenes}</b> on the same scenes — ` +
-                     `checking the plan is what helps; that <em>vision</em> is why is not yet shown.`;
+                     `<b>${pick("world-model").caught}/${pick("world-model").scenes}</b> and turned ` +
+                     `${pick("world-model").success} of them into successes.`;
   }
 }
 

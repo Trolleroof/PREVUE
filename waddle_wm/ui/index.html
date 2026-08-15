@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Visual World Model</title>
-<meta name="description" content="Visual world model verification and execution." />
+<meta name="description" content="No verifier vs. visual world model, side by side, on the same instruction." />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
@@ -105,17 +105,16 @@
     cursor: not-allowed;
   }
 
-  /* Main Layout */
+  /* Main Layout: two arms, side by side */
   main {
     flex: 1;
     display: grid;
-    grid-template-columns: minmax(480px, 1.15fr) minmax(400px, 0.85fr);
+    grid-template-columns: 1fr 1fr;
     gap: 12px;
-    padding: 12px;
+    padding: 12px 12px 0;
     min-height: 0;
   }
 
-  /* Left Panel: Simulation Viewport */
   .figure-panel {
     background: var(--panel);
     border: 1px solid var(--line);
@@ -123,15 +122,19 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
+    min-width: 0;
     overflow: hidden;
   }
+
+  .figure-panel.none-arm { border-color: #3a2020; }
+  .figure-panel.wm-arm { border-color: #1d3b56; }
 
   .panel-caption {
     padding: 8px 14px;
     border-bottom: 1px solid var(--line-subtle);
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 8px;
     flex-shrink: 0;
     font-family: var(--font-mono);
     font-size: 11.5px;
@@ -141,6 +144,8 @@
   .caption-title {
     font-weight: 500;
     color: var(--ink);
+    font-family: var(--font-serif);
+    font-size: 14px;
   }
 
   .status-tag {
@@ -158,14 +163,37 @@
   .status-tag.approved { background: #ffffff; color: #000000; border-color: #ffffff; font-weight: 600; }
   .status-tag.rejected { background: #181818; color: #ffffff; border-color: #444444; }
 
+  .panel-caption .status-tag { margin-left: auto; }
+
+  .model-toggle {
+    display: inline-flex;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .model-toggle button {
+    background: var(--panel-sub);
+    color: var(--ink-muted);
+    border: none;
+    padding: 4px 10px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    cursor: pointer;
+  }
+
+  .model-toggle button + button { border-left: 1px solid var(--line); }
+  .model-toggle button.on { background: #ffffff; color: #000000; font-weight: 600; }
+
   .viewport-area {
-    flex: 1;
+    flex: 1.1;
     display: flex;
     align-items: center;
     justify-content: center;
     background: #000000;
     position: relative;
     overflow: hidden;
+    min-height: 0;
   }
 
   .viewport-area video {
@@ -260,82 +288,31 @@
     color: var(--ink);
   }
 
-  /* Right Panel: Chat / Verification Trace */
-  .trace-panel {
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-
-  .trace-stream {
+  /* Per-arm trace rail */
+  .rail {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
-    padding: 12px;
+    padding: 10px 14px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 7px;
+    border-top: 1px solid var(--line-subtle);
     scroll-behavior: smooth;
   }
 
-  /* Trace Items */
-  .trace-user {
-    align-self: flex-end;
-    background: #ffffff;
-    color: #000000;
-    padding: 6px 11px;
-    border-radius: var(--radius);
-    max-width: 85%;
-    font-family: var(--font-serif);
-    font-size: 13.5px;
-    font-weight: 500;
-    line-height: 1.4;
-  }
-
-  .trace-system {
-    align-self: flex-start;
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .trace-card {
-    background: var(--panel-sub);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    padding: 8px 10px;
-    font-size: 13px;
-  }
-
-  .trace-card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 3px;
-    font-family: var(--font-mono);
-    font-size: 11px;
-    color: var(--ink);
-  }
-
-  .trace-note {
-    margin-top: 4px;
-    font-family: var(--font-mono);
-    font-size: 11px;
-    color: var(--ink-muted);
-    border-left: 2px solid var(--line);
-    padding-left: 6px;
-  }
-
-  .trace-note.repaired { border-left-color: #ffffff; color: #ffffff; }
-  .trace-note.rejected { border-left-color: #666666; color: #a1a1aa; }
+  .step { border-left: 2px solid var(--line); padding-left: 9px; font-size: 12.5px; }
+  .step.no { border-left-color: #888888; }
+  .step.ok { border-left-color: #ffffff; }
+  .step.warn { border-left-color: #666666; }
+  .step .k { font-family: var(--font-mono); font-size: 10px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
+  .step .v { color: var(--ink); }
+  .step .v b { font-family: var(--font-mono); font-weight: 600; }
+  .step .n { color: var(--ink-muted); font-family: var(--font-mono); font-size: 11px; margin-top: 1px; }
 
   /* Form Footer */
   .prompt-area {
-    padding: 8px 12px 10px;
-    border-top: 1px solid var(--line);
+    padding: 10px 12px 12px;
     display: flex;
     gap: 6px;
     flex-shrink: 0;
@@ -346,7 +323,7 @@
     background: #000000;
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    padding: 7px 11px;
+    padding: 8px 12px;
     color: var(--ink);
     font-family: var(--font-serif);
     font-size: 14px;
@@ -363,7 +340,7 @@
     color: #000000;
     border: none;
     border-radius: var(--radius);
-    padding: 0 14px;
+    padding: 0 16px;
     font-family: var(--font-mono);
     font-size: 11.5px;
     font-weight: 500;
@@ -374,6 +351,14 @@
   button.btn-submit:hover:not(:disabled) {
     background: #e4e4e7;
   }
+
+  .prompt-user {
+    padding: 0 12px 8px;
+    font-family: var(--font-serif);
+    font-size: 13px;
+    color: var(--ink-muted);
+  }
+  .prompt-user b { color: var(--ink); font-weight: 500; }
 </style>
 </head>
 <body>
@@ -382,308 +367,313 @@
     <div class="paper-title">Visual World Model</div>
     <div class="header-actions">
       <span class="meta-tag" id="seedDisplay">seed 0</span>
+      <div class="model-toggle" id="modelToggle">
+        <button type="button" data-model="claude-opus-5" title="Full-size planner">Opus 5</button>
+        <button type="button" data-model="claude-haiku-4-5-20251001" title="Small, cheap planner">Haiku 4.5</button>
+      </div>
       <button type="button" class="btn-academic" id="resetBtn" title="Reset simulator state">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
         Reset
-      </button>
-      <button type="button" class="btn-academic" id="replayBtn" disabled title="Replay previous episode">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-        Replay
       </button>
     </div>
   </header>
 
   <main>
-    <!-- Left: Simulation Viewport -->
-    <section class="figure-panel">
+    <section class="figure-panel none-arm" id="panelNone">
       <div class="panel-caption">
-        <span class="caption-title">Simulation</span>
-        <span class="status-tag" id="viewportStatus">Ready</span>
+        <span class="caption-title">No verifier</span>
+        <span class="status-tag" id="viewportStatusNone">Ready</span>
       </div>
-
-      <div class="viewport-area" id="viewportBox">
-        <video id="simVideo" muted playsinline loop></video>
-        <div class="viewport-placeholder" id="viewportPlaceholder">
-          <div class="spinner" id="loadingSpinner" style="display:none;"></div>
-          <span id="placeholderText">Ready</span>
+      <div class="viewport-area" id="viewportBoxNone">
+        <video id="simVideoNone" muted playsinline loop></video>
+        <div class="viewport-placeholder" id="viewportPlaceholderNone">
+          <div class="spinner" id="loadingSpinnerNone" style="display:none;"></div>
+          <span id="placeholderTextNone">Same instruction, run unchecked</span>
         </div>
-        <div class="outcome-stamp" id="outcomeStamp"></div>
+        <div class="outcome-stamp" id="outcomeStampNone"></div>
       </div>
-
       <div class="telemetry-table">
         <div class="telemetry-col">
           <span class="telemetry-heading">Target Error</span>
-          <span class="telemetry-value" id="telDist">—</span>
+          <span class="telemetry-value" id="telDistNone">—</span>
         </div>
         <div class="telemetry-col">
           <span class="telemetry-heading">Max Lift</span>
-          <span class="telemetry-value" id="telLift">—</span>
+          <span class="telemetry-value" id="telLiftNone">—</span>
         </div>
         <div class="telemetry-col">
           <span class="telemetry-heading">Outcome</span>
-          <span class="telemetry-value" id="telDecision">—</span>
+          <span class="telemetry-value" id="telDecisionNone">—</span>
+        </div>
+        <div class="telemetry-col">
+          <span class="telemetry-heading">Cost</span>
+          <span class="telemetry-value" id="telCostNone">—</span>
         </div>
       </div>
+      <div class="rail" id="railNone"></div>
     </section>
 
-    <!-- Right: Chat & Verification Trace -->
-    <section class="trace-panel">
+    <section class="figure-panel wm-arm" id="panelWm">
       <div class="panel-caption">
-        <span class="caption-title">Trace</span>
+        <span class="caption-title">World model</span>
+        <span class="status-tag" id="viewportStatusWm">Ready</span>
       </div>
-
-      <div class="trace-stream" id="chatThread"></div>
-
-      <form class="prompt-area" id="promptForm">
-        <input type="text" id="promptInput" class="prompt-input" placeholder="Enter instruction..." autocomplete="off" />
-        <button type="submit" id="sendBtn" class="btn-submit">Execute</button>
-      </form>
+      <div class="viewport-area" id="viewportBoxWm">
+        <video id="simVideoWm" muted playsinline loop></video>
+        <div class="viewport-placeholder" id="viewportPlaceholderWm">
+          <div class="spinner" id="loadingSpinnerWm" style="display:none;"></div>
+          <span id="placeholderTextWm">Same instruction, imagined first</span>
+        </div>
+        <div class="outcome-stamp" id="outcomeStampWm"></div>
+      </div>
+      <div class="telemetry-table">
+        <div class="telemetry-col">
+          <span class="telemetry-heading">Target Error</span>
+          <span class="telemetry-value" id="telDistWm">—</span>
+        </div>
+        <div class="telemetry-col">
+          <span class="telemetry-heading">Max Lift</span>
+          <span class="telemetry-value" id="telLiftWm">—</span>
+        </div>
+        <div class="telemetry-col">
+          <span class="telemetry-heading">Outcome</span>
+          <span class="telemetry-value" id="telDecisionWm">—</span>
+        </div>
+        <div class="telemetry-col">
+          <span class="telemetry-heading">Cost</span>
+          <span class="telemetry-value" id="telCostWm">—</span>
+        </div>
+      </div>
+      <div class="rail" id="railWm"></div>
     </section>
   </main>
+
+  <div class="prompt-user" id="lastInstruction"></div>
+  <form class="prompt-area" id="promptForm">
+    <input type="text" id="promptInput" class="prompt-input" placeholder="Enter instruction — runs on both arms, same scene..." autocomplete="off" />
+    <button type="submit" id="sendBtn" class="btn-submit">Compare</button>
+  </form>
 </div>
 
 <script>
 const $ = id => document.getElementById(id);
-const chatThread = $("chatThread");
-const simVideo = $("simVideo");
-const placeholder = $("viewportPlaceholder");
-const placeholderText = $("placeholderText");
-const loadingSpinner = $("loadingSpinner");
-const outcomeStamp = $("outcomeStamp");
-const viewportStatus = $("viewportStatus");
 
-let currentVideoUrl = null;
 let isBusy = false;
-let abortController = null;
+let plannerModel = "claude-opus-5";
 
-function appendSystemCard(contentHtml) {
-  const wrapper = document.createElement("div");
-  wrapper.className = "trace-system";
-  wrapper.innerHTML = contentHtml;
-  chatThread.appendChild(wrapper);
-  chatThread.scrollTop = chatThread.scrollHeight;
+function setModelUI(model) {
+  plannerModel = model;
+  document.querySelectorAll("#modelToggle button").forEach(btn =>
+    btn.classList.toggle("on", btn.dataset.model === model));
 }
 
-function appendUserMessage(text) {
-  const msg = document.createElement("div");
-  msg.className = "trace-user";
-  msg.textContent = text;
-  chatThread.appendChild(msg);
-  chatThread.scrollTop = chatThread.scrollHeight;
+document.querySelectorAll("#modelToggle button").forEach(btn => {
+  btn.addEventListener("click", async () => {
+    if (isBusy || btn.dataset.model === plannerModel) return;
+    const previous = plannerModel;
+    setModelUI(btn.dataset.model);
+    try {
+      await fetch("/api/model", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: btn.dataset.model })
+      });
+    } catch (err) {
+      console.error("Model switch failed:", err);
+      setModelUI(previous);
+    }
+  });
+});
+
+/** DOM handles for one arm's panel, plus its own outcome/telemetry state. */
+function sideEls(suffix) {
+  return {
+    video: $("simVideo" + suffix),
+    placeholder: $("viewportPlaceholder" + suffix),
+    placeholderText: $("placeholderText" + suffix),
+    spinner: $("loadingSpinner" + suffix),
+    outcome: $("outcomeStamp" + suffix),
+    status: $("viewportStatus" + suffix),
+    rail: $("rail" + suffix),
+    telDist: $("telDist" + suffix),
+    telLift: $("telLift" + suffix),
+    telDecision: $("telDecision" + suffix),
+    telCost: $("telCost" + suffix),
+  };
 }
 
-function setSimLoading(text = "Evaluating...") {
-  simVideo.classList.remove("active");
-  placeholder.style.display = "flex";
-  loadingSpinner.style.display = "block";
-  placeholderText.textContent = text;
-  viewportStatus.textContent = "Processing";
+const SIDES = { none: sideEls("None"), "world-model": sideEls("Wm") };
+
+function appendStep(els, cls, key, value, note) {
+  const div = document.createElement("div");
+  div.className = "step " + cls;
+  div.innerHTML = `<div class="k">${key}</div><div class="v">${value}</div>` +
+                   (note ? `<div class="n">${note}</div>` : "");
+  els.rail.appendChild(div);
+  els.rail.scrollTop = els.rail.scrollHeight;
 }
 
-function showSimVideo(src) {
+function setSimLoading(els, text) {
+  els.video.classList.remove("active");
+  els.placeholder.style.display = "flex";
+  els.spinner.style.display = "block";
+  els.placeholderText.textContent = text;
+  els.status.textContent = "Processing";
+}
+
+function showSimVideo(els, src) {
   if (!src) return;
-  currentVideoUrl = src;
-  loadingSpinner.style.display = "none";
-  placeholder.style.display = "none";
-  simVideo.src = `${src}${src.includes("?") ? "&" : "?"}t=${Date.now()}`;
-  simVideo.classList.add("active");
-  simVideo.play().catch(() => {});
-  viewportStatus.textContent = "Playback";
-  $("replayBtn").disabled = false;
+  els.spinner.style.display = "none";
+  els.placeholder.style.display = "none";
+  els.video.src = `${src}${src.includes("?") ? "&" : "?"}t=${Date.now()}`;
+  els.video.classList.add("active");
+  els.video.play().catch(() => {});
+  els.status.textContent = "Playback";
 }
 
-function setOutcome(isSuccess, failureMode, targetDistance) {
-  outcomeStamp.className = "outcome-stamp active " + (isSuccess ? "success" : "failure");
+function setOutcome(els, isSuccess, failureMode, targetDistance) {
+  els.outcome.className = "outcome-stamp active " + (isSuccess ? "success" : "failure");
   const distText = targetDistance != null ? `${(Number(targetDistance) * 1000).toFixed(1)} mm` : "";
   if (isSuccess) {
-    outcomeStamp.textContent = `SUCCESS · ${distText}`;
-    $("telDecision").textContent = "Success";
-    $("telDecision").style.color = "#ffffff";
+    els.outcome.textContent = `SUCCESS · ${distText}`;
+    els.telDecision.textContent = "Success";
+    els.telDecision.style.color = "#ffffff";
   } else {
-    outcomeStamp.textContent = `FAILURE (${failureMode || "MISSED"}) · ${distText}`;
-    $("telDecision").textContent = "Failure";
-    $("telDecision").style.color = "#888888";
+    els.outcome.textContent = `FAILURE (${failureMode || "MISSED"}) · ${distText}`;
+    els.telDecision.textContent = "Failure";
+    els.telDecision.style.color = "#888888";
   }
-  if (targetDistance != null) $("telDist").textContent = distText || "—";
+  if (targetDistance != null) els.telDist.textContent = distText || "—";
 }
 
-function clearOutcome() {
-  outcomeStamp.className = "outcome-stamp";
-  outcomeStamp.textContent = "";
-  $("telDist").textContent = "—";
-  $("telLift").textContent = "—";
-  $("telDecision").textContent = "—";
+function clearOutcome(els) {
+  els.outcome.className = "outcome-stamp";
+  els.outcome.textContent = "";
+  els.telDist.textContent = "—";
+  els.telLift.textContent = "—";
+  els.telDecision.textContent = "—";
+  els.telCost.textContent = "—";
+  els.rail.innerHTML = "";
 }
 
-const EVENT_HANDLERS = {
-  observed(d) {
-    const objects = d.detections ? d.detections.map(x => x.label).join(', ') : '';
-    if (!objects) return;
-    appendSystemCard(`
-      <div class="trace-card">
-        <div class="trace-card-header">
-          <span>Perception</span>
-          <span class="status-tag">Observed</span>
-        </div>
-        <div style="font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-muted);">Detected: ${objects}</div>
-      </div>
-    `);
-  },
-  plan(d) {
-    if (d.action === "abstain") return;
-    const isRepair = d.kind === "repair";
-    const headerTitle = isRepair ? `Repaired Plan (Turn ${Number(d.round || 0) + 1})` : "Proposed Plan";
-    const tagText = isRepair ? "Fixed" : (d.action || "Execute");
-    const note = d.note ? `<div class="trace-note ${isRepair ? 'repaired' : ''}">${d.note}</div>` : "";
-    appendSystemCard(`
-      <div class="trace-card" style="${isRepair ? 'border-color: #666666;' : ''}">
-        <div class="trace-card-header">
-          <span>${headerTitle}</span>
-          <span class="status-tag ${isRepair ? 'approved' : ''}">${tagText}</span>
-        </div>
-        <div>Intent: <i>${d.intent || "—"}</i></div>
-        ${note}
-      </div>
-    `);
-    if (isRepair) {
-      placeholderText.textContent = "Verifying repaired trajectory...";
+/** One event-handler set per arm, closed over that arm's DOM. */
+function makeHandlers(els) {
+  return {
+    observed(d) {
+      const objects = d.detections ? d.detections.map(x => x.label).join(', ') : '';
+      if (!objects) return;
+      appendStep(els, "", "perception", "objects detected", `Detected: ${objects}`);
+    },
+    plan(d) {
+      if (d.action === "abstain") return;
+      const isRepair = d.kind === "repair";
+      const label = isRepair ? `repair (turn ${Number(d.round || 0) + 1})` : "proposed plan";
+      appendStep(els, isRepair ? "warn" : "", label, `<i>${d.intent || "—"}</i>`, d.note || "");
+      if (isRepair) els.placeholderText.textContent = "Verifying repaired trajectory...";
+    },
+    step(d) {
+      appendStep(els, "", `step ${d.index} of ${d.total}`, `Moving ${d.object} → ${d.destination}`);
+    },
+    verdict(d) {
+      const isApproved = d.approved === true;
+      const pSuccess = Math.round(Number(d.imagined_success_probability || 0) * 100);
+      if (!isApproved) {
+        const diag = d.likely_failure || "predicted trajectory failure";
+        const suggestion = d.verifier_suggestion ? ` — ${d.verifier_suggestion}` : "";
+        els.placeholderText.textContent = `Predicted miss (${pSuccess}%) · ${diag} · repairing...`;
+        els.status.textContent = "Plan Rejected";
+        appendStep(els, "no", "verdict · rejected", `p(success) <b>${pSuccess}%</b>`, diag + suggestion);
+      } else {
+        els.placeholderText.textContent = `Plan approved (${pSuccess}%) · simulating physics...`;
+        appendStep(els, "ok", "verdict · approved", `p(success) <b>${pSuccess}%</b>`);
+      }
+    },
+    executing(d) {
+      els.status.textContent = "Executing";
+      els.placeholderText.textContent = "Executing physical rollout...";
+    },
+    retrying(d) {
+      appendStep(els, "warn", "retry", "re-centering grasp", "re-perceived nudged block and retrying");
+    },
+    executed(d) {
+      if (d.max_block_z != null) els.telLift.textContent = `${(Number(d.max_block_z) * 100).toFixed(1)} cm`;
+      if (d.target_distance != null) els.telDist.textContent = `${(Number(d.target_distance) * 1000).toFixed(1)} mm`;
+    },
+    "arm-done"(d) {
+      if (d.video) showSimVideo(els, d.video);
+      const execution = d.execution || {};
+      const isSuccess = execution.success === true || (Array.isArray(execution.steps) && execution.steps.every(s => s.success));
+      const lastStep = Array.isArray(execution.steps) ? execution.steps.at(-1) : execution;
+      setOutcome(els, isSuccess, lastStep?.failure_mode, lastStep?.target_distance);
+      if (d.cost_usd != null) els.telCost.textContent = `$${Number(d.cost_usd).toFixed(3)}`;
+    },
+    done(d) {
+      if (d.video) showSimVideo(els, d.video);
+      els.status.textContent = "Idle";
+      if (d.cost_usd != null) els.telCost.textContent = `$${Number(d.cost_usd).toFixed(3)}`;
+    },
+    error(d) {
+      appendStep(els, "no", "error", d.reason || "unknown execution error");
+    },
+  };
+}
+
+const HANDLERS = { none: makeHandlers(SIDES.none), "world-model": makeHandlers(SIDES["world-model"]) };
+
+/** Set the live verifier mode, then stream one instruction through it into `els`. */
+async function runArm(mode, instruction) {
+  const els = SIDES[mode];
+  const handlers = HANDLERS[mode];
+  clearOutcome(els);
+  setSimLoading(els, mode === "none" ? "Running unchecked..." : "Imagining the outcome...");
+
+  await fetch("/api/verifier", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode }),
+  });
+
+  const res = await fetch("/api/command", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ instruction }),
+  });
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let cut;
+    while ((cut = buffer.indexOf("\n\n")) >= 0) {
+      const line = buffer.slice(0, cut).replace(/^data: /, "");
+      buffer = buffer.slice(cut + 2);
+      if (!line) continue;
+      try {
+        const payload = JSON.parse(line);
+        const fn = handlers[payload.event];
+        if (fn) fn(payload);
+      } catch (err) {
+        console.error("Malformed SSE line:", line, err);
+      }
     }
-  },
-  step(d) {
-    appendSystemCard(`
-      <div class="trace-card">
-        <div class="trace-card-header">
-          <span>Step ${d.index} of ${d.total}</span>
-          <span class="status-tag">Execute</span>
-        </div>
-        <div>Moving ${d.object} → ${d.destination}</div>
-      </div>
-    `);
-  },
-  verdict(d) {
-    const isApproved = d.approved === true;
-    const pSuccess = Math.round(Number(d.imagined_success_probability || 0) * 100);
-    const statusClass = isApproved ? "approved" : "rejected";
-    const statusText = isApproved ? "Approved" : "Rejected";
-    
-    if (!isApproved) {
-      const diag = d.likely_failure || "predicted trajectory failure";
-      const suggestion = d.verifier_suggestion ? `— ${d.verifier_suggestion}` : "";
-      placeholderText.textContent = `⚠️ Predicted Miss (${pSuccess}%) · ${diag} · Closed-Loop Repairing...`;
-      viewportStatus.textContent = "Plan Rejected";
-      
-      appendSystemCard(`
-        <div class="trace-card" style="border-color: #555555; background: #0c0c0c;">
-          <div class="trace-card-header">
-            <span>⚠️ World Model Score: ${pSuccess}%</span>
-            <span class="status-tag rejected">${statusText}</span>
-          </div>
-          <div class="trace-note rejected">
-            <b>Predicted Miss:</b> ${diag}
-            <br><b>Verifier Feedback:</b> <i>${suggestion || "re-align grasp / destination waypoints"}</i>
-          </div>
-        </div>
-      `);
-    } else {
-      placeholderText.textContent = `Plan Approved (${pSuccess}%) · Simulating physics...`;
-      appendSystemCard(`
-        <div class="trace-card">
-          <div class="trace-card-header">
-            <span>World Model Score: ${pSuccess}%</span>
-            <span class="status-tag approved">${statusText}</span>
-          </div>
-        </div>
-      `);
-    }
-  },
-  executing(d) {
-    viewportStatus.textContent = "Executing";
-    placeholderText.textContent = "Executing physical rollout...";
-  },
-  retrying(d) {
-    appendSystemCard(`
-      <div class="trace-card">
-        <div class="trace-card-header">
-          <span>Re-centering Grasp</span>
-          <span class="status-tag">Retry</span>
-        </div>
-        <div style="color: var(--ink-muted); font-size: 12px;">Re-perceived nudged block and retrying grasp...</div>
-      </div>
-    `);
-  },
-  executed(d) {
-    if (d.max_block_z != null) $("telLift").textContent = `${(Number(d.max_block_z) * 100).toFixed(1)} cm`;
-    if (d.target_distance != null) $("telDist").textContent = `${(Number(d.target_distance) * 1000).toFixed(1)} mm`;
-  },
-  "arm-done"(d) {
-    if (d.video) showSimVideo(d.video);
-    const execution = d.execution || {};
-    const isSuccess = execution.success === true || (Array.isArray(execution.steps) && execution.steps.every(s => s.success));
-    const lastStep = Array.isArray(execution.steps) ? execution.steps.at(-1) : execution;
-    setOutcome(isSuccess, lastStep?.failure_mode, lastStep?.target_distance);
-  },
-  done(d) {
-    if (d.video) showSimVideo(d.video);
-    viewportStatus.textContent = "Idle";
-  },
-  error(d) {
-    appendSystemCard(`
-      <div class="trace-card" style="border-color: #555555;">
-        <div class="trace-card-header">
-          <span>Error</span>
-          <span class="status-tag rejected">Error</span>
-        </div>
-        <div style="color: #cccccc;">${d.reason || "Unknown execution error"}</div>
-      </div>
-    `);
   }
-};
+}
 
 async function sendInstruction(instruction) {
   if (isBusy || !instruction) return;
   isBusy = true;
   $("sendBtn").disabled = true;
-  clearOutcome();
-  setSimLoading("Evaluating...");
-  appendUserMessage(instruction);
-
-  const ac = new AbortController();
-  abortController = ac;
-
+  $("lastInstruction").innerHTML = `Running: <b>${instruction}</b>`;
   try {
-    const res = await fetch("/api/command", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ instruction }),
-      signal: ac.signal
-    });
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      let cut;
-      while ((cut = buffer.indexOf("\n\n")) >= 0) {
-        const line = buffer.slice(0, cut).replace(/^data: /, "");
-        buffer = buffer.slice(cut + 2);
-        if (!line) continue;
-        try {
-          const payload = JSON.parse(line);
-          const fn = EVENT_HANDLERS[payload.event];
-          if (fn) fn(payload);
-        } catch (err) {
-          console.error("Malformed SSE line:", line, err);
-        }
-      }
-    }
+    // Same scene both times: each /api/command resets to the same block layout,
+    // so running "none" first and "world-model" second is a fair comparison.
+    await runArm("none", instruction);
+    await runArm("world-model", instruction);
   } catch (err) {
-    if (err.name !== "AbortError") {
-      EVENT_HANDLERS.error({ reason: err.message });
-    }
+    console.error("Compare run failed:", err);
   } finally {
     isBusy = false;
     $("sendBtn").disabled = false;
@@ -699,14 +689,15 @@ $("promptForm").addEventListener("submit", e => {
 });
 
 $("resetBtn").addEventListener("click", async () => {
-  abortController?.abort();
   $("resetBtn").disabled = true;
-  clearOutcome();
-  setSimLoading("Resetting scene...");
+  clearOutcome(SIDES.none);
+  clearOutcome(SIDES["world-model"]);
+  setSimLoading(SIDES.none, "Resetting scene...");
+  setSimLoading(SIDES["world-model"], "Resetting scene...");
   try {
     const snap = await (await fetch("/api/reset", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })).json();
     $("seedDisplay").textContent = `seed ${snap.seed}`;
-    if (snap.video) showSimVideo(snap.video);
+    if (snap.video) { showSimVideo(SIDES.none, snap.video); showSimVideo(SIDES["world-model"], snap.video); }
   } catch (err) {
     console.error("Reset failed:", err);
   } finally {
@@ -714,15 +705,12 @@ $("resetBtn").addEventListener("click", async () => {
   }
 });
 
-$("replayBtn").addEventListener("click", () => {
-  if (currentVideoUrl) showSimVideo(currentVideoUrl);
-});
-
 fetch("/api/scene")
   .then(r => r.json())
   .then(s => {
     $("seedDisplay").textContent = `seed ${s.seed}`;
-    if (s.video) showSimVideo(s.video);
+    if (s.model) setModelUI(s.model);
+    if (s.video) { showSimVideo(SIDES.none, s.video); showSimVideo(SIDES["world-model"], s.video); }
   })
   .catch(() => {});
 </script>

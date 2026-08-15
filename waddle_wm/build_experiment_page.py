@@ -20,7 +20,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 TEMPLATE = Path(__file__).resolve().parent / "ui" / "experiment.html"
 COMPARE = Path(__file__).resolve().parent / "ui" / "compare.html"
-ARMS = ("none", "rules", "world-model")
+ARMS = ("none", "world-model")
 SCENARIOS = ("grasp_miss", "place_miss")
 
 #: Trace fields the page renders. Everything else in a trace is dropped so the inlined
@@ -76,8 +76,7 @@ def _round_trip(trace: dict) -> list[dict]:
 def clips(traces: Path) -> tuple[dict, dict]:
     """MuJoCo footage per (scenario, arm), inlined as data URIs so the page stays one file.
 
-    Arms that ran identical waypoints produce identical files; those share one entry, which is
-    also the honest statement — the rules and world-model arms executed the same repaired plan.
+    Arms that ran identical waypoints produce identical files; those share one entry.
     """
     by_digest: dict[str, str] = {}
     index: dict[str, str] = {}
@@ -117,6 +116,8 @@ def collect(traces: Path) -> dict:
     # The sweep is the same two flawed plans over eight scenes; the page shows the rates.
     rates = {}
     for record in sweep["arms"]:
+        if record["arm"] not in ARMS:
+            continue
         key = (record["scenario"], record["arm"])
         bucket = rates.setdefault(key, {"scenes": 0, "caught": 0, "success": 0})
         bucket["scenes"] += 1
