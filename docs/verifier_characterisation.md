@@ -13,6 +13,10 @@ This page separates them and reports both. The short version:
 > outcomes among plans that all look reasonable. That is a narrower claim than "visual world
 > model", and unlike the broad claim it is measured, bounded, and deployable today.
 
+Throughout, "the verifier" means `models/multiblock_world_model.pt`, the checkpoint the demo and
+agent CLI load. A separate yaw-aware checkpoint behaves differently on an orientation corpus, and
+§5's scope note explains why that difference is informative rather than contradictory.
+
 Everything below is reproducible from runs committed to this repo. No number here needs a GPU, a
 Claude call, or a re-run.
 
@@ -95,10 +99,15 @@ here, so the experiment has no power to separate them.
 throwaway agent whose planner calls are not recorded, so the logged `cost_usd` covers repair calls
 only. The instrumentation needs fixing before any cost claim is made.
 
-## 5. Vision still buys nothing measurable
+## 5. Vision buys nothing measurable *on this checkpoint and this task family*
 
 The project's central open question is whether the *visual* verifier beats a coordinate-only
-geometry rule. The fairest test yet built (`waddle_wm/demo_ambiguous.py`):
+geometry rule. Everything in this section concerns
+`models/multiblock_world_model.pt` — the checkpoint the demo and agent CLI actually load — on
+tabletop pick-and-place. **It is not the project's last word on vision**: see the scope note at
+the end of this section.
+
+The fairest test yet built for this checkpoint (`waddle_wm/demo_ambiguous.py`):
 
 Hold the plan **byte-identical** — grasp aimed 2.0 cm from the red block's detected centre, inside
 the rules verifier's tolerance in every condition — and move only the **neighbouring block**. The
@@ -131,6 +140,21 @@ Two findings fell out of building it, both worth keeping:
   returned mean **p = 0.960** and approved 12/12. Off-distribution inputs did not raise its
   uncertainty — 0.134 on failures against 0.144 on successes. A verifier that does not know what it
   does not know is the more serious problem, and it is measured here rather than asserted.
+
+**Scope note — where vision *does* win.** A different checkpoint tells a different story.
+[`task_suite_world_model.md`](task_suite_world_model.md) §6 reports the yaw-aware suite verifier
+(`models/task_suite_world_model.pt`, schema 5) beating a same-architecture no-vision control by
+**+0.217 AUC** (0.864 against 0.647, n=227) on an `orientation_discrimination` slice where the
+coordinates are drawn from the same distribution in both classes and only the block's heading
+differs — and it passes the oracle-heading control too. That corpus uses 100 mm blocks against an
+85 mm jaw stroke, so heading genuinely decides the grasp and no coordinate summary can express it.
+
+The two results do not conflict; they are different checkpoints on different corpora, and the
+difference between them is the point. Vision pays when the corpus contains a physical fact the
+coordinates structurally omit. The demo's task family does not contain one, which is why the arm
+that reads pixels has nothing to read. That is a statement about the task, not only about the
+model — and it says the way to make the visual claim is to test it on tasks where coordinates are
+provably insufficient, not to keep re-running pick-and-place.
 
 ## 6. Where the verifier costs more than it saves
 
@@ -175,8 +199,11 @@ After, all measured and bounded:
 1. A **deployable gate** with a threshold derived from data, perfect on 63 plans.
 2. A **stated limit** — the probability is not a confidence score, and the evidence needed to
    promote it to one is named (a task that fails often enough to give ~30 failures).
-3. A **negative result on vision**, from a test where the coordinate-only baseline was structurally
-   incapable of winning on merit — and it still did not lose.
+3. A **bounded negative result on vision** for the demo's checkpoint and task family, from a test
+   where the coordinate-only baseline was structurally incapable of winning on merit — and it still
+   did not lose. Bounded because a different checkpoint on an orientation corpus *does* beat its
+   no-vision control by 0.217 AUC (§5 scope note), which localises the question: vision pays where
+   the task hides a physical fact from the coordinates, and pick-and-place does not.
 4. A **cost finding**: this task does not need a frontier planner.
 5. Two **reusable evaluation methods**, and one statistical trap documented before it made it into
    a paper.
