@@ -32,7 +32,7 @@ const PORT = Number(arg("port", 9222 + (process.pid % 500)));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 /* ---- launch headless Chrome ---- */
-const profile = mkdtempSync(join(tmpdir(), "waddle-rec-"));
+const profile = mkdtempSync(join(tmpdir(), "wm-rec-"));
 const chrome = spawn(CHROME, [
   "--headless=new", `--remote-debugging-port=${PORT}`, `--user-data-dir=${profile}`,
   `--window-size=${WIDTH},${HEIGHT}`, "--hide-scrollbars", "--force-device-scale-factor=1",
@@ -106,7 +106,7 @@ if (stills) {
 }
 
 const frames = Math.round(duration * FPS);
-const dir = mkdtempSync(join(tmpdir(), "waddle-frames-"));
+const dir = mkdtempSync(join(tmpdir(), "wm-frames-"));
 process.stdout.write(`recording ${frames} frames (${duration.toFixed(1)}s @ ${FPS}fps) at ${WIDTH}x${HEIGHT}\n`);
 
 for (let frame = 0; frame < frames; frame++) {

@@ -254,7 +254,7 @@ class ClaudePlanner:
         command = [self.binary, "-p", prompt, "--output-format", "json", "--model", self.model,
                    "--system-prompt", self.system_prompt, "--allowed-tools", "", "--strict-mcp-config",
                    "--disable-slash-commands", "--dangerously-skip-permissions", "--max-turns", "1"]
-        environment = {**os.environ, "CLAUDE_CODE_ENTRYPOINT": "waddle-planner"}
+        environment = {**os.environ, "CLAUDE_CODE_ENTRYPOINT": "skill-planner"}
         finished = subprocess.run(command, capture_output=True, text=True, timeout=self.timeout,
                                   env=environment, cwd=os.getcwd())
         if finished.returncode != 0:

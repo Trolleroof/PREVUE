@@ -31,8 +31,7 @@ natural-language command          camera
 
 Objects are located by the camera, not by reading simulator state: a text query becomes a
 pixel box, and the depth buffer turns that box into a point in the frame the arm is
-commanded in. That perception layer is modelled on the primitives
-[Waddle Labs publishes](https://www.waddlelabs.ai/research/introducing-waddle).
+commanded in. That perception layer follows the usual primitive stack:
 
 Three commands, three entry points:
 
@@ -128,8 +127,7 @@ constraints contradict each other.
 
 ## Where the 3D positions come from
 
-Modelled on the primitive layer [Waddle Labs
-describes](https://www.waddlelabs.ai/research/introducing-waddle) — `bounding_box`
+The primitive layer is `bounding_box`
 (text query → box in frame), `detect_in_base` (box → point in the robot base frame),
 `approach_until` (waypoints + stop criterion → trajectory), `reset_home` — with skills
 composed on top of primitives and a program composed of skills. `waddle_wm/perception.py`

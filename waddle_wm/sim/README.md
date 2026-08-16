@@ -1,6 +1,6 @@
 # MuJoCo execution environment
 
-The first execution environment for the Waddle skill-level world model: a
+The first execution environment for the skill-level world model: a
 physical UR5e + Robotiq 2F-85 pick-and-place scene with rendered camera clips
 and ground-truth future state/outcome labels for V-JEPA 2.
 

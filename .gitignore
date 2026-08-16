@@ -1,5 +1,6 @@
 .venv
 .hf-cache/
+.claude/
 models
 __pycache__/
 data/*

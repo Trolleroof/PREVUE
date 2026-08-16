@@ -6,7 +6,7 @@
 
 ## Core idea
 
-**Waddle Skill Simulator: an LLM-driven world-model evaluator for robot plans**
+**Skill-level world model: an LLM-driven evaluator for robot plans**
 
 ```text
 LLM agent proposes a robot skill
@@ -51,7 +51,7 @@ Do not start by training a giant video model. The strongest project at this stag
 bad plan → imagined failure → LLM repair → improved plan
 ```
 
-That is a clearer demo and research question than “we trained a world model.” It also directly extends what [Waddle Labs](https://www.waddlelabs.ai/) is positioning itself as: an agent that creates and improves robot behavior from task instructions.
+That is a clearer demo and research question than “we trained a world model”: an agent that creates and improves robot behavior from task instructions.
 
 ## MVP
 
@@ -154,7 +154,7 @@ Still open:
    that costs — one scene where the learned verifier refuses a plan that would have worked.
 6. **Grasp-failure detection** — the weak axis. `lifted` accuracy is 0.720 against `in_target`'s
    0.851, so an offset grasp is often approved. This is what the agent needs next, not more planning.
-7. **Skills above primitives** — Waddle's middle layer: let the agent name and reuse parametrised
+7. **Skills above primitives** — a middle layer that lets the agent name and reuse parametrised
    skills instead of emitting one flat trace per command. The bounded program schema in
    [`program_schema.md`](program_schema.md) is the first half of this: Claude picks the strategy
    and bounded parameters, the compiler keeps the waypoints.

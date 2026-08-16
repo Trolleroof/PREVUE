@@ -1,7 +1,7 @@
 """Perception primitives: a text query becomes a pixel box, then a point in the robot base frame.
 
-This mirrors the primitive layer Waddle Labs describes — `bounding_box(text query -> box
-in frame)`, `detect_in_base(box -> point in the robot base frame)` — so the planner never
+The usual primitive stack — `bounding_box(text query -> box in frame)`,
+`detect_in_base(box -> point in the robot base frame)` — so the planner never
 reads simulator state. Everything here comes out of the camera: the box from the rendered
 image, the depth from the depth buffer, the transform from the camera and base poses.
 
