@@ -1,0 +1,3011 @@
+{
+  "generated": "2026-08-15T16:34:21",
+  "model": "claude-haiku-4-5-20251001",
+  "scenes": [
+    [
+      0.3339,
+      -0.2574
+    ],
+    [
+      0.5965,
+      -0.114
+    ],
+    [
+      0.5974,
+      -0.2596
+    ]
+  ],
+  "live_plan": true,
+  "seconds": 171.9,
+  "cost_usd": 0,
+  "arms": [
+    {
+      "scenario": "grasp_miss",
+      "arm": "none",
+      "instruction": "stack the blue block on top of the red block, then put the yellow block on the green pad",
+      "flaw": "grasp aimed 6 cm past the block in +x",
+      "tests": "the weak axis: does the imagined future notice the fingers will close on nothing?",
+      "block_xy": [
+        0.3339,
+        -0.2574
+      ],
+      "scene": {
+        "detections": [
+          {
+            "label": "red block",
+            "box": [
+              153,
+              150,
+              161,
+              158
+            ],
+            "pixels": 62,
+            "score": 1.0,
+            "point_base": [
+              0.3298,
+              -0.2516,
+              0.0141
+            ],
+            "depth_m": 1.7493,
+            "size_m": 0.0364
+          },
+          {
+            "label": "blue block",
+            "box": [
+              185,
+              154,
+              193,
+              163
+            ],
+            "pixels": 71,
+            "score": 1.0,
+            "point_base": [
+              0.4948,
+              -0.178,
+              0.0126
+            ],
+            "depth_m": 1.7103,
+            "size_m": 0.034
+          },
+          {
+            "label": "yellow block",
+            "box": [
+              208,
+              162,
+              217,
+              172
+            ],
+            "pixels": 79,
+            "score": 1.0,
+            "point_base": [
+              0.6342,
+              -0.1776,
+              0.0119
+            ],
+            "depth_m": 1.6338,
+            "size_m": 0.0353
+          }
+        ],
+        "landing_pad": {
+          "centre": [
+            0.5,
+            0.3
+          ],
+          "radius": 0.105
+        },
+        "truth": {
+          "red_block": [
+            0.3339,
+            -0.2574,
+            0.0179
+          ],
+          "blue_block": [
+            0.5,
+            -0.18,
+            0.0179
+          ],
+          "yellow_block": [
+            0.64,
+            -0.18,
+            0.0179
+          ]
+        }
+      },
+      "opening_plan": {
+        "intent": "Stack the blue block on top of the red block, then place the yellow block on the green landing pad",
+        "action": "execute",
+        "note": "Pick blue block and place it on the red block at z=0.051 (stacking height). Then pick yellow block and place it on the green pad at z=0.015 (ground level).",
+        "steps": [
+          {
+            "object": "blue block",
+            "destination": "red block",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.33,
+                  -0.252,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.33,
+                  -0.252,
+                  0.051
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.33,
+                  -0.252,
+                  0.3
+                ]
+              }
+            ]
+          },
+          {
+            "object": "yellow block",
+            "destination": "green pad",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.015
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.3
+                ]
+              }
+            ]
+          }
+        ],
+        "trace": [
+          {
+            "phase": "approach",
+            "target": [
+              0.495,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "descend",
+            "target": [
+              0.495,
+              -0.178,
+              0.015
+            ]
+          },
+          {
+            "phase": "close",
+            "value": 255.0
+          },
+          {
+            "phase": "lift",
+            "target": [
+              0.495,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "move",
+            "target": [
+              0.33,
+              -0.252,
+              0.3
+            ]
+          },
+          {
+            "phase": "place",
+            "target": [
+              0.33,
+              -0.252,
+              0.051
+            ]
+          },
+          {
+            "phase": "open",
+            "value": 0.0
+          },
+          {
+            "phase": "retreat",
+            "target": [
+              0.33,
+              -0.252,
+              0.3
+            ]
+          },
+          {
+            "phase": "approach",
+            "target": [
+              0.634,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "descend",
+            "target": [
+              0.634,
+              -0.178,
+              0.015
+            ]
+          },
+          {
+            "phase": "close",
+            "value": 255.0
+          },
+          {
+            "phase": "lift",
+            "target": [
+              0.634,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "move",
+            "target": [
+              0.5,
+              0.3,
+              0.3
+            ]
+          },
+          {
+            "phase": "place",
+            "target": [
+              0.5,
+              0.3,
+              0.015
+            ]
+          },
+          {
+            "phase": "open",
+            "value": 0.0
+          },
+          {
+            "phase": "retreat",
+            "target": [
+              0.5,
+              0.3,
+              0.3
+            ]
+          }
+        ]
+      },
+      "rounds": [
+        {
+          "round": 0,
+          "kind": "step",
+          "grasp_xy": null,
+          "place_xy": null,
+          "note": "",
+          "verdict": null,
+          "skipped_reason": "verifier disabled",
+          "plan": {
+            "object": "blue block",
+            "destination": "red block",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.33,
+                  -0.252,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.33,
+                  -0.252,
+                  0.0501
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.33,
+                  -0.252,
+                  0.3
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "round": 3,
+          "kind": "step",
+          "grasp_xy": null,
+          "place_xy": null,
+          "note": "",
+          "verdict": null,
+          "skipped_reason": "verifier disabled",
+          "plan": {
+            "object": "yellow block",
+            "destination": "green pad",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.015
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.3
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "decision": "executed",
+      "reason": "completed 2 sequential steps",
+      "executed_success": true,
+      "failure_mode": null,
+      "final_block_xy": null,
+      "target_distance": null,
+      "max_block_z": null,
+      "seconds": 1.5,
+      "cost_usd": 0,
+      "planner_calls": 0,
+      "scene_index": 0,
+      "live_plan": true
+    },
+    {
+      "scenario": "grasp_miss",
+      "arm": "world-model",
+      "instruction": "stack the blue block on top of the red block, then put the yellow block on the green pad",
+      "flaw": "grasp aimed 6 cm past the block in +x",
+      "tests": "the weak axis: does the imagined future notice the fingers will close on nothing?",
+      "block_xy": [
+        0.3339,
+        -0.2574
+      ],
+      "scene": {
+        "detections": [
+          {
+            "label": "red block",
+            "box": [
+              153,
+              150,
+              161,
+              158
+            ],
+            "pixels": 62,
+            "score": 1.0,
+            "point_base": [
+              0.3298,
+              -0.2516,
+              0.0141
+            ],
+            "depth_m": 1.7493,
+            "size_m": 0.0364
+          },
+          {
+            "label": "blue block",
+            "box": [
+              185,
+              154,
+              193,
+              163
+            ],
+            "pixels": 71,
+            "score": 1.0,
+            "point_base": [
+              0.4948,
+              -0.178,
+              0.0126
+            ],
+            "depth_m": 1.7103,
+            "size_m": 0.034
+          },
+          {
+            "label": "yellow block",
+            "box": [
+              208,
+              162,
+              217,
+              172
+            ],
+            "pixels": 79,
+            "score": 1.0,
+            "point_base": [
+              0.6342,
+              -0.1776,
+              0.0119
+            ],
+            "depth_m": 1.6338,
+            "size_m": 0.0353
+          }
+        ],
+        "landing_pad": {
+          "centre": [
+            0.5,
+            0.3
+          ],
+          "radius": 0.105
+        },
+        "truth": {
+          "red_block": [
+            0.3339,
+            -0.2574,
+            0.0179
+          ],
+          "blue_block": [
+            0.5,
+            -0.18,
+            0.0179
+          ],
+          "yellow_block": [
+            0.64,
+            -0.18,
+            0.0179
+          ]
+        }
+      },
+      "opening_plan": {
+        "intent": "Stack the blue block on top of the red block, then place the yellow block on the green landing pad",
+        "action": "execute",
+        "note": "Pick blue block and place it on the red block at z=0.051 (stacking height). Then pick yellow block and place it on the green pad at z=0.015 (ground level).",
+        "steps": [
+          {
+            "object": "blue block",
+            "destination": "red block",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.33,
+                  -0.252,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.33,
+                  -0.252,
+                  0.051
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.33,
+                  -0.252,
+                  0.3
+                ]
+              }
+            ]
+          },
+          {
+            "object": "yellow block",
+            "destination": "green pad",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.015
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.3
+                ]
+              }
+            ]
+          }
+        ],
+        "trace": [
+          {
+            "phase": "approach",
+            "target": [
+              0.495,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "descend",
+            "target": [
+              0.495,
+              -0.178,
+              0.015
+            ]
+          },
+          {
+            "phase": "close",
+            "value": 255.0
+          },
+          {
+            "phase": "lift",
+            "target": [
+              0.495,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "move",
+            "target": [
+              0.33,
+              -0.252,
+              0.3
+            ]
+          },
+          {
+            "phase": "place",
+            "target": [
+              0.33,
+              -0.252,
+              0.051
+            ]
+          },
+          {
+            "phase": "open",
+            "value": 0.0
+          },
+          {
+            "phase": "retreat",
+            "target": [
+              0.33,
+              -0.252,
+              0.3
+            ]
+          },
+          {
+            "phase": "approach",
+            "target": [
+              0.634,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "descend",
+            "target": [
+              0.634,
+              -0.178,
+              0.015
+            ]
+          },
+          {
+            "phase": "close",
+            "value": 255.0
+          },
+          {
+            "phase": "lift",
+            "target": [
+              0.634,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "move",
+            "target": [
+              0.5,
+              0.3,
+              0.3
+            ]
+          },
+          {
+            "phase": "place",
+            "target": [
+              0.5,
+              0.3,
+              0.015
+            ]
+          },
+          {
+            "phase": "open",
+            "value": 0.0
+          },
+          {
+            "phase": "retreat",
+            "target": [
+              0.5,
+              0.3,
+              0.3
+            ]
+          }
+        ]
+      },
+      "rounds": [
+        {
+          "round": 0,
+          "kind": "step",
+          "grasp_xy": null,
+          "place_xy": null,
+          "note": "",
+          "verdict": {
+            "imagined_success_probability": 0.891,
+            "ensemble_uncertainty": 0.052,
+            "p_block_lifted": 0.992,
+            "p_block_in_landing_zone": 0.898,
+            "imagined_final_block_xy": [
+              0.5275,
+              -0.0233
+            ],
+            "likely_failure": null,
+            "verifier_suggestion": null,
+            "approved": true
+          },
+          "skipped_reason": null,
+          "plan": {
+            "object": "blue block",
+            "destination": "red block",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.33,
+                  -0.252,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.33,
+                  -0.252,
+                  0.0501
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.33,
+                  -0.252,
+                  0.3
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "round": 3,
+          "kind": "step",
+          "grasp_xy": null,
+          "place_xy": null,
+          "note": "",
+          "verdict": {
+            "imagined_success_probability": 0.651,
+            "ensemble_uncertainty": 0.314,
+            "p_block_lifted": 0.966,
+            "p_block_in_landing_zone": 0.673,
+            "imagined_final_block_xy": [
+              0.6378,
+              0.016
+            ],
+            "likely_failure": null,
+            "verifier_suggestion": null,
+            "approved": true
+          },
+          "skipped_reason": null,
+          "plan": {
+            "object": "yellow block",
+            "destination": "green pad",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.015
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.3
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "decision": "executed",
+      "reason": "completed 2 sequential steps",
+      "executed_success": true,
+      "failure_mode": null,
+      "final_block_xy": null,
+      "target_distance": null,
+      "max_block_z": null,
+      "seconds": 3.74,
+      "cost_usd": 0,
+      "planner_calls": 0,
+      "scene_index": 0,
+      "live_plan": true
+    },
+    {
+      "scenario": "grasp_miss",
+      "arm": "none",
+      "instruction": "stack the blue block on top of the red block, then put the yellow block on the green pad",
+      "flaw": "grasp aimed 6 cm past the block in +x",
+      "tests": "the weak axis: does the imagined future notice the fingers will close on nothing?",
+      "block_xy": [
+        0.5965,
+        -0.114
+      ],
+      "scene": {
+        "detections": [
+          {
+            "label": "red block",
+            "box": [
+              206,
+              155,
+              215,
+              163
+            ],
+            "pixels": 63,
+            "score": 1.0,
+            "point_base": [
+              0.5812,
+              -0.102,
+              0.0085
+            ],
+            "depth_m": 1.7029,
+            "size_m": 0.076
+          },
+          {
+            "label": "blue block",
+            "box": [
+              185,
+              154,
+              193,
+              163
+            ],
+            "pixels": 71,
+            "score": 1.0,
+            "point_base": [
+              0.4948,
+              -0.178,
+              0.0126
+            ],
+            "depth_m": 1.7103,
+            "size_m": 0.034
+          },
+          {
+            "label": "yellow block",
+            "box": [
+              208,
+              162,
+              217,
+              172
+            ],
+            "pixels": 79,
+            "score": 1.0,
+            "point_base": [
+              0.6342,
+              -0.1776,
+              0.0119
+            ],
+            "depth_m": 1.6338,
+            "size_m": 0.0353
+          }
+        ],
+        "landing_pad": {
+          "centre": [
+            0.5,
+            0.3
+          ],
+          "radius": 0.105
+        },
+        "truth": {
+          "red_block": [
+            0.5965,
+            -0.114,
+            0.0179
+          ],
+          "blue_block": [
+            0.5,
+            -0.18,
+            0.0179
+          ],
+          "yellow_block": [
+            0.64,
+            -0.18,
+            0.0179
+          ]
+        }
+      },
+      "opening_plan": {
+        "intent": "Stack the blue block on top of the red block, then place the yellow block on the green pad",
+        "action": "execute",
+        "note": "Blue block grasped at [0.495, -0.178] and placed on top of red block at z=0.051. Yellow block grasped at [0.634, -0.178] and placed on green pad center at [0.500, 0.300].",
+        "steps": [
+          {
+            "object": "blue block",
+            "destination": "red block",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.579,
+                  -0.099,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.579,
+                  -0.099,
+                  0.051
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.579,
+                  -0.099,
+                  0.24
+                ]
+              }
+            ]
+          },
+          {
+            "object": "yellow block",
+            "destination": "green pad",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.015
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.24
+                ]
+              }
+            ]
+          }
+        ],
+        "trace": [
+          {
+            "phase": "approach",
+            "target": [
+              0.495,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "descend",
+            "target": [
+              0.495,
+              -0.178,
+              0.015
+            ]
+          },
+          {
+            "phase": "close",
+            "value": 255.0
+          },
+          {
+            "phase": "lift",
+            "target": [
+              0.495,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "move",
+            "target": [
+              0.579,
+              -0.099,
+              0.3
+            ]
+          },
+          {
+            "phase": "place",
+            "target": [
+              0.579,
+              -0.099,
+              0.051
+            ]
+          },
+          {
+            "phase": "open",
+            "value": 0.0
+          },
+          {
+            "phase": "retreat",
+            "target": [
+              0.579,
+              -0.099,
+              0.24
+            ]
+          },
+          {
+            "phase": "approach",
+            "target": [
+              0.634,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "descend",
+            "target": [
+              0.634,
+              -0.178,
+              0.015
+            ]
+          },
+          {
+            "phase": "close",
+            "value": 255.0
+          },
+          {
+            "phase": "lift",
+            "target": [
+              0.634,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "move",
+            "target": [
+              0.5,
+              0.3,
+              0.3
+            ]
+          },
+          {
+            "phase": "place",
+            "target": [
+              0.5,
+              0.3,
+              0.015
+            ]
+          },
+          {
+            "phase": "open",
+            "value": 0.0
+          },
+          {
+            "phase": "retreat",
+            "target": [
+              0.5,
+              0.3,
+              0.24
+            ]
+          }
+        ]
+      },
+      "rounds": [
+        {
+          "round": 0,
+          "kind": "step",
+          "grasp_xy": null,
+          "place_xy": null,
+          "note": "",
+          "verdict": null,
+          "skipped_reason": "verifier disabled",
+          "plan": {
+            "object": "blue block",
+            "destination": "red block",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.579,
+                  -0.099,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.579,
+                  -0.099,
+                  0.0445
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.579,
+                  -0.099,
+                  0.24
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "round": 3,
+          "kind": "step",
+          "grasp_xy": null,
+          "place_xy": null,
+          "note": "",
+          "verdict": null,
+          "skipped_reason": "verifier disabled",
+          "plan": {
+            "object": "yellow block",
+            "destination": "green pad",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.015
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.24
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "decision": "executed",
+      "reason": "completed 2 sequential steps",
+      "executed_success": true,
+      "failure_mode": null,
+      "final_block_xy": null,
+      "target_distance": null,
+      "max_block_z": null,
+      "seconds": 1.48,
+      "cost_usd": 0,
+      "planner_calls": 0,
+      "scene_index": 1,
+      "live_plan": true
+    },
+    {
+      "scenario": "grasp_miss",
+      "arm": "world-model",
+      "instruction": "stack the blue block on top of the red block, then put the yellow block on the green pad",
+      "flaw": "grasp aimed 6 cm past the block in +x",
+      "tests": "the weak axis: does the imagined future notice the fingers will close on nothing?",
+      "block_xy": [
+        0.5965,
+        -0.114
+      ],
+      "scene": {
+        "detections": [
+          {
+            "label": "red block",
+            "box": [
+              206,
+              155,
+              215,
+              163
+            ],
+            "pixels": 63,
+            "score": 1.0,
+            "point_base": [
+              0.5812,
+              -0.102,
+              0.0085
+            ],
+            "depth_m": 1.7029,
+            "size_m": 0.076
+          },
+          {
+            "label": "blue block",
+            "box": [
+              185,
+              154,
+              193,
+              163
+            ],
+            "pixels": 71,
+            "score": 1.0,
+            "point_base": [
+              0.4948,
+              -0.178,
+              0.0126
+            ],
+            "depth_m": 1.7103,
+            "size_m": 0.034
+          },
+          {
+            "label": "yellow block",
+            "box": [
+              208,
+              162,
+              217,
+              172
+            ],
+            "pixels": 79,
+            "score": 1.0,
+            "point_base": [
+              0.6342,
+              -0.1776,
+              0.0119
+            ],
+            "depth_m": 1.6338,
+            "size_m": 0.0353
+          }
+        ],
+        "landing_pad": {
+          "centre": [
+            0.5,
+            0.3
+          ],
+          "radius": 0.105
+        },
+        "truth": {
+          "red_block": [
+            0.5965,
+            -0.114,
+            0.0179
+          ],
+          "blue_block": [
+            0.5,
+            -0.18,
+            0.0179
+          ],
+          "yellow_block": [
+            0.64,
+            -0.18,
+            0.0179
+          ]
+        }
+      },
+      "opening_plan": {
+        "intent": "Stack the blue block on top of the red block, then place the yellow block on the green pad",
+        "action": "execute",
+        "note": "Blue block grasped at [0.495, -0.178] and placed on top of red block at z=0.051. Yellow block grasped at [0.634, -0.178] and placed on green pad center at [0.500, 0.300].",
+        "steps": [
+          {
+            "object": "blue block",
+            "destination": "red block",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.579,
+                  -0.099,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.579,
+                  -0.099,
+                  0.051
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.579,
+                  -0.099,
+                  0.24
+                ]
+              }
+            ]
+          },
+          {
+            "object": "yellow block",
+            "destination": "green pad",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.015
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.24
+                ]
+              }
+            ]
+          }
+        ],
+        "trace": [
+          {
+            "phase": "approach",
+            "target": [
+              0.495,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "descend",
+            "target": [
+              0.495,
+              -0.178,
+              0.015
+            ]
+          },
+          {
+            "phase": "close",
+            "value": 255.0
+          },
+          {
+            "phase": "lift",
+            "target": [
+              0.495,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "move",
+            "target": [
+              0.579,
+              -0.099,
+              0.3
+            ]
+          },
+          {
+            "phase": "place",
+            "target": [
+              0.579,
+              -0.099,
+              0.051
+            ]
+          },
+          {
+            "phase": "open",
+            "value": 0.0
+          },
+          {
+            "phase": "retreat",
+            "target": [
+              0.579,
+              -0.099,
+              0.24
+            ]
+          },
+          {
+            "phase": "approach",
+            "target": [
+              0.634,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "descend",
+            "target": [
+              0.634,
+              -0.178,
+              0.015
+            ]
+          },
+          {
+            "phase": "close",
+            "value": 255.0
+          },
+          {
+            "phase": "lift",
+            "target": [
+              0.634,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "move",
+            "target": [
+              0.5,
+              0.3,
+              0.3
+            ]
+          },
+          {
+            "phase": "place",
+            "target": [
+              0.5,
+              0.3,
+              0.015
+            ]
+          },
+          {
+            "phase": "open",
+            "value": 0.0
+          },
+          {
+            "phase": "retreat",
+            "target": [
+              0.5,
+              0.3,
+              0.24
+            ]
+          }
+        ]
+      },
+      "rounds": [
+        {
+          "round": 0,
+          "kind": "step",
+          "grasp_xy": null,
+          "place_xy": null,
+          "note": "",
+          "verdict": {
+            "imagined_success_probability": 0.892,
+            "ensemble_uncertainty": 0.025,
+            "p_block_lifted": 0.993,
+            "p_block_in_landing_zone": 0.898,
+            "imagined_final_block_xy": [
+              0.5005,
+              0.03
+            ],
+            "likely_failure": null,
+            "verifier_suggestion": null,
+            "approved": true
+          },
+          "skipped_reason": null,
+          "plan": {
+            "object": "blue block",
+            "destination": "red block",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.579,
+                  -0.099,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.579,
+                  -0.099,
+                  0.0445
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.579,
+                  -0.099,
+                  0.24
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "round": 3,
+          "kind": "step",
+          "grasp_xy": null,
+          "place_xy": null,
+          "note": "",
+          "verdict": {
+            "imagined_success_probability": 0.937,
+            "ensemble_uncertainty": 0.088,
+            "p_block_lifted": 0.999,
+            "p_block_in_landing_zone": 0.938,
+            "imagined_final_block_xy": [
+              0.7015,
+              0.0783
+            ],
+            "likely_failure": null,
+            "verifier_suggestion": null,
+            "approved": true
+          },
+          "skipped_reason": null,
+          "plan": {
+            "object": "yellow block",
+            "destination": "green pad",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.015
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.24
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "decision": "executed",
+      "reason": "completed 2 sequential steps",
+      "executed_success": true,
+      "failure_mode": null,
+      "final_block_xy": null,
+      "target_distance": null,
+      "max_block_z": null,
+      "seconds": 3.43,
+      "cost_usd": 0,
+      "planner_calls": 0,
+      "scene_index": 1,
+      "live_plan": true
+    },
+    {
+      "scenario": "grasp_miss",
+      "arm": "none",
+      "instruction": "stack the blue block on top of the red block, then put the yellow block on the green pad",
+      "flaw": "grasp aimed 6 cm past the block in +x",
+      "tests": "the weak axis: does the imagined future notice the fingers will close on nothing?",
+      "block_xy": [
+        0.5974,
+        -0.2596
+      ],
+      "scene": {
+        "detections": [
+          {
+            "label": "red block",
+            "box": [
+              194,
+              166,
+              203,
+              175
+            ],
+            "pixels": 80,
+            "score": 1.0,
+            "point_base": [
+              0.5908,
+              -0.2543,
+              0.0128
+            ],
+            "depth_m": 1.6014,
+            "size_m": 0.0389
+          },
+          {
+            "label": "blue block",
+            "box": [
+              185,
+              154,
+              193,
+              163
+            ],
+            "pixels": 71,
+            "score": 1.0,
+            "point_base": [
+              0.4948,
+              -0.178,
+              0.0126
+            ],
+            "depth_m": 1.7103,
+            "size_m": 0.034
+          },
+          {
+            "label": "yellow block",
+            "box": [
+              208,
+              162,
+              217,
+              172
+            ],
+            "pixels": 79,
+            "score": 1.0,
+            "point_base": [
+              0.6342,
+              -0.1776,
+              0.0119
+            ],
+            "depth_m": 1.6338,
+            "size_m": 0.0353
+          }
+        ],
+        "landing_pad": {
+          "centre": [
+            0.5,
+            0.3
+          ],
+          "radius": 0.105
+        },
+        "truth": {
+          "red_block": [
+            0.5974,
+            -0.2596,
+            0.0179
+          ],
+          "blue_block": [
+            0.5,
+            -0.18,
+            0.0179
+          ],
+          "yellow_block": [
+            0.64,
+            -0.18,
+            0.0179
+          ]
+        }
+      },
+      "opening_plan": {
+        "intent": "Stack the blue block on top of the red block, then place the yellow block on the green pad.",
+        "action": "execute",
+        "note": "First step stacks blue block on red block at z=0.051 (accounting for ~3.8 cm block height). Second step places yellow block on green pad. Both operations follow standard pick-place sequence with approach at hover height (0.24 m), grasp at 0.015 m, transit at 0.3 m, and placement at target height.",
+        "steps": [
+          {
+            "object": "blue block",
+            "destination": "red block",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.591,
+                  -0.254,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.591,
+                  -0.254,
+                  0.051
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.591,
+                  -0.254,
+                  0.24
+                ]
+              }
+            ]
+          },
+          {
+            "object": "yellow block",
+            "destination": "green pad",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.015
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.24
+                ]
+              }
+            ]
+          }
+        ],
+        "trace": [
+          {
+            "phase": "approach",
+            "target": [
+              0.495,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "descend",
+            "target": [
+              0.495,
+              -0.178,
+              0.015
+            ]
+          },
+          {
+            "phase": "close",
+            "value": 255.0
+          },
+          {
+            "phase": "lift",
+            "target": [
+              0.495,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "move",
+            "target": [
+              0.591,
+              -0.254,
+              0.3
+            ]
+          },
+          {
+            "phase": "place",
+            "target": [
+              0.591,
+              -0.254,
+              0.051
+            ]
+          },
+          {
+            "phase": "open",
+            "value": 0.0
+          },
+          {
+            "phase": "retreat",
+            "target": [
+              0.591,
+              -0.254,
+              0.24
+            ]
+          },
+          {
+            "phase": "approach",
+            "target": [
+              0.634,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "descend",
+            "target": [
+              0.634,
+              -0.178,
+              0.015
+            ]
+          },
+          {
+            "phase": "close",
+            "value": 255.0
+          },
+          {
+            "phase": "lift",
+            "target": [
+              0.634,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "move",
+            "target": [
+              0.5,
+              0.3,
+              0.3
+            ]
+          },
+          {
+            "phase": "place",
+            "target": [
+              0.5,
+              0.3,
+              0.015
+            ]
+          },
+          {
+            "phase": "open",
+            "value": 0.0
+          },
+          {
+            "phase": "retreat",
+            "target": [
+              0.5,
+              0.3,
+              0.24
+            ]
+          }
+        ]
+      },
+      "rounds": [
+        {
+          "round": 0,
+          "kind": "step",
+          "grasp_xy": null,
+          "place_xy": null,
+          "note": "",
+          "verdict": null,
+          "skipped_reason": "verifier disabled",
+          "plan": {
+            "object": "blue block",
+            "destination": "red block",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.591,
+                  -0.254,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.591,
+                  -0.254,
+                  0.0488
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.591,
+                  -0.254,
+                  0.24
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "round": 3,
+          "kind": "step",
+          "grasp_xy": null,
+          "place_xy": null,
+          "note": "",
+          "verdict": null,
+          "skipped_reason": "verifier disabled",
+          "plan": {
+            "object": "yellow block",
+            "destination": "green pad",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.015
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.24
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "decision": "executed",
+      "reason": "completed 2 sequential steps",
+      "executed_success": true,
+      "failure_mode": null,
+      "final_block_xy": null,
+      "target_distance": null,
+      "max_block_z": null,
+      "seconds": 1.32,
+      "cost_usd": 0,
+      "planner_calls": 0,
+      "scene_index": 2,
+      "live_plan": true
+    },
+    {
+      "scenario": "grasp_miss",
+      "arm": "world-model",
+      "instruction": "stack the blue block on top of the red block, then put the yellow block on the green pad",
+      "flaw": "grasp aimed 6 cm past the block in +x",
+      "tests": "the weak axis: does the imagined future notice the fingers will close on nothing?",
+      "block_xy": [
+        0.5974,
+        -0.2596
+      ],
+      "scene": {
+        "detections": [
+          {
+            "label": "red block",
+            "box": [
+              194,
+              166,
+              203,
+              175
+            ],
+            "pixels": 80,
+            "score": 1.0,
+            "point_base": [
+              0.5908,
+              -0.2543,
+              0.0128
+            ],
+            "depth_m": 1.6014,
+            "size_m": 0.0389
+          },
+          {
+            "label": "blue block",
+            "box": [
+              185,
+              154,
+              193,
+              163
+            ],
+            "pixels": 71,
+            "score": 1.0,
+            "point_base": [
+              0.4948,
+              -0.178,
+              0.0126
+            ],
+            "depth_m": 1.7103,
+            "size_m": 0.034
+          },
+          {
+            "label": "yellow block",
+            "box": [
+              208,
+              162,
+              217,
+              172
+            ],
+            "pixels": 79,
+            "score": 1.0,
+            "point_base": [
+              0.6342,
+              -0.1776,
+              0.0119
+            ],
+            "depth_m": 1.6338,
+            "size_m": 0.0353
+          }
+        ],
+        "landing_pad": {
+          "centre": [
+            0.5,
+            0.3
+          ],
+          "radius": 0.105
+        },
+        "truth": {
+          "red_block": [
+            0.5974,
+            -0.2596,
+            0.0179
+          ],
+          "blue_block": [
+            0.5,
+            -0.18,
+            0.0179
+          ],
+          "yellow_block": [
+            0.64,
+            -0.18,
+            0.0179
+          ]
+        }
+      },
+      "opening_plan": {
+        "intent": "Stack the blue block on top of the red block, then place the yellow block on the green pad.",
+        "action": "execute",
+        "note": "First step stacks blue block on red block at z=0.051 (accounting for ~3.8 cm block height). Second step places yellow block on green pad. Both operations follow standard pick-place sequence with approach at hover height (0.24 m), grasp at 0.015 m, transit at 0.3 m, and placement at target height.",
+        "steps": [
+          {
+            "object": "blue block",
+            "destination": "red block",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.591,
+                  -0.254,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.591,
+                  -0.254,
+                  0.051
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.591,
+                  -0.254,
+                  0.24
+                ]
+              }
+            ]
+          },
+          {
+            "object": "yellow block",
+            "destination": "green pad",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.015
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.24
+                ]
+              }
+            ]
+          }
+        ],
+        "trace": [
+          {
+            "phase": "approach",
+            "target": [
+              0.495,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "descend",
+            "target": [
+              0.495,
+              -0.178,
+              0.015
+            ]
+          },
+          {
+            "phase": "close",
+            "value": 255.0
+          },
+          {
+            "phase": "lift",
+            "target": [
+              0.495,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "move",
+            "target": [
+              0.591,
+              -0.254,
+              0.3
+            ]
+          },
+          {
+            "phase": "place",
+            "target": [
+              0.591,
+              -0.254,
+              0.051
+            ]
+          },
+          {
+            "phase": "open",
+            "value": 0.0
+          },
+          {
+            "phase": "retreat",
+            "target": [
+              0.591,
+              -0.254,
+              0.24
+            ]
+          },
+          {
+            "phase": "approach",
+            "target": [
+              0.634,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "descend",
+            "target": [
+              0.634,
+              -0.178,
+              0.015
+            ]
+          },
+          {
+            "phase": "close",
+            "value": 255.0
+          },
+          {
+            "phase": "lift",
+            "target": [
+              0.634,
+              -0.178,
+              0.24
+            ]
+          },
+          {
+            "phase": "move",
+            "target": [
+              0.5,
+              0.3,
+              0.3
+            ]
+          },
+          {
+            "phase": "place",
+            "target": [
+              0.5,
+              0.3,
+              0.015
+            ]
+          },
+          {
+            "phase": "open",
+            "value": 0.0
+          },
+          {
+            "phase": "retreat",
+            "target": [
+              0.5,
+              0.3,
+              0.24
+            ]
+          }
+        ]
+      },
+      "rounds": [
+        {
+          "round": 0,
+          "kind": "step",
+          "grasp_xy": null,
+          "place_xy": null,
+          "note": "",
+          "verdict": {
+            "imagined_success_probability": 0.661,
+            "ensemble_uncertainty": 0.174,
+            "p_block_lifted": 0.927,
+            "p_block_in_landing_zone": 0.713,
+            "imagined_final_block_xy": [
+              0.5343,
+              -0.1662
+            ],
+            "likely_failure": null,
+            "verifier_suggestion": null,
+            "approved": true
+          },
+          "skipped_reason": null,
+          "plan": {
+            "object": "blue block",
+            "destination": "red block",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.495,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.591,
+                  -0.254,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.591,
+                  -0.254,
+                  0.0488
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.591,
+                  -0.254,
+                  0.24
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "round": 3,
+          "kind": "step",
+          "grasp_xy": null,
+          "place_xy": null,
+          "note": "",
+          "verdict": {
+            "imagined_success_probability": 0.61,
+            "ensemble_uncertainty": 0.259,
+            "p_block_lifted": 0.936,
+            "p_block_in_landing_zone": 0.652,
+            "imagined_final_block_xy": [
+              0.6737,
+              -0.0464
+            ],
+            "likely_failure": null,
+            "verifier_suggestion": null,
+            "approved": true
+          },
+          "skipped_reason": null,
+          "plan": {
+            "object": "yellow block",
+            "destination": "green pad",
+            "trace": [
+              {
+                "phase": "approach",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "descend",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.015
+                ]
+              },
+              {
+                "phase": "close"
+              },
+              {
+                "phase": "lift",
+                "target": [
+                  0.634,
+                  -0.178,
+                  0.24
+                ]
+              },
+              {
+                "phase": "move",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.3
+                ]
+              },
+              {
+                "phase": "place",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.015
+                ]
+              },
+              {
+                "phase": "open"
+              },
+              {
+                "phase": "retreat",
+                "target": [
+                  0.5,
+                  0.3,
+                  0.24
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "decision": "executed",
+      "reason": "completed 2 sequential steps",
+      "executed_success": true,
+      "failure_mode": null,
+      "final_block_xy": null,
+      "target_distance": null,
+      "max_block_z": null,
+      "seconds": 3.17,
+      "cost_usd": 0,
+      "planner_calls": 0,
+      "scene_index": 2,
+      "live_plan": true
+    }
+  ]
+}

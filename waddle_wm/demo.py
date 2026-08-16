@@ -25,7 +25,7 @@ from __future__ import annotations
 import argparse
 import json
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import imageio.v3 as iio
@@ -33,7 +33,7 @@ import numpy as np
 
 from waddle_wm.agent import DEFAULT_CHECKPOINT, SkillAgent
 from waddle_wm.perception import landing_pad
-from waddle_wm.planner import MODEL, Plan, validate
+from waddle_wm.planner import MODEL, Plan, describe_observation, validate
 from waddle_wm.sim.env import GRASP_Z, HOVER_Z, TRANSIT_Z
 
 DEFAULT_OUT = Path("results/demo")
@@ -146,15 +146,36 @@ def verdict_rows(run) -> list[dict]:
     return rows
 
 
+def propose_opening(scenario: Scenario, checkpoint: Path, seed: int, model: str, block_xy) -> Plan:
+    """Ask the model for its own opening plan, unscripted — no flaw injected by the harness.
+
+    Built once per scene so every arm sees the identical model-authored plan; only the verifier
+    differs. This is the test of whether the *planner* makes mistakes on its own, as opposed to
+    the scripted-flaw sweep, which only tests whether a model can *repair* a plan whose fix is
+    already implied by the verifier's rejection reason. Uses a throwaway `none`-mode agent, so
+    no checkpoint or encoder is touched here.
+    """
+    agent = SkillAgent(checkpoint, seed=seed, model=model, verifier_mode="none")
+    agent.env.reset(list(block_xy))
+    detections = agent.perceive()
+    pad = landing_pad(agent.env.model)
+    observation = describe_observation(detections, pad, agent.env.state()["gripper_pos"])
+    return agent.planner.propose(scenario.instruction, observation)
+
+
 def run_arm(scenario: Scenario, arm: str, checkpoint: Path, seed: int, model: str, repairs: int,
-            planner=None, quiet: bool = False, block_xy=None):
-    """One scenario against one verifier arm, from the shared opening plan through MuJoCo."""
+            planner=None, quiet: bool = False, block_xy=None, opening: Plan | None = None):
+    """One scenario against one verifier arm, from the shared opening plan through MuJoCo.
+
+    `opening`, when given, overrides the scripted flawed plan — see `propose_opening`.
+    """
     block_xy = list(block_xy or scenario.block_xy)
     agent = SkillAgent(checkpoint, seed=seed, model=model, repairs=repairs, verifier_mode=arm)
     agent.env.reset(block_xy)                         # cheap pre-pass: perceive without encoding,
     detections = {d.label: d.point_base for d in agent.perceive()}   # so the plan is aimed by camera
     pad_xy, _ = landing_pad(agent.env.model)
-    opening = scenario.opening_plan(detections["red block"], pad_xy)
+    if opening is None:
+        opening = scenario.opening_plan(detections["red block"], pad_xy)
     if planner is not None:
         agent.planner = planner
     emit = (lambda *_: None) if quiet else (
@@ -221,12 +242,17 @@ def report(records: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def sweep_report(records: list[dict], scenes: list) -> str:
+def sweep_report(records: list[dict], scenes: list, live_plan: bool = False) -> str:
     """The rate table: how often each arm ended with the block on the pad, over every scene."""
-    lines = ["# Demo sweep", "",
-             f"The same two flawed opening plans over {len(scenes)} scenes, all three arms, "
-             "identical scenes across arms.",
-             "`caught` counts scenes where the verifier rejected the flawed opening plan;",
+    plan_line = (
+        "The opening plan is the model's own — no flaw is scripted in — so this is a test of the "
+        "planner's raw mistake rate, not just its ability to apply a rejection reason it was handed."
+        if live_plan else
+        f"The same two flawed opening plans over {len(scenes)} scenes, all three arms, "
+        "identical scenes across arms."
+    )
+    lines = ["# Demo sweep", "", plan_line,
+             "`caught` counts scenes where the verifier rejected the opening plan;",
              "`success` counts scenes where the block finished on the pad in MuJoCo.", "",
              "| scenario | verifier | caught | repaired to success | success rate |",
              "| --- | --- | --- | --- | --- |"]
@@ -256,9 +282,21 @@ def main():
     ap.add_argument("--no-video", action="store_true")
     ap.add_argument("--sweep", type=int, metavar="SCENES",
                     help="run every scenario and arm over this many scenes and report rates")
+    ap.add_argument("--live-plan", action="store_true",
+                    help="let the model propose its own opening plan instead of the scripted flaw "
+                         "(sweep only) — tests planning mistakes, not just repair-from-a-hint")
+    ap.add_argument("--instruction",
+                    help="override the scenario's instruction. Only meaningful with --live-plan: "
+                         "the scripted flaw is built for pick-and-place and does not describe a "
+                         "different task")
     args = ap.parse_args()
 
     scenarios = [s for s in SCENARIOS if not args.scenario or s.name in args.scenario]
+    if args.instruction:
+        if not args.live_plan:
+            raise SystemExit("--instruction only makes sense with --live-plan: the scripted opening "
+                             "plan encodes a pick-and-place flaw and would not match a new task")
+        scenarios = [replace(s, instruction=args.instruction) for s in scenarios]
     arms = [arm for arm in ARMS if not args.arm or arm in args.arm]
     started, records, drifts = time.time(), [], []
 
@@ -313,25 +351,37 @@ def main():
 
 
 def run_sweep(args, scenarios, arms, started) -> None:
-    """The same flaws over many scenes, so the results page can quote a rate instead of a story."""
+    """The same flaws over many scenes, so the results page can quote a rate instead of a story.
+
+    With `--live-plan`, the "flaw" is whatever the model itself proposes — one propose call per
+    unique (instruction, scene), shared across arms so they still start from the identical plan.
+    """
     scenes, records = demo_scenes(args.sweep), []
+    proposals: dict[tuple, Plan] = {}
     for index, block_xy in enumerate(scenes):
         for scenario in scenarios:
+            opening = None
+            if args.live_plan:
+                key = (scenario.instruction, tuple(block_xy))
+                if key not in proposals:
+                    proposals[key] = propose_opening(scenario, args.checkpoint, args.seed, args.model, block_xy)
+                opening = proposals[key]
             for arm in arms:
-                run, opening = run_arm(scenario, arm, args.checkpoint, args.seed, args.model,
-                                       args.repairs, quiet=True, block_xy=block_xy)
-                record = arm_record(scenario, arm, run, opening, block_xy=block_xy)
+                run, used_opening = run_arm(scenario, arm, args.checkpoint, args.seed, args.model,
+                                            args.repairs, quiet=True, block_xy=block_xy, opening=opening)
+                record = arm_record(scenario, arm, run, used_opening, block_xy=block_xy)
                 record["scene_index"] = index
+                record["live_plan"] = bool(args.live_plan)
                 records.append(record)
                 print(f"scene {index} ({block_xy[0]:.3f}, {block_xy[1]:.3f}) {scenario.name}/{arm}: "
                       f"{outcome_word(record)}", flush=True)
 
-    text = sweep_report(records, scenes)
+    text = sweep_report(records, scenes, live_plan=args.live_plan)
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "sweep.md").write_text(text)
     (args.out / "sweep.json").write_text(json.dumps(
         {"generated": time.strftime("%Y-%m-%dT%H:%M:%S"), "model": args.model, "scenes": scenes,
-         "seconds": round(time.time() - started, 1),
+         "live_plan": bool(args.live_plan), "seconds": round(time.time() - started, 1),
          "cost_usd": round(sum(record["cost_usd"] for record in records), 4),
          "arms": records}, indent=2, default=float))
     print("\n" + text)
