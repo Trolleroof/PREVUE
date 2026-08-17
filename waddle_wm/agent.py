@@ -28,6 +28,21 @@ DEFAULT_CHECKPOINT = Path("models/multiblock_world_model.pt")
 DEFAULT_LOGS = Path("results/agent")
 UNVERIFIABLE = ("the world model was trained on pick-and-place traces only, so this free-form "
                 "motion is off-distribution and was executed without a verified prediction")
+STALLED = 0.05      # a probability that moves less than this between repairs is not improving
+# A rewrite is free to restructure the program, and one that leaves the eight-phase shape becomes
+# unscoreable — the verifier skips it and the arm moves on an unchecked plan, which is the one
+# outcome this loop exists to prevent. Treated as a rejection instead, with the shape spelled out.
+OFF_SHAPE = {"imagined_success_probability": 0.0, "ensemble_uncertainty": 0.0, "approved": False,
+             "likely_failure": "this program is not the eight-phase pick-and-place shape the "
+                               "verifier can score, so it cannot be checked before it runs",
+             "verifier_suggestion": "use exactly: approach, descend, close, lift, move, place, "
+                                    "open, retreat"}
+
+
+def plan_signature(step: SkillStep) -> tuple:
+    """What makes two programs the same plan: the phases and where they aim, to the millimetre."""
+    return tuple((entry["phase"], *(round(v, 3) for v in entry.get("target", ())))
+                 for entry in step.trace)
 
 
 def verifier_skip_reason(step: SkillStep, verifier=None) -> str | None:
@@ -97,7 +112,8 @@ class SkillAgent:
 
     def __init__(self, checkpoint: Path = DEFAULT_CHECKPOINT, seed: int = 0, model: str = MODEL,
                  repairs: int = 2, threshold: float | None = None, verify: bool = True,
-                 verifier_mode: str | None = None, feedback: bool = False):
+                 verifier_mode: str | None = None, feedback: bool = False,
+                 persistence: int | None = None):
         self.verifier_mode = verifier_mode or ("world-model" if verify else "none")
         if self.verifier_mode not in ("none", "rules", "world-model"):
             raise ValueError(f"unknown verifier mode {self.verifier_mode!r}")
@@ -108,6 +124,10 @@ class SkillAgent:
         self.camera = SceneCamera(self.env.model, self.env.data)
         self.planner = ClaudePlanner(model=model)
         self.repairs, self.model = repairs, model
+        # How many plans the loop will go through before it gives up on a step. `repairs` also
+        # sizes the execution retry budget, so persistence is separate: a demo can keep asking for
+        # new plans without also granting more physical attempts.
+        self.persistence = repairs if persistence is None else int(persistence)
         # Where a repair comes from. Default: the verifier's imagined failure, before the arm
         # moves — the loop `docs/demo.md` and `docs/llm_agent.md` describe. `feedback=True`
         # instead executes every proposal and repairs from what MuJoCo actually did, which is
@@ -214,6 +234,43 @@ class SkillAgent:
         return self.verifier.verify(latent, step.trace, step.object.replace(" ", "_"),
                                     step.destination.replace(" ", "_"), positions), None
 
+    def next_plan(self, instruction, observation, plan, verdict, rejected: list[dict]) -> Plan:
+        """The next plan to try after a rejection: a targeted repair, or a fresh start.
+
+        A repair turn is told to change exactly one thing, which is what you want the first time
+        and a trap by the third — the imagined probability drifts sideways (3% -> 39% -> 37%) while
+        the same waypoint gets nudged. So once two repairs have failed, or the last two verdicts
+        moved the probability less than `STALLED`, the step is re-proposed from scratch with every
+        rejection so far attached.
+        """
+        scores = [row["verdict"].get("imagined_success_probability", 0.0) for row in rejected
+                  if row.get("verdict")]
+        stalled = len(scores) >= 2 and abs(scores[-1] - scores[-2]) < STALLED
+        if len(rejected) >= 2 or stalled:
+            return self.planner.propose(instruction, observation, rejected)
+        return self.planner.repair(instruction, observation, plan, verdict)
+
+    def next_step_plan(self, label, observation, step, plan, verdict, rejected) -> SkillStep:
+        """The next version of one step of a compound plan, as a `SkillStep` for the same move.
+
+        A fresh proposal is given the whole task's wording, so it can come back restructured, or
+        abstaining, or missing this step entirely. That is a reason to fall back to the constrained
+        repair — which cannot restructure anything — not a reason to abandon the run.
+        """
+        single = Plan(plan.intent, "execute", [step], plan.note)
+
+        def matching(candidate_plan) -> SkillStep | None:
+            return next((candidate for candidate in candidate_plan.steps
+                         if candidate.object == step.object
+                         and candidate.destination == step.destination), None)
+
+        found = matching(self.next_plan(label, observation, single, verdict, rejected))
+        if found is None:
+            found = matching(self.planner.repair(label, observation, single, verdict))
+        if found is None:
+            raise PlanError("a compound-step repair must keep the same object and destination")
+        return found
+
     def run(self, instruction: str, seed: int = 0, block_xy=None, target_xy=None, on_event=None,
             opening_plan: Plan | None = None, retry_failed_execution: bool = False,
             execute_budget: int | None = None) -> AgentRun:
@@ -255,7 +312,20 @@ class SkillAgent:
 
         step = self.ground_step(plan.steps[0]) if plan.steps else None
 
-        for index in range(self.repairs + 1):
+        rejected: list[dict] = []
+        seen: set = set()
+        for index in range(self.persistence + 1):
+            if step is not None:
+                signature = plan_signature(step)
+                if signature in seen:
+                    run.decision = "rejected"
+                    run.reason = ("the planner re-proposed a plan the verifier has already refused "
+                                  f"({len(seen)} distinct plans tried); it has converged on "
+                                  "something the world model will not approve")
+                    emit("converged", {"distinct_plans": len(seen), "reason": run.reason})
+                    emit("rejected", {"reason": run.reason})
+                    break
+                seen.add(signature)
             kind = ("given" if opening_plan is not None else "propose") if index == 0 else "repair"
             emit("plan", {"round": index, "kind": kind, **plan.summary()})
             if not plan.executable:
@@ -265,6 +335,27 @@ class SkillAgent:
                 emit("abstained", {"reason": plan.note})
                 break
             result, skip = self.verify_step(step, latent)
+            if skip and index and step is not None and not step.pick_place_shaped:
+                # Only a *rewrite* that lost the shape lands here; a task that was never scoreable
+                # falls through to the branch below, where it is executed and labelled as such.
+                run.rounds.append(Round(index, kind, plan.summary(), verified=False,
+                                        skipped_reason="rewrite left the verifiable shape"))
+                emit("verdict", {"round": index, "verifier": self.verifier_mode, **OFF_SHAPE})
+                rejected.append({"plan": plan.summary(), "verdict": OFF_SHAPE})
+                if index == self.persistence:
+                    run.decision = "rejected"
+                    run.reason = (f"still rejected after {self.persistence} attempts "
+                                  "(the last programs could not be scored before running)")
+                    emit("rejected", {"reason": run.reason})
+                    break
+                try:
+                    plan = self.next_plan(instruction, observation, plan, OFF_SHAPE, rejected)
+                    step = self.ground_step(plan.steps[0]) if plan.steps else None
+                except (PlanError, RuntimeError) as error:
+                    run.decision, run.reason = "error", str(error)
+                    emit("error", {"reason": run.reason})
+                    break
+                continue
             if skip:
                 reason = skip
                 run.rounds.append(Round(index, kind, plan.summary(), verified=False, skipped_reason=reason))
@@ -290,15 +381,16 @@ class SkillAgent:
             if result.approve:
                 run.decision, run.reason = "executed", f"verifier approved at p={result.success_probability:.3f}"
                 break
-            if index == self.repairs:
+            if index == self.persistence:
                 run.decision = "rejected"
-                run.reason = (f"still rejected after {self.repairs} repairs "
+                run.reason = (f"still rejected after {self.persistence} attempts "
                               f"(p={result.success_probability:.3f}, {result.likely_failure})")
                 emit("rejected", {"reason": run.reason})
                 break
             # The point of the project: the imagined failure, not a real one, is what Claude repairs from.
+            rejected.append({"plan": plan.summary(), "verdict": verdict})
             try:
-                plan = self.planner.repair(instruction, observation, plan, verdict)
+                plan = self.next_plan(instruction, observation, plan, verdict, rejected)
                 step = self.ground_step(plan.steps[0]) if plan.steps else None
             except (PlanError, RuntimeError) as error:
                 run.decision, run.reason = "error", str(error)
@@ -474,12 +566,51 @@ class SkillAgent:
 
     def verify_sequence_step(self, run, plan, proposed, latent, index, label, emit):
         """Score one step of a compound plan, repairing it from the verdict until it passes."""
-        step = self.ground_step(proposed)
-        for attempt in range(self.repairs + 1):
+        step, rejected, seen = self.ground_step(proposed), [], set()
+        for attempt in range(self.persistence + 1):
             step = self.ground_step(proposed)
-            emit("step", {"index": index + 1, "total": len(plan.steps), "repair": attempt, **step.summary()})
+            signature = plan_signature(step)
+            if signature in seen:
+                # The planner has run out of ideas: it is handing back a program the verifier has
+                # already refused. More turns would cost tokens and change nothing, and executing
+                # it anyway is the one thing this loop exists to prevent.
+                run.decision = "rejected"
+                run.reason = (f"step {index + 1}: the planner re-proposed a plan the verifier has "
+                              f"already refused ({len(seen)} distinct plans tried); it has converged "
+                              "on something the world model will not approve")
+                run.final_plan = Plan(plan.intent, "execute", [step], plan.note)
+                emit("converged", {"step": index + 1, "distinct_plans": len(seen),
+                                   "reason": run.reason})
+                emit("rejected", {"reason": run.reason})
+                break
+            seen.add(signature)
+            emit("step", {"index": index + 1, "total": len(plan.steps), "repair": attempt,
+                          "attempt": attempt + 1, "attempts_allowed": self.persistence + 1,
+                          **step.summary()})
             result, skip = self.verify_step(step, latent)
-            round_index = index * (self.repairs + 1) + attempt
+            round_index = index * (self.persistence + 1) + attempt
+            if skip is not None and attempt and not step.pick_place_shaped:
+                run.rounds.append(Round(round_index, "step", step.summary(), verified=False,
+                                        skipped_reason="rewrite left the verifiable shape"))
+                emit("verdict", {"round": round_index, "verifier": self.verifier_mode, **OFF_SHAPE})
+                rejected.append({"plan": step.summary(), "verdict": OFF_SHAPE})
+                if attempt == self.persistence:
+                    run.decision = "rejected"
+                    run.reason = (f"step {index + 1} still rejected after {self.persistence + 1} "
+                                  "plans (the last programs could not be scored before running)")
+                    run.final_plan = Plan(plan.intent, "execute", [step], plan.note)
+                    emit("rejected", {"reason": run.reason})
+                    break
+                detections = self.perceive()
+                observation = describe_observation(detections, landing_pad(self.env.model),
+                                                   self.env.state()["gripper_pos"])
+                try:
+                    proposed = self.next_step_plan(label, observation, step, plan, OFF_SHAPE, rejected)
+                except (PlanError, RuntimeError) as error:
+                    run.decision, run.reason = "error", str(error)
+                    emit("error", {"reason": run.reason})
+                    break
+                continue
             if skip is not None:
                 run.rounds.append(Round(round_index, "step", step.summary(), verified=False, skipped_reason=skip))
                 emit("unverified", {"round": round_index, "reason": skip})
@@ -502,9 +633,9 @@ class SkillAgent:
             emit("verdict", {"round": round_index, "verifier": self.verifier_mode, **verdict, **spatial_meta})
             if result.approve:
                 break
-            if attempt == self.repairs:
+            if attempt == self.persistence:
                 run.decision = "rejected"
-                run.reason = (f"step {index + 1} still rejected after {self.repairs} repairs "
+                run.reason = (f"step {index + 1} still rejected after {self.persistence + 1} plans "
                               f"at p={result.success_probability:.3f}: {result.likely_failure}")
                 run.final_plan = Plan(plan.intent, "execute", [step], plan.note)
                 emit("rejected", {"reason": run.reason})
@@ -512,13 +643,9 @@ class SkillAgent:
             detections = self.perceive()
             observation = describe_observation(detections, landing_pad(self.env.model),
                                                self.env.state()["gripper_pos"])
+            rejected.append({"plan": step.summary(), "verdict": verdict})
             try:
-                repaired = self.planner.repair(label, observation,
-                                               Plan(plan.intent, "execute", [step], plan.note), verdict)
-                if (len(repaired.steps) != 1 or repaired.steps[0].object != step.object
-                        or repaired.steps[0].destination != step.destination):
-                    raise PlanError("a compound-step repair must keep the same object and destination")
-                proposed = repaired.steps[0]
+                proposed = self.next_step_plan(label, observation, step, plan, verdict, rejected)
             except (PlanError, RuntimeError) as error:
                 run.decision, run.reason = "error", str(error)
                 emit("error", {"reason": run.reason})

@@ -218,10 +218,23 @@ def describe_observation(detections, pad, gripper_xyz) -> str:
     return "\n".join(lines)
 
 
-def propose_prompt(instruction: str, observation: str) -> str:
-    return (f"Task instruction (from the operator):\n{instruction}\n\n"
-            f"Camera observation of the scene right now:\n{observation}\n\n"
-            "Propose the waypoint program. Reply with the JSON object only.")
+def propose_prompt(instruction: str, observation: str, rejected: list[dict] | None = None) -> str:
+    lines = [f"Task instruction (from the operator):\n{instruction}", "",
+             f"Camera observation of the scene right now:\n{observation}", ""]
+    if rejected:
+        # A repair turn asks for one change, which is the right move once and a rut by the third
+        # time — the probability drifts sideways while the same waypoint gets nudged. This prompt
+        # is the escape: the earlier attempts are shown as a group so the model can see the pattern
+        # and start over, rather than editing the last one again.
+        lines += [f"You have already had {len(rejected)} program(s) rejected by the verifier for "
+                  "this exact task. Here is each one and why it was rejected:", ""]
+        for index, attempt in enumerate(rejected, 1):
+            lines += [f"Attempt {index}:", json.dumps(attempt, indent=2), ""]
+        lines += ["Do not repeat those waypoints and do not make another small adjustment to them. "
+                  "Work out what the whole group of rejections has in common and write a different "
+                  "program from scratch.", ""]
+    lines.append("Propose the waypoint program. Reply with the JSON object only.")
+    return "\n".join(lines)
 
 
 def repair_prompt(instruction: str, observation: str, plan: Plan, verdict: dict) -> str:
@@ -280,8 +293,8 @@ class ClaudePlanner:
                 attempt = f"{prompt}\n\n{error_prompt(message)}"
         raise PlanError(f"Claude did not return a usable plan after {self.retries + 1} attempts: {message}")
 
-    def propose(self, instruction: str, observation: str) -> Plan:
-        return self.plan(propose_prompt(instruction, observation))
+    def propose(self, instruction: str, observation: str, rejected: list[dict] | None = None) -> Plan:
+        return self.plan(propose_prompt(instruction, observation, rejected))
 
     def repair(self, instruction: str, observation: str, plan: Plan, verdict: dict) -> Plan:
         return self.plan(repair_prompt(instruction, observation, plan, verdict))

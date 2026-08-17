@@ -487,8 +487,15 @@ const HANDLERS = {
     // The unchecked run is on screen first, so the failure is watched rather than described.
     setClip("before", d.video, outcomeOf(d.execution, d.decision));
   },
+  converged(d) {
+    appendStep("no", "planner converged",
+      `${d.distinct_plans} distinct plans tried — all refused`,
+      "the planner keeps returning a plan the verifier has already rejected, so more turns would " +
+      "cost tokens and change nothing. Nothing was executed.");
+  },
   step(d) {
-    appendStep("", `step ${d.index} of ${d.total}`, `Moving ${d.object} → ${d.destination}`);
+    const tries = d.attempts_allowed ? ` · plan ${d.attempt} of up to ${d.attempts_allowed}` : "";
+    appendStep("", `step ${d.index} of ${d.total}${tries}`, `Moving ${d.object} → ${d.destination}`);
   },
   verdict(d) {
     const p = Math.round(Number(d.imagined_success_probability || 0) * 100);
@@ -497,7 +504,7 @@ const HANDLERS = {
       placeholderText.textContent = `Approved (${p}%) · running in MuJoCo...`;
     } else {
       appendStep("no", "verdict · rejected", `p(success) <b>${p}%</b>`, (d.likely_failure || "") + (d.verifier_suggestion ? ` — ${d.verifier_suggestion}` : ""));
-      placeholderText.textContent = `Rejected (${p}%) · repairing...`;
+      placeholderText.textContent = `Rejected (${p}%) · asking for another plan...`;
     }
   },
   executing() {

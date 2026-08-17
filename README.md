@@ -71,6 +71,19 @@ Roughly 70% of runs break the plan, 30% leave the coordinates correct and break 
 
 **The failure is measured, not assumed.** A sampled flaw is only kept once the unverified baseline has actually missed in MuJoCo; if it survives, the harness resamples (up to 5 draws). So "verification prevented this" is never a claim about a plan that would have worked anyway.
 
+### It keeps asking until the verifier says yes
+
+A rejected plan is not the end of the run. The loop keeps going back to Claude — up to `--persistence` plans per step, default 6 — and the arm does not move until one is approved.
+
+The repair prompt says *change exactly one thing*, which is right the first time and a rut by the third: the probability drifts sideways (3% → 39% → 37%) while the same waypoint gets nudged. So once two repairs have failed, or the probability stops moving, the step is **re-proposed from scratch** with every rejection so far attached, so the model can see the pattern instead of editing its last answer again.
+
+Two things stop the loop early, both on purpose:
+
+- **A rewrite that cannot be scored is a rejection, not a free pass.** A from-scratch proposal can drop the eight-phase pick-and-place shape, which makes the verifier skip it — and a skipped plan used to execute unchecked. It now counts as a rejection with the required shape spelled out.
+- **A converged planner stops.** If Claude hands back a program the verifier has already refused, more turns cost tokens and change nothing. The run ends with `planner converged`, and nothing executes.
+
+That last case is worth watching for, because it is where this checkpoint's limit shows: on `blue block → red block` stacks the planner converges on a correct-looking program (grasp on the block centre, release at stack height) that the world model scores ~0.39 and refuses. The planner is not the problem there; the verifier is.
+
 One honest caveat: on scene-only draws the baseline fails for a physics reason, and the repair that fixes it can be incidental rather than targeted. The trace shows every attempt, so you can tell which is which.
 
 No checkpoint? Still works:

@@ -56,17 +56,20 @@ class Session:
     the next request.
     """
 
-    def __init__(self, checkpoint: Path, seed: int, model: str, repairs: int, threshold: float | None, verifier_mode: str):
+    def __init__(self, checkpoint: Path, seed: int, model: str, repairs: int, threshold: float | None,
+                 verifier_mode: str, persistence: int | None = None):
         self.seed, self.refused = seed, None
         self.chaos_saved, self.last_draw, self.pre_chaos_detections = None, None, {}
         self._jobs: queue.Queue = queue.Queue()
         self._display_frames: list = []
         threading.Thread(target=self._worker, daemon=True).start()
         RUNS.mkdir(parents=True, exist_ok=True)
-        self.call(lambda: self._build(checkpoint, seed, model, repairs, threshold, verifier_mode))
+        self.call(lambda: self._build(checkpoint, seed, model, repairs, threshold, verifier_mode,
+                                      persistence))
 
-    def _build(self, checkpoint, seed, model, repairs, threshold, verifier_mode):
-        self.agent = SkillAgent(checkpoint, seed, model, repairs, threshold, verifier_mode=verifier_mode)
+    def _build(self, checkpoint, seed, model, repairs, threshold, verifier_mode, persistence):
+        self.agent = SkillAgent(checkpoint, seed, model, repairs, threshold,
+                                verifier_mode=verifier_mode, persistence=persistence)
         self.display = mujoco.Renderer(self.agent.env.model, *DISPLAY)
         self.agent.env.on_frame = self._capture_display
         if self.agent.verifier is not None:
@@ -521,6 +524,10 @@ def main():
     ap.add_argument("--model", default=MODEL)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--repairs", type=int, default=2)
+    ap.add_argument("--persistence", type=int, default=6,
+                    help="how many plans the loop will try per step before giving up. The arm still "
+                         "never moves on a rejected plan; this only decides how long the planner "
+                         "keeps being asked for a better one")
     ap.add_argument("--threshold", type=float, help="override the checkpoint's calibrated threshold")
     ap.add_argument("--verifier", choices=("none", "rules", "world-model"), default="world-model")
     ap.add_argument("--no-verify", action="store_true", help="deprecated alias for --verifier none")
@@ -528,7 +535,8 @@ def main():
 
     mode = "none" if args.no_verify else args.verifier
     print(f"loading the simulator and {mode} verifier ...", flush=True)
-    Handler.session = Session(args.checkpoint, args.seed, args.model, args.repairs, args.threshold, mode)
+    Handler.session = Session(args.checkpoint, args.seed, args.model, args.repairs, args.threshold,
+                              mode, persistence=args.persistence)
     print(f"ready: http://127.0.0.1:{args.port}", flush=True)
     ThreadingHTTPServer(("127.0.0.1", args.port), Handler).serve_forever()
 
