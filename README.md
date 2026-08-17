@@ -1,192 +1,133 @@
 # Language-Conditioned Pick-and-Place with a Visual World-Model Verifier
 
-A UR5e arm does tabletop pick-and-place in MuJoCo. Claude writes the plan as a structured waypoint program. Before anything moves, a learned verifier encodes the scene with a frozen V-JEPA 2 trunk, rolls the proposed plan forward in latent space, and predicts what will happen — so a plan that would fail can be rejected and handed back to Claude for one targeted repair.
+This is a robot pick-and-place stack in MuJoCo. You give it a command in plain English. Claude turns that into a structured waypoint plan. Before the arm moves, a verifier imagines what the plan will do — will the block lift, will it land on the pad, what breaks — and sends the plan back for repair if it looks wrong. The browser demo runs world model vs baseline side by side on the same plan so you can see the difference.
 
-The research question is narrower than "build a world model":
+I built this to answer one question:
 
-> Does *imagining the plan visually* catch failures that a coordinate-only geometry rule misses?
+Before the robot moves, can you imagine the plan and catch the failure?
 
-Everything here is measured against that question, including the parts where the answer is no.
+A UR5e arm picks and places blocks in MuJoCo. Claude writes the plan. A learned verifier looks at the scene, rolls the plan forward in its head, and says yes or no. If it's no, Claude gets one repair and tries again. Only then does the arm move.
 
-## Architecture
+The harder question underneath: does actually looking at the scene beat a geometry rule that never sees a pixel? So far the honest answer is: verification helps a lot. Pure vision hasn't won yet.
 
-Same overall shape as [SC3-style verification](https://weichengtseng.github.io/sc3-eval/): propose, imagine, repair, execute. The world model stays at the skill-planning layer; it never sits in the low-level servo loop.
+## How it works
 
 ```mermaid
 flowchart TD
-    I["Natural-language command"] --> P["LLM planner (Claude CLI)"]
-    C["Camera: bounding_box + detect_in_base"] --> P
-    P --> T["Structured skill trace (waypoints)"]
-    T --> E["Frozen V-JEPA encodes 8-frame window"]
-    E --> R["Action-conditioned latent rollout (~4 s imagined)"]
-    R --> V["Outcome head: lifted, in_target, success, failure mode, uncertainty"]
-    V -->|rejected| P
-    V -->|approved| M["MuJoCo UR5e + Robotiq execution"]
+    I["You type a command"] --> P["Claude writes waypoints"]
+    C["Camera finds the block"] --> P
+    P --> E["V-JEPA encodes the scene"]
+    E --> R["World model imagines what happens"]
+    R --> V["Approve or reject"]
+    V -->|reject| P
+    V -->|approve| M["MuJoCo runs it"]
 ```
 
-At inference the planner only sees detections from the rendered camera — no privileged simulator state. Compound instructions decompose into atomic steps; the scene is observed again between steps.
+Three modes:
 
-### Three verifier modes
-
-| mode | what it checks |
+| mode | what happens |
 | --- | --- |
-| `none` | schema validation only — baseline, runs whatever the LLM proposed |
-| `rules` | deterministic geometry: grasp offset, pad distance, workspace, IK |
-| `world-model` | learned imagined future from V-JEPA latents + latent dynamics |
+| `none` | runs whatever Claude said — no check |
+| `rules` | geometry checks only, no image |
+| `world-model` | learned imagined future from the camera |
 
-The browser demo runs **world model vs baseline** side by side on the same Claude plan so the comparison is apples to apples.
+The browser demo puts world model and baseline side by side on the same plan.
 
-## Setup
-
-Python 3.11+, [uv](https://docs.astral.sh/uv/), and the Claude CLI logged in on the machine (the planner shells out to `claude -p`, no separate API key).
+## Try it (~2 min if deps are installed)
 
 ```bash
 git clone https://github.com/Trolleroof/skill-level-world-model.git
 cd skill-level-world-model
 uv sync
-```
-
-`models/` is gitignored. The world-model verifier needs `models/multiblock_world_model.pt` plus the frozen encoder at `models/vjepa2-vitl-fpc64-256/` (~1.3 GB — see [`docs/backbone_decision.md`](docs/backbone_decision.md)). Modes that skip the checkpoint:
-
-```bash
-uv run python -m waddle_wm.server --verifier none    # LLM only
-uv run python -m waddle_wm.server --verifier rules   # geometry rules
-```
-
-**Free sanity check — no checkpoint, no GPU, no Claude:**
-
-```bash
-uv run python -m waddle_wm.analyse_separation
-```
-
-Prints separation AUC, ranking AUC, and the pooled figure the docs tell you not to cite. `--out docs/verifier_separation.md` writes the report to a file.
-
-## Interactive demo
-
-```bash
 uv run python -m waddle_wm.server
 ```
 
-Open http://127.0.0.1:8420 — type an instruction, watch the left pane (world model) and right pane (baseline) run the same plan. The trace panel streams propose → imagined verdict → repair → execution as SSE events. Recorded episodes land in `results/agent/`.
+Open http://127.0.0.1:8420. Type something like `put the red block on the green pad`. Left pane = world model. Right pane = baseline. Same plan, different outcome.
 
-Headless version:
+No checkpoint? Still works:
+
+```bash
+uv run python -m waddle_wm.server --verifier rules
+```
+
+Headless:
 
 ```bash
 uv run python -m waddle_wm.agent --instruction "put the red block on the green pad"
 ```
 
-## The packaged benchmark demo
+## The demo that actually measures it
 
-One deliberately flawed opening plan, three verifier arms, identical scenes, real physics:
+One bad plan. Three arms. Same scene. Real physics.
 
 ```bash
-uv run python -m waddle_wm.demo                       # all three arms; needs a checkpoint
-uv run python -m waddle_wm.demo --arm none --arm rules  # no checkpoint needed
-uv run python -m waddle_wm.demo --sweep 8             # rate table over 8 scenes
+uv run python -m waddle_wm.demo
 ```
 
-About 40 s and ~$0.19 on Claude Opus 5. Traces and videos go to `results/demo/`. Replay without spending tokens:
+The `none` arm runs the flawed plan with zero verification. That's the point — you see what verification prevented, not just what you hope it prevented.
+
+Replay without calling Claude again:
 
 ```bash
 uv run python -m waddle_wm.demo --replay results/demo
 ```
 
-Build a standalone page from saved traces:
+### What happened (grasp aimed 6 cm past the block)
+
+| arm | result |
+| --- | --- |
+| none | failed — block barely moved, 0.51 m from the pad |
+| rules | caught it, repaired, landed 0.023 m from pad |
+| world-model | caught it (p=0.073), repaired, landed 0.023 m from pad |
+
+Over 8 scenes:
+
+| arm | success rate |
+| --- | --- |
+| none | 0/8 |
+| rules | 7/8 |
+| world-model | 6/8 |
+
+Both verifiers caught the bad plan every time. Geometry still wins on success rate. Full breakdown: [`docs/demo.md`](docs/demo.md).
+
+## What I learned
+
+Checking before you run is worth it. 0/8 without verification. 6–7/8 with it. The loop is real: camera → Claude → imagined outcome → repair → physics. No cheating with simulator state.
+
+The probability is good at saying "this plan is broken." Separation AUC is 1.000 on flawed vs plausible opening plans ([`docs/verifier_characterisation.md`](docs/verifier_characterisation.md)). It's not a confidence score. Don't treat it like one.
+
+Vision hasn't beaten coordinates on the main task. Rules beat the learned model on the demo (0.88 vs 0.75). That's the headline, and I'm not hiding it.
+
+Vision does win in one narrow setup — when block orientation actually matters and you build the corpus that way ([`docs/task_suite_world_model.md`](docs/task_suite_world_model.md)). Shows it's possible. Doesn't mean it wins everywhere.
+
+Still weak: grasp misses slip through, the model sometimes refuses good repairs, and imagined block positions can be ~20 cm off. Read the probability, not the coordinate.
+
+Free check, no GPU, no Claude:
 
 ```bash
-uv run python -m waddle_wm.build_experiment_page
-open results/demo/experiment.html
+uv run python -m waddle_wm.analyse_separation
 ```
 
-### Headline result (grasp miss — fingers aimed 6 cm past the block)
+## Train your own checkpoint (optional, ~afternoon)
 
-| verifier | opening verdict | MuJoCo outcome |
-| --- | --- | --- |
-| none | not verified | **failure** — block nudged, 0.51 m from pad |
-| rules | reject (grasp misses) → repair → approve | **success**, 0.023 m from pad |
-| world-model | reject p=0.073 → repair → approve p=0.947 | **success**, 0.023 m from pad |
-
-Over 8 scenes (`grasp_miss` and `place_miss`):
-
-| scenario | verifier | caught flawed plan | success rate |
-| --- | --- | --- | --- |
-| grasp_miss | none | 0/8 | 0.00 |
-| grasp_miss | rules | 8/8 | 0.88 |
-| grasp_miss | world-model | 8/8 | 0.75 |
-| place_miss | none | 0/8 | 0.00 |
-| place_miss | rules | 8/8 | 0.88 |
-| place_miss | world-model | 8/8 | 0.75 |
-
-The `none` arm executes the flawed plan unverified — that is what makes this a claim rather than an anecdote.
-
-## Evaluate
-
-**Verification is worth having.** Both verifiers catch the bad opening plan every time; unverified runs fail 0/8.
-
-**The learned verifier is a reliable defect gate.** Over 63 opening plans, scripted-flawed plans score p ∈ [0.013, 0.207] and model-authored plans p ∈ [0.441, 0.981] — separation AUC 1.000, no overlap ([`docs/verifier_characterisation.md`](docs/verifier_characterisation.md) §1). It is not a calibrated outcome predictor; read the probability as a gate, not a confidence score.
-
-**Vision has not beaten coordinates on the main line of work.** The geometry rule beats the learned model on the demo sweep (0.88 vs 0.75) and ties a plan-only control offline ([`docs/results.md`](docs/results.md) §3).
-
-**One place vision does win.** A yaw-aware verifier on a task suite where block heading is decisive beats a no-vision control by +0.217 AUC on the orientation slice ([`docs/task_suite_world_model.md`](docs/task_suite_world_model.md) §6). That corpus was built so heading matters; it shows vision *can* read what coordinates omit, not that orientation decides most real picks.
-
-Known weak axes: grasp-failure detection (`lifted` accuracy 0.720), false-reject rate 0.679 on held-out multi-block data, imagined block position ~0.2 m off (read the probability, never the coordinate).
-
-Full honest reading: [`docs/demo.md`](docs/demo.md) §4.
-
-## Train the world model (optional)
-
-`data/` and `models/` are gitignored. Regenerate from scratch:
+`models/` is gitignored. You need `models/multiblock_world_model.pt` for the full world-model path, plus the V-JEPA encoder (~1.3 GB, see [`docs/backbone_decision.md`](docs/backbone_decision.md)).
 
 ```bash
 uv run python -m waddle_wm.sim.generate_dataset --episodes 5000 --out data/ur5e_wm_wide
 uv run python -m waddle_wm.embed_windows --data data/ur5e_wm_wide
 uv run python -m waddle_wm.train_latent_dynamics --data data/ur5e_wm_wide --out models/latent_dynamics_wide.pt
-uv run python -m waddle_wm.report_metrics --data data/ur5e_wm_wide \
-    --checkpoint models/latent_dynamics_wide.pt --out results/latent_dynamics_wide.json
-```
-
-Multi-block checkpoint the live agent defaults to:
-
-```bash
 uv run python -m waddle_wm.train_multiblock_world_model \
     --data data/ur5e_wm_multiblock --out models/multiblock_world_model.pt
 ```
 
-Offline verifier sanity check (no Claude):
+## Read more
 
-```bash
-uv run python -m waddle_wm.test_verifier --multiblock 3
-uv run python -m waddle_wm.test_agent --live 30 --checkpoint models/multiblock_world_model.pt
-```
-
-## What works and what does not
-
-**Works**
-
-- End-to-end closed loop: camera → LLM → imagined future → repair → MuJoCo, no cheat-state in the decision path.
-- Pre-execution verification turns guaranteed failures into successes (0/8 unverified → 6–7/8 verified on the demo sweep).
-- Repairs are targeted — Claude changes the waypoint the verdict named, not random resampling.
-- Uncertainty rises on contested verdicts and drops on confident approvals.
-
-**Does not (yet)**
-
-- Vision beating geometry on the same scenes. Rules win the demo; the visual model is conservative and sometimes refuses good repairs.
-- Multi-object manipulation at scale — trained mainly on red-block-to-green-pad; other color pairs can false-approve.
-- Grasp misses — the outcome head underweights whether the fingers actually closed on the block.
-
-## Docs map
-
-| doc | contents |
+| doc | why open it |
 | --- | --- |
-| [`docs/project.md`](docs/project.md) | framing, baselines, open problems |
-| [`docs/verifier_characterisation.md`](docs/verifier_characterisation.md) | what the probability is good for (gate vs confidence) |
-| [`docs/llm_agent.md`](docs/llm_agent.md) | planner, perception primitives, repair loop |
-| [`docs/demo.md`](docs/demo.md) | reproducible demo + honest reading |
-| [`docs/results.md`](docs/results.md) | offline verifier metrics |
-| [`docs/task_suite_world_model.md`](docs/task_suite_world_model.md) | yaw-aware verifier on orientation-heavy corpus |
-| [`docs/program_schema.md`](docs/program_schema.md) | bounded program schema for candidate ranking |
-| [`waddle_wm/sim/README.md`](waddle_wm/sim/README.md) | MuJoCo env and dataset generation |
+| [`docs/demo.md`](docs/demo.md) | what the demo proves and what it doesn't |
+| [`docs/verifier_characterisation.md`](docs/verifier_characterisation.md) | what the probability actually means |
+| [`docs/llm_agent.md`](docs/llm_agent.md) | planner, camera, repair loop |
+| [`docs/results.md`](docs/results.md) | offline numbers |
+| [`docs/project.md`](docs/project.md) | the full research framing |
 
-## About
-
-MuJoCo UR5e pick-and-place environment, frozen V-JEPA 2 latents, and a small learned verifier wired into an LLM repair loop. Built to test whether imagining a skill trace before running it reduces real execution failures — and to measure exactly where that breaks down.
+Claude runs through the CLI on your machine (`claude -p`), not a separate API key.
