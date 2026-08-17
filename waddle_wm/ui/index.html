@@ -3,8 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Visual World Model</title>
-<meta name="description" content="No verifier vs. visual world model, side by side, on the same instruction." />
+<title>World Model Verifier</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
@@ -19,11 +18,14 @@
     --ink: #f4f4f5;
     --ink-muted: #a1a1aa;
     --ink-faint: #71717a;
+    --bad: #888888;
+    --good: #ffffff;
+    --fail: #ff5f56;
+    --fail-dim: #7a2422;
     --font-serif: 'Newsreader', Charter, Georgia, serif;
-    --font-mono: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace;
+    --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
     --radius: 4px;
   }
-
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body {
     height: 100%;
@@ -32,18 +34,9 @@
     font-family: var(--font-serif);
     font-size: 14.5px;
     line-height: 1.5;
-    -webkit-font-smoothing: antialiased;
     overflow: hidden;
   }
-
-  #app {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-    width: 100vw;
-  }
-
-  /* Header */
+  #app { display: flex; flex-direction: column; height: 100vh; }
   header {
     height: 48px;
     padding: 0 16px;
@@ -54,21 +47,8 @@
     justify-content: space-between;
     flex-shrink: 0;
   }
-
-  .paper-title {
-    font-family: var(--font-serif);
-    font-size: 16px;
-    font-weight: 500;
-    letter-spacing: -0.01em;
-    color: var(--ink);
-  }
-
-  .header-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
+  .paper-title { font-size: 16px; font-weight: 500; }
+  .header-actions { display: flex; align-items: center; gap: 8px; }
   .meta-tag {
     font-family: var(--font-mono);
     font-size: 11px;
@@ -78,8 +58,7 @@
     border: 1px solid var(--line);
     border-radius: var(--radius);
   }
-
-  button.btn-academic {
+  button.btn-academic, button.btn-submit {
     background: var(--panel-sub);
     color: var(--ink);
     border: 1px solid var(--line);
@@ -88,131 +67,99 @@
     font-family: var(--font-mono);
     font-size: 11.5px;
     cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    transition: all 0.15s ease;
   }
-
-  button.btn-academic:hover:not(:disabled) {
-    background: #1a1a1a;
-    border-color: var(--line-focus);
-    color: #ffffff;
+  button.btn-submit {
+    background: #ffffff;
+    color: #000000;
+    border: none;
+    padding: 8px 18px;
+    font-weight: 500;
   }
-
-  button:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-  }
-
-  /* Main Layout: two arms, side by side */
+  button:disabled { opacity: 0.35; cursor: not-allowed; }
   main {
     flex: 1;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1.25fr 0.75fr;
     gap: 12px;
-    padding: 12px 12px 0;
+    padding: 12px;
     min-height: 0;
   }
-
-  .figure-panel {
+  .figure-panel, .trace-panel {
     background: var(--panel);
-    border: 1px solid var(--line);
     border-radius: var(--radius);
     display: flex;
     flex-direction: column;
     min-height: 0;
-    min-width: 0;
     overflow: hidden;
   }
-
-  .figure-panel.none-arm { border-color: #3a2020; }
-  .figure-panel.wm-arm { border-color: #1d3b56; }
-
+  .trace-panel { border: 1px solid var(--line); }
   .panel-caption {
     padding: 8px 14px;
     border-bottom: 1px solid var(--line-subtle);
     display: flex;
     align-items: center;
     gap: 8px;
-    flex-shrink: 0;
     font-family: var(--font-mono);
     font-size: 11.5px;
     color: var(--ink-muted);
   }
-
-  .caption-title {
-    font-weight: 500;
-    color: var(--ink);
-    font-family: var(--font-serif);
-    font-size: 14px;
-  }
-
+  .caption-title { font-family: var(--font-serif); font-size: 14px; color: var(--ink); font-weight: 500; }
   .status-tag {
+    margin-left: auto;
     font-family: var(--font-mono);
     font-size: 10px;
     padding: 2px 6px;
+    border: 1px solid var(--line);
     border-radius: var(--radius);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    border: 1px solid var(--line);
-    background: var(--panel-sub);
     color: var(--ink-muted);
   }
-
-  .status-tag.approved { background: #ffffff; color: #000000; border-color: #ffffff; font-weight: 600; }
-  .status-tag.rejected { background: #181818; color: #ffffff; border-color: #444444; }
-
-  .panel-caption .status-tag { margin-left: auto; }
-
-  .model-toggle {
-    display: inline-flex;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    overflow: hidden;
-  }
-
-  .model-toggle button {
-    background: var(--panel-sub);
+  .panel-subtitle {
+    padding: 0 14px 8px;
+    font-size: 12.5px;
     color: var(--ink-muted);
+  }
+  .panel-subtitle.flawed { color: var(--fail); }
+  .tab-row {
+    display: flex;
+    gap: 0;
+    border-top: 1px solid var(--line-subtle);
+    border-bottom: 1px solid var(--line-subtle);
+  }
+  button.tab {
+    flex: 1;
+    background: transparent;
+    color: var(--ink-faint);
     border: none;
-    padding: 4px 10px;
+    border-bottom: 2px solid transparent;
+    padding: 7px 10px;
     font-family: var(--font-mono);
-    font-size: 11.5px;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
     cursor: pointer;
   }
-
-  .model-toggle button + button { border-left: 1px solid var(--line); }
-  .model-toggle button.on { background: #ffffff; color: #000000; font-weight: 600; }
-
+  button.tab:disabled { opacity: 0.3; cursor: default; }
+  button.tab.active { color: var(--ink); }
+  button.tab[data-tab="before"].active { color: var(--fail); border-bottom-color: var(--fail); }
+  button.tab[data-tab="after"].active { border-bottom-color: var(--good); }
+  button.tab .dot { font-size: 9px; vertical-align: 1px; }
   .viewport-area {
-    flex: 1.1;
+    flex: 1;
+    position: relative;
+    background: #000;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #000000;
-    position: relative;
-    overflow: hidden;
     min-height: 0;
   }
-
-  .viewport-area video {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    display: none;
-  }
-
-  .viewport-area video.active {
-    display: block;
-  }
-
+  .viewport-area video { width: 100%; height: 100%; object-fit: contain; display: none; }
+  .viewport-area video.active { display: block; }
   .viewport-placeholder {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    height: 100%;
     gap: 10px;
     color: var(--ink-faint);
     font-family: var(--font-mono);
@@ -220,499 +167,433 @@
     letter-spacing: 0.05em;
     text-transform: uppercase;
   }
-
   .spinner {
-    width: 24px;
-    height: 24px;
+    width: 24px; height: 24px;
     border: 2px solid var(--line);
-    border-top-color: #ffffff;
+    border-top-color: #fff;
     border-radius: 50%;
     animation: spin 0.75s linear infinite;
   }
-
   @keyframes spin { to { transform: rotate(360deg); } }
-
   .outcome-stamp {
     position: absolute;
     bottom: 14px;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 5;
     font-family: var(--font-mono);
-    font-size: 11.5px;
-    font-weight: 500;
-    letter-spacing: 0.05em;
+    font-size: 12px;
+    font-weight: 600;
     padding: 6px 14px;
     border-radius: var(--radius);
+    border: 1px solid;
+    background: #000;
     display: none;
     white-space: nowrap;
-    border: 1px solid;
-    background: #000000;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.8);
   }
-
   .outcome-stamp.active { display: block; }
-  .outcome-stamp.success { border-color: #ffffff; color: #ffffff; }
-  .outcome-stamp.failure { border-color: #555555; color: #888888; }
-
-  /* Telemetry Table */
+  .outcome-stamp.success { border-color: var(--good); color: var(--good); }
+  .outcome-stamp.failure { border-color: #555; color: var(--bad); }
   .telemetry-table {
     padding: 6px 14px;
-    background: var(--panel);
     border-top: 1px solid var(--line-subtle);
     display: flex;
-    align-items: center;
     justify-content: space-around;
-    flex-shrink: 0;
     font-family: var(--font-mono);
     font-size: 11px;
     color: var(--ink-muted);
   }
-
-  .telemetry-col {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1px;
-  }
-
-  .telemetry-heading {
-    font-size: 9px;
-    color: var(--ink-faint);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .telemetry-value {
-    font-weight: 500;
-    color: var(--ink);
-  }
-
-  /* Per-arm trace rail */
-  .rail {
+  .telemetry-col { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+  .telemetry-heading { font-size: 9px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.05em; }
+  .telemetry-value { color: var(--ink); font-weight: 500; }
+  .trace-stream {
     flex: 1;
-    min-height: 0;
     overflow-y: auto;
-    padding: 10px 14px;
+    padding: 12px 14px;
     display: flex;
     flex-direction: column;
-    gap: 7px;
-    border-top: 1px solid var(--line-subtle);
-    scroll-behavior: smooth;
+    gap: 8px;
   }
-
   .step { border-left: 2px solid var(--line); padding-left: 9px; font-size: 12.5px; }
-  .step.no { border-left-color: #888888; }
-  .step.ok { border-left-color: #ffffff; }
-  .step.warn { border-left-color: #666666; }
+  .step.no { border-left-color: #666; }
+  .step.ok { border-left-color: #fff; }
+  .step.warn { border-left-color: #888; }
   .step .k { font-family: var(--font-mono); font-size: 10px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
-  .step .v { color: var(--ink); }
+  /* The injected flaw is the one thing in the trace that is deliberately wrong. It reads red so a
+     viewer can tell at a glance which lines are the harness sabotaging the plan, and which are the
+     verifier reacting to it. */
+  .step.bad { border-left-color: var(--fail); }
+  .step.bad .k { color: var(--fail); }
+  .step.bad .v { color: #ffdad7; }
   .step .v b { font-family: var(--font-mono); font-weight: 600; }
-  .step .n { color: var(--ink-muted); font-family: var(--font-mono); font-size: 11px; margin-top: 1px; }
-
-  /* Form Footer */
-  .prompt-area {
-    padding: 10px 12px 12px;
+  .step .n { color: var(--ink-muted); font-family: var(--font-mono); font-size: 11px; margin-top: 2px; }
+  .compare-card {
+    border: 1px solid #3a2020;
+    background: #0c0808;
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    font-size: 12.5px;
+  }
+  .compare-card .k { font-family: var(--font-mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: #aa6666; }
+  .compare-card .v { margin-top: 4px; color: var(--ink); }
+  .compare-card .n { margin-top: 4px; color: var(--ink-muted); font-family: var(--font-mono); font-size: 11px; }
+  footer {
+    padding: 8px 12px 12px;
     display: flex;
-    gap: 6px;
+    align-items: center;
+    gap: 10px;
     flex-shrink: 0;
   }
-
-  .prompt-input {
+  .demo-desc { font-size: 12.5px; color: var(--ink-muted); }
+  .demo-desc b { color: var(--ink); font-weight: 500; }
+  .prompt-row { display: flex; gap: 10px; align-items: center; }
+  input.instruction {
     flex: 1;
-    background: #000000;
+    background: var(--panel-sub);
+    color: var(--ink);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    padding: 8px 12px;
-    color: var(--ink);
-    font-family: var(--font-serif);
-    font-size: 14px;
-    transition: border-color 0.15s ease;
-  }
-
-  .prompt-input:focus {
-    outline: none;
-    border-color: var(--line-focus);
-  }
-
-  button.btn-submit {
-    background: #ffffff;
-    color: #000000;
-    border: none;
-    border-radius: var(--radius);
-    padding: 0 16px;
+    padding: 9px 12px;
     font-family: var(--font-mono);
-    font-size: 11.5px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 0.15s ease;
+    font-size: 12.5px;
   }
-
-  button.btn-submit:hover:not(:disabled) {
-    background: #e4e4e7;
-  }
-
-  .prompt-user {
-    padding: 0 12px 8px;
-    font-family: var(--font-serif);
-    font-size: 13px;
-    color: var(--ink-muted);
-  }
-  .prompt-user b { color: var(--ink); font-weight: 500; }
+  input.instruction:focus { outline: none; border-color: var(--line-focus); }
+  input.instruction::placeholder { color: var(--ink-faint); }
+  footer { flex-direction: column; align-items: stretch; gap: 8px; }
+  .prompt-row .btn-submit { white-space: nowrap; }
 </style>
 </head>
 <body>
 <div id="app">
   <header>
-    <div class="paper-title">Visual World Model</div>
+    <div class="paper-title">World Model Verifier</div>
     <div class="header-actions">
       <span class="meta-tag" id="seedDisplay">seed 0</span>
-      <div class="model-toggle" id="modelToggle">
-        <button type="button" data-model="claude-opus-5" title="Full-size planner">Opus 5</button>
-        <button type="button" data-model="claude-haiku-4-5-20251001" title="Small, cheap planner">Haiku 4.5</button>
-      </div>
-      <button type="button" class="btn-academic" id="resetBtn" title="Reset simulator state">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
-        Reset
-      </button>
+      <button type="button" class="btn-academic" id="resetBtn">Reset</button>
     </div>
   </header>
 
   <main>
-    <section class="figure-panel none-arm" id="panelNone">
+    <section class="figure-panel">
       <div class="panel-caption">
-        <span class="caption-title">No verifier</span>
-        <span class="status-tag" id="viewportStatusNone">Ready</span>
+        <span class="caption-title">MuJoCo execution</span>
+        <span class="status-tag" id="viewportStatus">Ready</span>
       </div>
-      <div class="viewport-area" id="viewportBoxNone">
-        <video id="simVideoNone" muted playsinline loop></video>
-        <div class="viewport-placeholder" id="viewportPlaceholderNone">
-          <div class="spinner" id="loadingSpinnerNone" style="display:none;"></div>
-          <span id="placeholderTextNone">Same instruction, run unchecked</span>
+      <div class="panel-subtitle" id="scenarioLine">Type a task; a random flaw is injected, run unchecked, then verified and repaired</div>
+      <div class="tab-row">
+        <button type="button" class="tab" id="tabBefore" data-tab="before" disabled>Before · unverified</button>
+        <button type="button" class="tab" id="tabAfter" data-tab="after" disabled>After · verified, fresh scene</button>
+      </div>
+      <div class="viewport-area">
+        <video id="simVideo" muted playsinline loop></video>
+        <div class="viewport-placeholder" id="viewportPlaceholder">
+          <div class="spinner" id="loadingSpinner" style="display:none"></div>
+          <span id="placeholderText">Type a task and press Run</span>
         </div>
-        <div class="outcome-stamp" id="outcomeStampNone"></div>
+        <div class="outcome-stamp" id="outcomeStamp"></div>
       </div>
       <div class="telemetry-table">
-        <div class="telemetry-col">
-          <span class="telemetry-heading">Target Error</span>
-          <span class="telemetry-value" id="telDistNone">—</span>
-        </div>
-        <div class="telemetry-col">
-          <span class="telemetry-heading">Max Lift</span>
-          <span class="telemetry-value" id="telLiftNone">—</span>
-        </div>
-        <div class="telemetry-col">
-          <span class="telemetry-heading">Outcome</span>
-          <span class="telemetry-value" id="telDecisionNone">—</span>
-        </div>
-        <div class="telemetry-col">
-          <span class="telemetry-heading">Cost</span>
-          <span class="telemetry-value" id="telCostNone">—</span>
-        </div>
+        <div class="telemetry-col"><span class="telemetry-heading">Target error</span><span class="telemetry-value" id="telDist">—</span></div>
+        <div class="telemetry-col"><span class="telemetry-heading">Max lift</span><span class="telemetry-value" id="telLift">—</span></div>
+        <div class="telemetry-col"><span class="telemetry-heading">Outcome</span><span class="telemetry-value" id="telDecision">—</span></div>
+        <div class="telemetry-col"><span class="telemetry-heading">Cost</span><span class="telemetry-value" id="telCost">—</span></div>
       </div>
-      <div class="rail" id="railNone"></div>
     </section>
 
-    <section class="figure-panel wm-arm" id="panelWm">
+    <section class="trace-panel">
       <div class="panel-caption">
-        <span class="caption-title">World model</span>
-        <span class="status-tag" id="viewportStatusWm">Ready</span>
+        <span class="caption-title">Verification trace</span>
       </div>
-      <div class="viewport-area" id="viewportBoxWm">
-        <video id="simVideoWm" muted playsinline loop></video>
-        <div class="viewport-placeholder" id="viewportPlaceholderWm">
-          <div class="spinner" id="loadingSpinnerWm" style="display:none;"></div>
-          <span id="placeholderTextWm">Same instruction, imagined first</span>
-        </div>
-        <div class="outcome-stamp" id="outcomeStampWm"></div>
-      </div>
-      <div class="telemetry-table">
-        <div class="telemetry-col">
-          <span class="telemetry-heading">Target Error</span>
-          <span class="telemetry-value" id="telDistWm">—</span>
-        </div>
-        <div class="telemetry-col">
-          <span class="telemetry-heading">Max Lift</span>
-          <span class="telemetry-value" id="telLiftWm">—</span>
-        </div>
-        <div class="telemetry-col">
-          <span class="telemetry-heading">Outcome</span>
-          <span class="telemetry-value" id="telDecisionWm">—</span>
-        </div>
-        <div class="telemetry-col">
-          <span class="telemetry-heading">Cost</span>
-          <span class="telemetry-value" id="telCostWm">—</span>
-        </div>
-      </div>
-      <div class="rail" id="railWm"></div>
+      <div class="trace-stream" id="traceStream"></div>
     </section>
   </main>
 
-  <div class="prompt-user" id="lastInstruction"></div>
-  <form class="prompt-area" id="promptForm">
-    <input type="text" id="promptInput" class="prompt-input" placeholder="Enter instruction — runs on both arms, same scene..." autocomplete="off" />
-    <button type="submit" id="sendBtn" class="btn-submit">Compare</button>
-  </form>
+  <footer>
+    <div class="prompt-row">
+      <input type="text" class="instruction" id="instructionInput" autocomplete="off"
+             placeholder="pick up the red block and put it on the green pad" />
+      <button type="button" class="btn-submit" id="runBtn">Run</button>
+    </div>
+    <div class="demo-desc" id="demoDesc">
+            Prompt the LLM agent with the task. By design, the harness will inject a perception, plan, or scene error on purpose and runs it unchecked first. The world model can then image the same plan, reject it, repair it, and execute till success.
+    </div>
+  </footer>
 </div>
 
 <script>
 const $ = id => document.getElementById(id);
+const trace = $("traceStream");
+const video = $("simVideo");
+const placeholder = $("viewportPlaceholder");
+const placeholderText = $("placeholderText");
+const spinner = $("loadingSpinner");
+const outcomeStamp = $("outcomeStamp");
 
 let isBusy = false;
-let plannerModel = "claude-opus-5";
 
-function setModelUI(model) {
-  plannerModel = model;
-  document.querySelectorAll("#modelToggle button").forEach(btn =>
-    btn.classList.toggle("on", btn.dataset.model === model));
+function bearing(xy) {
+  if (!Array.isArray(xy) || (!xy[0] && !xy[1])) return "";
+  const deg = (Math.round(Math.atan2(Number(xy[1]), Number(xy[0])) * 180 / Math.PI) + 360) % 360;
+  return `at ${deg}\u00b0`;
 }
 
-document.querySelectorAll("#modelToggle button").forEach(btn => {
-  btn.addEventListener("click", async () => {
-    if (isBusy || btn.dataset.model === plannerModel) return;
-    const previous = plannerModel;
-    setModelUI(btn.dataset.model);
-    try {
-      await fetch("/api/model", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: btn.dataset.model })
-      });
-    } catch (err) {
-      console.error("Model switch failed:", err);
-      setModelUI(previous);
-    }
-  });
-});
-
-/** DOM handles for one arm's panel, plus its own outcome/telemetry state. */
-function sideEls(suffix) {
-  return {
-    video: $("simVideo" + suffix),
-    placeholder: $("viewportPlaceholder" + suffix),
-    placeholderText: $("placeholderText" + suffix),
-    spinner: $("loadingSpinner" + suffix),
-    outcome: $("outcomeStamp" + suffix),
-    status: $("viewportStatus" + suffix),
-    rail: $("rail" + suffix),
-    telDist: $("telDist" + suffix),
-    telLift: $("telLift" + suffix),
-    telDecision: $("telDecision" + suffix),
-    telCost: $("telCost" + suffix),
-  };
-}
-
-const SIDES = { none: sideEls("None"), "world-model": sideEls("Wm") };
-
-function appendStep(els, cls, key, value, note) {
+function appendStep(cls, key, value, note) {
   const div = document.createElement("div");
   div.className = "step " + cls;
-  div.innerHTML = `<div class="k">${key}</div><div class="v">${value}</div>` +
-                   (note ? `<div class="n">${note}</div>` : "");
-  els.rail.appendChild(div);
-  els.rail.scrollTop = els.rail.scrollHeight;
+  div.innerHTML = `<div class="k">${key}</div><div class="v">${value}</div>` + (note ? `<div class="n">${note}</div>` : "");
+  trace.appendChild(div);
+  trace.scrollTop = trace.scrollHeight;
 }
 
-function setSimLoading(els, text) {
-  els.video.classList.remove("active");
-  els.placeholder.style.display = "flex";
-  els.spinner.style.display = "block";
-  els.placeholderText.textContent = text;
-  els.status.textContent = "Processing";
+function appendCompareCard(d) {
+  const dist = d.target_distance != null ? `${(Number(d.target_distance) * 1000).toFixed(0)} mm from pad` : "missed target";
+  const lift = d.max_block_z != null ? `${(Number(d.max_block_z) * 100).toFixed(1)} cm max lift` : "";
+  const card = document.createElement("div");
+  card.className = "compare-card";
+  card.innerHTML = `<div class="k">Without verification · same flawed plan</div>
+    <div class="v">Failure (${d.failure_mode || "missed"}) · ${dist}</div>
+    <div class="n">${lift} — this is what the world model prevents</div>`;
+  trace.appendChild(card);
+  trace.scrollTop = trace.scrollHeight;
 }
 
-function showSimVideo(els, src) {
+function setLoading(text) {
+  video.classList.remove("active");
+  placeholder.style.display = "flex";
+  spinner.style.display = "block";
+  placeholderText.textContent = text;
+  $("viewportStatus").textContent = "Processing";
+}
+
+function showVideo(src) {
   if (!src) return;
-  els.spinner.style.display = "none";
-  els.placeholder.style.display = "none";
-  els.video.src = `${src}${src.includes("?") ? "&" : "?"}t=${Date.now()}`;
-  els.video.classList.add("active");
-  els.video.play().catch(() => {});
-  els.status.textContent = "Playback";
+  spinner.style.display = "none";
+  placeholder.style.display = "none";
+  video.src = `${src}${src.includes("?") ? "&" : "?"}t=${Date.now()}`;
+  video.classList.add("active");
+  video.play().catch(() => {});
+  $("viewportStatus").textContent = "Playback";
 }
 
-function setOutcome(els, isSuccess, failureMode, targetDistance) {
-  els.outcome.className = "outcome-stamp active " + (isSuccess ? "success" : "failure");
-  const distText = targetDistance != null ? `${(Number(targetDistance) * 1000).toFixed(1)} mm` : "";
-  if (isSuccess) {
-    els.outcome.textContent = `SUCCESS · ${distText}`;
-    els.telDecision.textContent = "Success";
-    els.telDecision.style.color = "#ffffff";
+// Two clips per run: the unchecked baseline, and whatever the verified arm ended up doing. Each
+// carries its own stamp and telemetry, so switching tabs shows that run's numbers rather than
+// leaving the last-written values on screen.
+const clips = { before: null, after: null };
+const outcomes = { before: null, after: null };
+let activeTab = null;
+
+function tabButton(name) { return $(name === "before" ? "tabBefore" : "tabAfter"); }
+
+function setClip(name, src, outcome) {
+  clips[name] = src || clips[name];
+  outcomes[name] = outcome;
+  const button = tabButton(name);
+  button.disabled = false;
+  if (name === "before") button.innerHTML = 'Before · unverified <span class="dot">\u25cf</span>';
+  showTab(name);
+}
+
+function showTab(name) {
+  if (!clips[name] && !outcomes[name]) return;
+  activeTab = name;
+  for (const other of ["before", "after"]) tabButton(other).classList.toggle("active", other === name);
+  if (clips[name]) showVideo(clips[name]);
+  renderOutcome(outcomes[name]);
+}
+
+function renderOutcome(o) {
+  if (!o) return;
+  if (o.kind === "refused") {
+    outcomeStamp.className = "outcome-stamp active failure";
+    outcomeStamp.textContent = "NOT EXECUTED · verifier refused the plan";
+    $("telDecision").textContent = "Refused";
+    $("telDecision").style.color = "#888";
   } else {
-    els.outcome.textContent = `FAILURE (${failureMode || "MISSED"}) · ${distText}`;
-    els.telDecision.textContent = "Failure";
-    els.telDecision.style.color = "#888888";
+    const ok = o.kind === "success";
+    const dist = o.target_distance != null ? `${(Number(o.target_distance) * 1000).toFixed(1)} mm` : "";
+    outcomeStamp.className = "outcome-stamp active " + (ok ? "success" : "failure");
+    outcomeStamp.textContent = ok ? `SUCCESS \u00b7 ${dist}` : `FAILURE (${o.failure_mode || "missed"}) \u00b7 ${dist}`;
+    $("telDecision").textContent = ok ? "Success" : "Failure";
+    $("telDecision").style.color = ok ? "#fff" : "#888";
+    $("telDist").textContent = dist || "—";
   }
-  if (targetDistance != null) els.telDist.textContent = distText || "—";
+  $("telLift").textContent = o.max_block_z != null ? `${(Number(o.max_block_z) * 100).toFixed(1)} cm` : "—";
+  $("telCost").textContent = o.cost_usd != null ? `$${Number(o.cost_usd).toFixed(3)}` : "—";
 }
 
-function clearOutcome(els) {
-  els.outcome.className = "outcome-stamp";
-  els.outcome.textContent = "";
-  els.telDist.textContent = "—";
-  els.telLift.textContent = "—";
-  els.telDecision.textContent = "—";
-  els.telCost.textContent = "—";
-  els.rail.innerHTML = "";
+function outcomeOf(execution, decision, cost) {
+  const ex = execution || {};
+  if (decision === "rejected") return { kind: "refused", cost_usd: cost };
+  const last = Array.isArray(ex.steps) ? ex.steps.at(-1) || {} : ex;
+  const ok = ex.success === true || (Array.isArray(ex.steps) && ex.steps.length && ex.steps.every(s => s.success));
+  return { kind: ok ? "success" : "failure", failure_mode: last.failure_mode,
+           target_distance: last.target_distance, max_block_z: last.max_block_z, cost_usd: cost };
 }
 
-/** One event-handler set per arm, closed over that arm's DOM. */
-function makeHandlers(els) {
-  return {
-    observed(d) {
-      const objects = d.detections ? d.detections.map(x => x.label).join(', ') : '';
-      if (!objects) return;
-      appendStep(els, "", "perception", "objects detected", `Detected: ${objects}`);
-    },
-    plan(d) {
-      if (d.action === "abstain") return;
-      const isRepair = d.kind === "repair";
-      const label = isRepair ? `repair (turn ${Number(d.round || 0) + 1})` : "proposed plan";
-      appendStep(els, isRepair ? "warn" : "", label, `<i>${d.intent || "—"}</i>`, d.note || "");
-      if (isRepair) els.placeholderText.textContent = "Verifying repaired trajectory...";
-    },
-    step(d) {
-      appendStep(els, "", `step ${d.index} of ${d.total}`, `Moving ${d.object} → ${d.destination}`);
-    },
-    verdict(d) {
-      const isApproved = d.approved === true;
-      const pSuccess = Math.round(Number(d.imagined_success_probability || 0) * 100);
-      if (!isApproved) {
-        const diag = d.likely_failure || "predicted trajectory failure";
-        const suggestion = d.verifier_suggestion ? ` — ${d.verifier_suggestion}` : "";
-        els.placeholderText.textContent = `Predicted miss (${pSuccess}%) · ${diag} · repairing...`;
-        els.status.textContent = "Plan Rejected";
-        appendStep(els, "no", "verdict · rejected", `p(success) <b>${pSuccess}%</b>`, diag + suggestion);
-      } else {
-        els.placeholderText.textContent = `Plan approved (${pSuccess}%) · simulating physics...`;
-        appendStep(els, "ok", "verdict · approved", `p(success) <b>${pSuccess}%</b>`);
-      }
-    },
-    executing(d) {
-      els.status.textContent = "Executing";
-      els.placeholderText.textContent = "Executing physical rollout...";
-    },
-    retrying(d) {
-      appendStep(els, "warn", "retry", "re-centering grasp", "re-perceived nudged block and retrying");
-    },
-    executed(d) {
-      if (d.max_block_z != null) els.telLift.textContent = `${(Number(d.max_block_z) * 100).toFixed(1)} cm`;
-      if (d.target_distance != null) els.telDist.textContent = `${(Number(d.target_distance) * 1000).toFixed(1)} mm`;
-    },
-    "arm-done"(d) {
-      if (d.video) showSimVideo(els, d.video);
-      const execution = d.execution || {};
-      const isSuccess = execution.success === true || (Array.isArray(execution.steps) && execution.steps.every(s => s.success));
-      const lastStep = Array.isArray(execution.steps) ? execution.steps.at(-1) : execution;
-      setOutcome(els, isSuccess, lastStep?.failure_mode, lastStep?.target_distance);
-      if (d.cost_usd != null) els.telCost.textContent = `$${Number(d.cost_usd).toFixed(3)}`;
-    },
-    done(d) {
-      if (d.video) showSimVideo(els, d.video);
-      els.status.textContent = "Idle";
-      if (d.cost_usd != null) els.telCost.textContent = `$${Number(d.cost_usd).toFixed(3)}`;
-    },
-    error(d) {
-      appendStep(els, "no", "error", d.reason || "unknown execution error");
-    },
-  };
+function clearRun() {
+  trace.innerHTML = "";
+  clips.before = clips.after = null;
+  outcomes.before = outcomes.after = null;
+  activeTab = null;
+  for (const name of ["before", "after"]) {
+    const button = tabButton(name);
+    button.disabled = true;
+    button.classList.remove("active");
+  }
+  $("tabBefore").textContent = "Before · unverified";
+  $("scenarioLine").classList.remove("flawed");
+  outcomeStamp.className = "outcome-stamp";
+  outcomeStamp.textContent = "";
+  $("telDist").textContent = "—";
+  $("telLift").textContent = "—";
+  $("telDecision").textContent = "—";
+  $("telCost").textContent = "—";
 }
 
-const HANDLERS = { none: makeHandlers(SIDES.none), "world-model": makeHandlers(SIDES["world-model"]) };
+const HANDLERS = {
+  scenario(d) {
+    const bits = [];
+    if (d.grasp_offset_cm) bits.push(`grasp off by ${d.grasp_offset_cm} cm ${bearing(d.grasp_offset)}`);
+    if (d.place_offset_cm) bits.push(`release off by ${d.place_offset_cm} cm ${bearing(d.place_offset)}`);
+    if (d.scene_kind) bits.push(`scene: ${d.scene_kind.replace(/_/g, " ")}`);
+    if (d.compound) bits.push(`warped step ${Number(d.target_step_index) + 1}`);
+    $("scenarioLine").textContent = d.flaw || "";
+    $("scenarioLine").classList.add("flawed");
+    appendStep("bad", `sampled flaw · ${d.flaw_kind || "?"}`, d.instruction || "", d.flaw || "");
+    if (bits.length) appendStep("bad", "injected error", bits.join(" · "),
+      d.attempts > 1 ? `${d.attempts} draws — earlier ones survived the unchecked run` : "");
+  },
+  plan(d) {
+    // "given" is the harness handing an arm the flawed plan; only "repair" is Claude's fix. Getting
+    // this wrong would caption the injected flaw as a repair.
+    const flawed = d.flawed === true || d.kind === "given";
+    const label = flawed ? "flawed opening plan"
+                : d.kind === "repair" ? "repaired plan"
+                : d.kind === "retry" ? "same plan, retried" : "plan";
+    appendStep(flawed ? "bad" : "warn", label, `<i>${d.intent || "—"}</i>`, d.note || "");
+  },
+  phase(d) {
+    setLoading(d.label || "Working...");
+  },
+  confirm(d) {
+    // Proof the repaired plan solves the task, not just the wreckage the failed one left behind.
+    const ok = (d.execution || {}).success === true || d.decision === "executed" && d.success !== false;
+    appendStep(ok ? "ok" : "no", "fresh scene · same seed",
+      ok ? "Repaired plan re-run from the identical starting scene — task completed"
+         : `Re-run on the fresh scene ${d.decision === "executed" ? "missed" : d.decision}`,
+      `seed ${d.seed} · block at (${(d.block_xy || []).join(", ")}) · nothing carried over from the failed run`);
+  },
+  baseline(d) {
+    appendCompareCard(d);
+    // The unchecked run is on screen first, so the failure is watched rather than described.
+    setClip("before", d.video, outcomeOf(d.execution, d.decision));
+  },
+  step(d) {
+    appendStep("", `step ${d.index} of ${d.total}`, `Moving ${d.object} → ${d.destination}`);
+  },
+  verdict(d) {
+    const p = Math.round(Number(d.imagined_success_probability || 0) * 100);
+    if (d.approved) {
+      appendStep("ok", "verdict · approved", `p(success) <b>${p}%</b>`, "plan cleared for execution");
+      placeholderText.textContent = `Approved (${p}%) · running in MuJoCo...`;
+    } else {
+      appendStep("no", "verdict · rejected", `p(success) <b>${p}%</b>`, (d.likely_failure || "") + (d.verifier_suggestion ? ` — ${d.verifier_suggestion}` : ""));
+      placeholderText.textContent = `Rejected (${p}%) · repairing...`;
+    }
+  },
+  executing() {
+    placeholderText.textContent = "Executing physical rollout...";
+  },
+  executed(d) {
+    if (d.max_block_z != null) $("telLift").textContent = `${(Number(d.max_block_z) * 100).toFixed(1)} cm`;
+    if (d.target_distance != null) $("telDist").textContent = `${(Number(d.target_distance) * 1000).toFixed(1)} mm`;
+  },
+  "arm-done"(d) {
+    // The verified run has landed: switch to it automatically. The failure stays one click away.
+    if (d.decision === "rejected") appendStep("no", "refused", "the arm never moved", d.reason || "");
+    setClip("after", d.video, outcomeOf(d.execution, d.decision, d.cost_usd));
+  },
+  done(d) {
+    if (d.video && !clips.after) setClip("after", d.video, outcomes.after);
+    $("viewportStatus").textContent = "Idle";
+  },
+  error(d) {
+    appendStep("no", "error", d.reason || "unknown error");
+  },
+};
 
-/** Set the live verifier mode, then stream one instruction through it into `els`. */
-async function runArm(mode, instruction) {
-  const els = SIDES[mode];
-  const handlers = HANDLERS[mode];
-  clearOutcome(els);
-  setSimLoading(els, mode === "none" ? "Running unchecked..." : "Imagining the outcome...");
-
-  await fetch("/api/verifier", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mode }),
-  });
-
-  const res = await fetch("/api/command", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ instruction }),
-  });
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let cut;
-    while ((cut = buffer.indexOf("\n\n")) >= 0) {
-      const line = buffer.slice(0, cut).replace(/^data: /, "");
-      buffer = buffer.slice(cut + 2);
-      if (!line) continue;
-      try {
-        const payload = JSON.parse(line);
-        const fn = handlers[payload.event];
-        if (fn) fn(payload);
-      } catch (err) {
-        console.error("Malformed SSE line:", line, err);
+async function runExperiment() {
+  if (isBusy) return;
+  isBusy = true;
+  $("runBtn").disabled = true;
+  clearRun();
+  const input = $("instructionInput");
+  const instruction = input.value.trim() || input.placeholder;
+  setLoading("Sampling flaw...");
+  try {
+    const res = await fetch("/api/experiment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ instruction }),
+    });
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let cut;
+      while ((cut = buffer.indexOf("\n\n")) >= 0) {
+        const line = buffer.slice(0, cut).replace(/^data: /, "");
+        buffer = buffer.slice(cut + 2);
+        if (!line) continue;
+        try {
+          const payload = JSON.parse(line);
+          const fn = HANDLERS[payload.event];
+          if (fn) fn(payload);
+        } catch (err) {
+          console.error("SSE parse error:", line, err);
+        }
       }
     }
-  }
-}
-
-async function sendInstruction(instruction) {
-  if (isBusy || !instruction) return;
-  isBusy = true;
-  $("sendBtn").disabled = true;
-  $("lastInstruction").innerHTML = `Running: <b>${instruction}</b>`;
-  try {
-    // Same scene both times: each /api/command resets to the same block layout,
-    // so running "none" first and "world-model" second is a fair comparison.
-    await runArm("none", instruction);
-    await runArm("world-model", instruction);
   } catch (err) {
-    console.error("Compare run failed:", err);
+    appendStep("no", "error", err.message || "experiment failed");
   } finally {
     isBusy = false;
-    $("sendBtn").disabled = false;
-    $("promptInput").focus();
+    $("runBtn").disabled = false;
+    $("instructionInput").disabled = false;
   }
 }
 
-$("promptForm").addEventListener("submit", e => {
-  e.preventDefault();
-  const val = $("promptInput").value.trim();
-  $("promptInput").value = "";
-  if (val) sendInstruction(val);
+for (const name of ["before", "after"]) {
+  tabButton(name).addEventListener("click", () => showTab(name));
+}
+$("runBtn").addEventListener("click", runExperiment);
+$("instructionInput").addEventListener("keydown", event => {
+  if (event.key === "Enter") runExperiment();
 });
-
 $("resetBtn").addEventListener("click", async () => {
   $("resetBtn").disabled = true;
-  clearOutcome(SIDES.none);
-  clearOutcome(SIDES["world-model"]);
-  setSimLoading(SIDES.none, "Resetting scene...");
-  setSimLoading(SIDES["world-model"], "Resetting scene...");
+  clearRun();
+  setLoading("Resetting scene...");
   try {
     const snap = await (await fetch("/api/reset", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })).json();
     $("seedDisplay").textContent = `seed ${snap.seed}`;
-    if (snap.video) { showSimVideo(SIDES.none, snap.video); showSimVideo(SIDES["world-model"], snap.video); }
-  } catch (err) {
-    console.error("Reset failed:", err);
+    if (snap.video) showVideo(snap.video);
   } finally {
     $("resetBtn").disabled = false;
+    $("viewportStatus").textContent = "Ready";
+    placeholder.style.display = "flex";
+    spinner.style.display = "none";
+    placeholderText.textContent = "Type a task and press Run";
+    video.classList.remove("active");
   }
 });
 
-fetch("/api/scene")
-  .then(r => r.json())
-  .then(s => {
-    $("seedDisplay").textContent = `seed ${s.seed}`;
-    if (s.model) setModelUI(s.model);
-    if (s.video) { showSimVideo(SIDES.none, s.video); showSimVideo(SIDES["world-model"], s.video); }
-  })
-  .catch(() => {});
+fetch("/api/scene").then(r => r.json()).then(s => {
+  $("seedDisplay").textContent = `seed ${s.seed}`;
+  if (s.video) showVideo(s.video);
+}).catch(() => {});
 </script>
 </body>
 </html>

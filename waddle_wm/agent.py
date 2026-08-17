@@ -418,7 +418,7 @@ class SkillAgent:
 
     def run_sequence(self, run: AgentRun, plan: Plan, latent, emit, started) -> AgentRun:
         """Execute a compound instruction one observed, scored, and logged step at a time."""
-        executions, clips = [], []
+        executions, clips, executed_steps = [], [], []
         for index, proposed in enumerate(plan.steps):
             label = f"Step {index + 1} of the compound task: move the {proposed.object} onto the {proposed.destination}"
             if not self.feedback:
@@ -426,13 +426,18 @@ class SkillAgent:
                 step, latent = self.verify_sequence_step(run, plan, proposed, latent, index, label, emit)
                 if run.decision in ("rejected", "error"):
                     break
+                # What the verifier actually approved, which is not `proposed` once a step has been
+                # repaired. `final_plan` has to describe what ran, or a re-run replays the flaw.
+                executed_steps.append(step)
                 step_success = False
                 step_clips = []
                 for exec_attempt in range(self.repairs + 1):
                     if exec_attempt > 0:
                         emit("retrying", {"step": index + 1, "attempt": exec_attempt, "reason": execution.get("failure_mode") or "missed"})
                         self.observe_current()
-                        step = self.ground_step(proposed)
+                        # Re-ground the step the verifier approved, not the one originally proposed:
+                        # a retry that reverted to the pre-repair waypoints would re-run the flaw.
+                        step = self.ground_step(step)
                     emit("executing", {"step": index + 1, "attempt": exec_attempt, "object": step.object,
                                        "destination": step.destination, "trace": step.summary()["trace"]})
                     execution, frames = self.execute(step)
@@ -448,6 +453,7 @@ class SkillAgent:
                     break
             else:
                 step = self.ground_step(proposed)
+                executed_steps.append(step)
                 execution, frames = self.execute_with_feedback(run, label, step, emit)
                 executions.append(execution); clips.append(frames)
                 if execution.get("success") is False:
@@ -461,7 +467,7 @@ class SkillAgent:
         run.execution = {"steps": executions, "success": run.decision == "executed"}
         run.frames = np.concatenate(clips) if clips else None
         if run.final_plan is None:
-            run.final_plan = plan
+            run.final_plan = Plan(plan.intent, "execute", executed_steps, plan.note) if executed_steps else plan
         run.planner_calls = list(self.planner.calls)
         run.seconds = round(time.time() - started, 2)
         return run

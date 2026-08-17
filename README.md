@@ -42,7 +42,36 @@ uv sync
 uv run python -m waddle_wm.server
 ```
 
-Open http://127.0.0.1:8420. Type something like `put the red block on the green pad`. Left pane = world model. Right pane = baseline. Same plan, different outcome.
+Open http://127.0.0.1:8420. Type a task — `put the red block on the green pad`, or something compound like `put the red block on the green pad then put the blue block on the green pad`.
+
+![the browser demo](docs/assets/browser_demo.gif)
+
+You word the task. The harness then breaks it on purpose, and the page shows you both halves of the result:
+
+- **Before · unverified** — the flawed plan run with no checking at all. This is the failure, on video.
+- **After · verified, fresh scene** — the repaired plan, re-run from the identical seed and block position with nothing carried over from the crash.
+
+The page switches to **After** on its own when the verified run lands. **Before** stays one click away, so you are always one tab from the failure the verification prevented.
+
+### The flaw is sampled, not scripted
+
+A demo that always injects the same +6 cm looks like a verifier that memorised one number. So every run draws a fresh flaw ([`waddle_wm/chaos.py`](waddle_wm/chaos.py)) — a random direction and magnitude, from one of these:
+
+| kind | what goes wrong |
+| --- | --- |
+| `random_grasp` | grasp aimed 3.5–7 cm off the block, random heading |
+| `random_place` | release 12–22 cm off the pad, random heading |
+| `toward_neighbor` | grasp nudged 1.5–2.5 cm toward a crowding block — *inside* the geometry tolerance, fatal in physics |
+| `wrong_object` | grasp built from a different block's detection |
+| `stale_grasp` | plan built from where the block was before an earlier action moved it |
+| `perception_lie` | the detector reports the block 3.5–7 cm from where it is |
+| scene challenges | a crowding neighbour, an occluder, a post in the carry lane, a slippery block with a weak gripper, a heavy block on a bouncy contact, a shifted camera |
+
+Roughly 70% of runs break the plan, 30% leave the coordinates correct and break the *world* instead. The trace names the draw honestly — `perception_lie: 5.9 cm at 111°` — so a recording never overstates what was tested.
+
+**The failure is measured, not assumed.** A sampled flaw is only kept once the unverified baseline has actually missed in MuJoCo; if it survives, the harness resamples (up to 5 draws). So "verification prevented this" is never a claim about a plan that would have worked anyway.
+
+One honest caveat: on scene-only draws the baseline fails for a physics reason, and the repair that fixes it can be incidental rather than targeted. The trace shows every attempt, so you can tell which is which.
 
 No checkpoint? Still works:
 
@@ -125,6 +154,7 @@ uv run python -m waddle_wm.train_multiblock_world_model \
 | doc | why open it |
 | --- | --- |
 | [`docs/demo.md`](docs/demo.md) | what the demo proves and what it doesn't |
+| [`waddle_wm/chaos.py`](waddle_wm/chaos.py) | every flaw the browser demo can sample, and why each one fails |
 | [`docs/verifier_characterisation.md`](docs/verifier_characterisation.md) | what the probability actually means |
 | [`docs/llm_agent.md`](docs/llm_agent.md) | planner, camera, repair loop |
 | [`docs/results.md`](docs/results.md) | offline numbers |
