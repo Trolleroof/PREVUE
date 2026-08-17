@@ -1,6 +1,6 @@
 # PREVUE — Pre-execution Visual Understanding Engine
 
-<video src="docs/assets/prevue.mp4" width="100%" autoplay loop muted playsinline controls></video>
+[![PREVUE demo](docs/assets/prevue_demo.gif)](PREVUE.mp4)
 
 Language-conditioned pick-and-place with a visual world-model verifier.
 
