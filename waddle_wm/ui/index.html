@@ -407,6 +407,14 @@ function renderOutcome(o) {
     outcomeStamp.textContent = "NOT EXECUTED · verifier refused the plan";
     $("telDecision").textContent = "Refused";
     $("telDecision").style.color = "#888";
+  } else if (o.kind === "partial") {
+    outcomeStamp.className = "outcome-stamp active failure";
+    outcomeStamp.textContent = `STOPPED AT STEP ${o.stopped_at} · ${o.completed} of ${o.total_hint} `
+      + `done · step ${o.stopped_at} ${o.failure_mode || "missed"}`;
+    $("telDecision").textContent = `Partial (${o.completed}/${o.total_hint})`;
+    $("telDecision").style.color = "#888";
+    $("telDist").textContent = o.target_distance != null
+      ? `${(Number(o.target_distance) * 1000).toFixed(1)} mm` : "—";
   } else {
     const ok = o.kind === "success";
     const dist = o.target_distance != null ? `${(Number(o.target_distance) * 1000).toFixed(1)} mm` : "";
@@ -422,9 +430,19 @@ function renderOutcome(o) {
 
 function outcomeOf(execution, decision, cost) {
   const ex = execution || {};
-  if (decision === "rejected") return { kind: "refused", cost_usd: cost };
-  const last = Array.isArray(ex.steps) ? ex.steps.at(-1) || {} : ex;
-  const ok = ex.success === true || (Array.isArray(ex.steps) && ex.steps.length && ex.steps.every(s => s.success));
+  const steps = Array.isArray(ex.steps) ? ex.steps : null;
+  const last = steps ? steps.at(-1) || {} : ex;
+  // `run_sequence` also reports "rejected" when a step ran and missed, so a compound run that got
+  // partway is not a refusal — the arm moved, and saying otherwise misreads the trace.
+  const moved = steps ? steps.length > 0 : ex.success != null;
+  if (decision === "rejected" && !moved) return { kind: "refused", cost_usd: cost };
+  const done = steps ? steps.filter(s => s.success).length : (ex.success === true ? 1 : 0);
+  if (decision === "rejected" && steps) {
+    return { kind: "partial", stopped_at: steps.length, completed: done, total_hint: steps.length,
+             failure_mode: last.failure_mode, target_distance: last.target_distance,
+             max_block_z: last.max_block_z, cost_usd: cost };
+  }
+  const ok = ex.success === true || (steps && steps.length && steps.every(s => s.success));
   return { kind: ok ? "success" : "failure", failure_mode: last.failure_mode,
            target_distance: last.target_distance, max_block_z: last.max_block_z, cost_usd: cost };
 }
@@ -516,7 +534,12 @@ const HANDLERS = {
   },
   "arm-done"(d) {
     // The verified run has landed: switch to it automatically. The failure stays one click away.
-    if (d.decision === "rejected") appendStep("no", "refused", "the arm never moved", d.reason || "");
+    if (d.decision === "rejected") {
+      const partial = Array.isArray((d.execution || {}).steps) && d.execution.steps.length;
+      appendStep("no", partial ? "run halted" : "refused",
+                 partial ? "earlier steps ran; the run stopped here" : "the arm never moved",
+                 d.reason || "");
+    }
     setClip("after", d.video, outcomeOf(d.execution, d.decision, d.cost_usd));
   },
   done(d) {
