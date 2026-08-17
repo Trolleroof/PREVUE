@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>World model vs baseline</title>
+<title>prevue · unverified vs verified</title>
 <style>
   :root {
     --bg: #05080f; --panel: #0d1420; --line: #1e2a3d; --line2: #2c3d57;
@@ -88,8 +88,8 @@
     </section>
 
     <section class="side right" id="sideWm">
-      <div class="who"><h2>Visual world model</h2><div class="tag">imagines it first</div><span>arm 3</span></div>
-      <p class="what">Rolls the plan forward in latent space and judges the ending.</p>
+      <div class="who"><h2>prevue</h2><div class="tag">imagines it first</div><span>arm 3</span></div>
+      <p class="what">Rolls the plan forward in latent space and judges the ending before physics runs.</p>
       <div class="screen" id="screenWm"><div class="idle">waiting</div></div>
       <div class="rail" id="railWm"></div>
     </section>
@@ -228,7 +228,7 @@ function drawCopy() {
     const rates = DATA.sweep.rates.filter(r => r.scenario === scenario);
     const pick = id => rates.find(r => r.arm === id);
     verdict.innerHTML = `<s>${pick("none").success}/${pick("none").scenes}</s> unverified &nbsp;→&nbsp; ` +
-                        `<span>${pick("world-model").success}/${pick("world-model").scenes}</span> with the world model`;
+                        `<span>${pick("world-model").success}/${pick("world-model").scenes}</span> with prevue`;
     note.innerHTML = `Over ${DATA.sweep.scenes} randomised scenes, it caught the bad plan in ` +
                      `<b>${pick("world-model").caught}/${pick("world-model").scenes}</b> and turned ` +
                      `${pick("world-model").success} of them into successes.`;

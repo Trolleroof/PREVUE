@@ -1,4 +1,6 @@
-# Language-Conditioned Pick-and-Place with a Visual World-Model Verifier
+# PREVUE — Pre-execution Visual Understanding Engine
+
+Language-conditioned pick-and-place with a visual world-model verifier.
 
 This is a robot pick-and-place stack in MuJoCo. You give it a command in plain English. Claude turns that into a structured waypoint plan. Before the arm moves, a verifier imagines what the plan will do — will the block lift, will it land on the pad, what breaks — and sends the plan back for repair if it looks wrong. The browser demo runs world model vs baseline side by side on the same plan so you can see the difference.
 
@@ -44,7 +46,7 @@ uv run python -m waddle_wm.server
 
 Open http://127.0.0.1:8420. Type a task — `put the red block on the green pad`, or something compound like `put the red block on the green pad then put the blue block on the green pad`.
 
-![the browser demo](docs/assets/browser_demo.gif)
+<video src="docs/assets/prevue.mp4" width="100%" autoplay loop muted playsinline controls></video>
 
 You word the task. The harness then breaks it on purpose, and the page shows you both halves of the result:
 

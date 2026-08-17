@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>World Model Verifier</title>
+<title>prevue</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
@@ -47,7 +47,14 @@
     justify-content: space-between;
     flex-shrink: 0;
   }
-  .paper-title { font-size: 16px; font-weight: 500; }
+  .paper-brand { display: flex; flex-direction: column; gap: 1px; }
+  .paper-title { font-size: 16px; font-weight: 500; letter-spacing: 0.04em; }
+  .paper-subtitle {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-faint);
+    letter-spacing: 0.01em;
+  }
   .header-actions { display: flex; align-items: center; gap: 8px; }
   .meta-tag {
     font-family: var(--font-mono);
@@ -265,7 +272,10 @@
 <body>
 <div id="app">
   <header>
-    <div class="paper-title">World Model Verifier</div>
+    <div class="paper-brand">
+      <div class="paper-title">prevue</div>
+      <div class="paper-subtitle">Pre-execution Visual Understanding Engine</div>
+    </div>
     <div class="header-actions">
       <span class="meta-tag" id="seedDisplay">seed 0</span>
       <button type="button" class="btn-academic" id="resetBtn">Reset</button>
@@ -314,7 +324,7 @@
       <button type="button" class="btn-submit" id="runBtn">Run</button>
     </div>
     <div class="demo-desc" id="demoDesc">
-            Prompt the LLM agent with the task. By design, the harness will inject a perception, plan, or scene error on purpose and runs it unchecked first. The world model can then image the same plan, reject it, repair it, and execute till success.
+            Prompt the LLM agent with the task. By design, the harness injects a perception, plan, or scene error and runs it unchecked first. prevue imagines the same plan, rejects it, repairs it, and executes until success.
     </div>
   </footer>
 </div>
@@ -351,7 +361,7 @@ function appendCompareCard(d) {
   card.className = "compare-card";
   card.innerHTML = `<div class="k">Without verification · same flawed plan</div>
     <div class="v">Failure (${d.failure_mode || "missed"}) · ${dist}</div>
-    <div class="n">${lift} — this is what the world model prevents</div>`;
+    <div class="n">${lift} — this is what prevue prevents</div>`;
   trace.appendChild(card);
   trace.scrollTop = trace.scrollHeight;
 }
